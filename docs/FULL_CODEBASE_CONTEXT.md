@@ -1,5 +1,5 @@
 # FRESH NEST: CODEBASE DUMP
-**Date:** Mon Jan  5 20:48:30 EST 2026
+**Date:** Mon Jan  5 22:10:20 EST 2026
 **Description:** Complete codebase context excluding modules and secrets.
 
 ## FILE: package.json
@@ -97,6 +97,32 @@ export default {
     tailwindcss: {},
     autoprefixer: {},
   },
+}
+
+```
+---
+
+## FILE: firebase.json
+```json
+{
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "hosting": {
+    "public": "dist",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
 }
 
 ```
@@ -236,6 +262,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import AppLayout from './components/layout/AppLayout';
 import AuthGuard from './components/layout/AuthGuard';
 import LoginPage from './features/auth/LoginPage';
+import ClientsPage from './pages/ClientsPage';
 import DebugClaims from './components/debug/DebugClaims';
 
 // Placeholder Pages
@@ -266,6 +293,7 @@ function App() {
         }>
           <Route index element={<Dashboard />} />
           <Route path="schedule" element={<Schedule />} />
+          <Route path="clients" element={<ClientsPage />} />
           {/* Catch-all redirects to home */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
@@ -275,6 +303,254 @@ function App() {
 }
 
 export default App;
+
+```
+---
+
+## FILE: src/components/clients/ClientFormModal.jsx
+```jsx
+import React, { useState } from 'react';
+import { X, Save, Loader } from 'lucide-react';
+
+const ClientFormModal = ({ isOpen, onClose, onSave }) => {
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    address: ''
+  });
+
+  if (!isOpen) return null;
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await onSave(formData);
+      setFormData({ name: '', email: '', phone: '', address: '' }); // Reset
+      onClose();
+    } catch (error) {
+      console.error(error);
+      alert("Failed to save client. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden">
+        
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+          <h3 className="font-bold text-lg text-slate-800">Add New Client</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X size={24} />
+          </button>
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Client Name *</label>
+            <input
+              type="text"
+              required
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
+              value={formData.name}
+              onChange={(e) => setFormData({...formData, name: e.target.value})}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+              <input
+                type="email"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                value={formData.email}
+                onChange={(e) => setFormData({...formData, email: e.target.value})}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
+              <input
+                type="tel"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                value={formData.phone}
+                onChange={(e) => setFormData({...formData, phone: e.target.value})}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Address</label>
+            <textarea
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
+              rows="3"
+              value={formData.address}
+              onChange={(e) => setFormData({...formData, address: e.target.value})}
+            ></textarea>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-4 py-2 bg-brand-600 text-white rounded-lg font-medium hover:bg-brand-700 flex items-center gap-2 disabled:opacity-50"
+            >
+              {loading ? <Loader className="animate-spin" size={18} /> : <Save size={18} />}
+              Save Client
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default ClientFormModal;
+
+```
+---
+
+## FILE: src/components/clients/ClientListMobile.jsx
+```jsx
+import React from 'react';
+import { MapPin, Phone, Mail } from 'lucide-react';
+
+const ClientListMobile = ({ clients }) => {
+  if (clients.length === 0) {
+    return (
+      <div className="text-center py-10 bg-white rounded-xl border border-gray-100">
+        <p className="text-gray-500">No clients found.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4 md:hidden">
+      {clients.map((client) => (
+        <div key={client.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+          <div className="flex justify-between items-start mb-2">
+            <h3 className="font-bold text-slate-800 text-lg">{client.name}</h3>
+          </div>
+          
+          <div className="space-y-2 text-sm text-slate-600">
+            {client.address && (
+              <div className="flex items-start gap-2">
+                <MapPin size={16} className="text-brand-500 shrink-0 mt-0.5" />
+                <span>{client.address}</span>
+              </div>
+            )}
+            
+            <div className="flex gap-3 mt-3 pt-3 border-t border-gray-50">
+              {client.phone && (
+                <a 
+                  href={`tel:${client.phone}`}
+                  className="flex-1 flex items-center justify-center gap-2 py-2 bg-green-50 text-green-700 rounded-lg font-medium text-xs active:bg-green-100"
+                >
+                  <Phone size={14} /> Call
+                </a>
+              )}
+              {client.email && (
+                <a 
+                  href={`mailto:${client.email}`}
+                  className="flex-1 flex items-center justify-center gap-2 py-2 bg-blue-50 text-blue-700 rounded-lg font-medium text-xs active:bg-blue-100"
+                >
+                  <Mail size={14} /> Email
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+export default ClientListMobile;
+
+```
+---
+
+## FILE: src/components/clients/ClientTableDesktop.jsx
+```jsx
+import React from 'react';
+import { MapPin, Phone, Mail, MoreHorizontal } from 'lucide-react';
+
+const ClientTableDesktop = ({ clients }) => {
+  if (clients.length === 0) {
+    return (
+      <div className="hidden md:block bg-white p-12 text-center rounded-xl border border-gray-200">
+        <p className="text-gray-500">No clients found. Add one to get started.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="hidden md:block bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <table className="w-full text-left border-collapse">
+        <thead>
+          <tr className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold">
+            <th className="px-6 py-4">Client Name</th>
+            <th className="px-6 py-4">Contact Info</th>
+            <th className="px-6 py-4">Address</th>
+            <th className="px-6 py-4 text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {clients.map((client) => (
+            <tr key={client.id} className="hover:bg-gray-50 transition-colors">
+              <td className="px-6 py-4">
+                <div className="font-medium text-slate-900">{client.name}</div>
+                <div className="text-xs text-slate-400">ID: {client.id.slice(0,8)}...</div>
+              </td>
+              <td className="px-6 py-4">
+                <div className="flex flex-col gap-1 text-sm text-slate-600">
+                  {client.phone && (
+                    <div className="flex items-center gap-2">
+                      <Phone size={14} className="text-slate-400" />
+                      {client.phone}
+                    </div>
+                  )}
+                  {client.email && (
+                    <div className="flex items-center gap-2">
+                      <Mail size={14} className="text-slate-400" />
+                      {client.email}
+                    </div>
+                  )}
+                </div>
+              </td>
+              <td className="px-6 py-4">
+                <div className="flex items-start gap-2 text-sm text-slate-600 max-w-[200px]">
+                  <MapPin size={14} className="text-slate-400 shrink-0 mt-0.5" />
+                  <span className="truncate">{client.address}</span>
+                </div>
+              </td>
+              <td className="px-6 py-4 text-right">
+                <button className="text-slate-400 hover:text-brand-600 p-2">
+                  <MoreHorizontal size={20} />
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+export default ClientTableDesktop;
+
 ```
 ---
 
@@ -403,7 +679,7 @@ export default AuthGuard;
 ```jsx
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Calendar, Menu } from 'lucide-react';
+import { LayoutDashboard, Calendar, Users, Menu } from 'lucide-react';
 
 const BottomNav = () => {
   return (
@@ -424,6 +700,14 @@ const BottomNav = () => {
         <span className="text-xs">Schedule</span>
       </NavLink>
 
+      <NavLink 
+        to="/clients" 
+        className={({ isActive }) => `flex flex-col items-center gap-1 ${isActive ? 'text-brand-600' : 'text-gray-400'}`}
+      >
+        <Users size={24} />
+        <span className="text-xs">Clients</span>
+      </NavLink>
+
       <button className="flex flex-col items-center gap-1 text-gray-400">
         <Menu size={24} />
         <span className="text-xs">More</span>
@@ -442,6 +726,8 @@ export default BottomNav;
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { LayoutDashboard, Calendar, Users, Settings, LogOut } from 'lucide-react';
+import { signOut } from 'firebase/auth';
+import { auth } from '../../lib/firebase';
 
 const Sidebar = () => {
   const navItems = [
@@ -450,6 +736,16 @@ const Sidebar = () => {
     { icon: Users, label: 'Clients', path: '/clients' },
     { icon: Settings, label: 'Settings', path: '/settings' },
   ];
+
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+      // No need to navigate manually; AuthGuard will detect the change 
+      // and redirect to /login automatically.
+    } catch (error) {
+      console.error("Error signing out:", error);
+    }
+  };
 
   return (
     <aside className="hidden md:flex flex-col w-64 bg-slate-800 text-white h-screen fixed left-0 top-0">
@@ -476,7 +772,10 @@ const Sidebar = () => {
       </nav>
 
       <div className="p-4 border-t border-slate-700">
-        <button className="flex items-center gap-3 px-4 py-2 text-slate-300 hover:text-white w-full">
+        <button 
+          onClick={handleSignOut}
+          className="flex items-center gap-3 px-4 py-2 text-slate-300 hover:text-white w-full hover:bg-slate-700 rounded-lg transition-colors"
+        >
           <LogOut size={20} />
           <span>Sign Out</span>
         </button>
@@ -486,7 +785,6 @@ const Sidebar = () => {
 };
 
 export default Sidebar;
-
 ```
 ---
 
@@ -563,6 +861,9 @@ const LoginPage = () => {
                 <Mail className="absolute left-3 top-3 text-slate-400" size={20} />
                 <input
                   type="email"
+                  name="email"
+                  id="email"
+                  autoComplete="email"
                   required
                   className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
                   placeholder="name@company.com"
@@ -578,6 +879,9 @@ const LoginPage = () => {
                 <Lock className="absolute left-3 top-3 text-slate-400" size={20} />
                 <input
                   type="password"
+                  name="password"
+                  id="password"
+                  autoComplete={isLogin ? "current-password" : "new-password"}
                   required
                   className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
                   placeholder="••••••••"
@@ -611,6 +915,92 @@ const LoginPage = () => {
 };
 
 export default LoginPage;
+```
+---
+
+## FILE: src/hooks/useClients.js
+```js
+import { useState, useEffect } from 'react';
+import { 
+  collection, 
+  query, 
+  where, 
+  onSnapshot, 
+  addDoc, 
+  serverTimestamp,
+  orderBy 
+} from 'firebase/firestore';
+import { auth, db } from '../lib/firebase';
+
+export const useClients = () => {
+  const [clients, setClients] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    // Get the orgId from the token claims (stored in local state or refetch)
+    // For now, we assume the user object is hydrated or we fetch the token result.
+    // In a robust app, we'd use a generic AuthContext, but here we access the ID token.
+    user.getIdTokenResult().then((idTokenResult) => {
+      const orgId = idTokenResult.claims.orgId;
+
+      if (!orgId) {
+        setError("Organization ID missing from user profile.");
+        setLoading(false);
+        return;
+      }
+
+      // SECURITY: Subscribe ONLY to clients in this user's Org
+      const q = query(
+        collection(db, 'clients'),
+        where('orgId', '==', orgId),
+        orderBy('createdAt', 'desc')
+      );
+
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const clientData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setClients(clientData);
+        setLoading(false);
+      }, (err) => {
+        console.error("Error fetching clients:", err);
+        setError("Failed to load clients.");
+        setLoading(false);
+      });
+
+      return () => unsubscribe();
+    });
+  }, []);
+
+  const addClient = async (clientData) => {
+    const user = auth.currentUser;
+    if (!user) throw new Error("Not authenticated");
+
+    const idTokenResult = await user.getIdTokenResult();
+    const orgId = idTokenResult.claims.orgId;
+
+    if (!orgId) throw new Error("No Organization ID found.");
+
+    // SECURITY: Force attach orgId and server timestamp
+    await addDoc(collection(db, 'clients'), {
+      ...clientData,
+      orgId, 
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+  };
+
+  return { clients, loading, error, addClient };
+};
+
 ```
 ---
 
@@ -673,6 +1063,88 @@ createRoot(document.getElementById('root')).render(
 ```
 ---
 
+## FILE: src/pages/ClientsPage.jsx
+```jsx
+import React, { useState } from 'react';
+import { Plus, Search } from 'lucide-react';
+import { useClients } from '../hooks/useClients';
+import ClientListMobile from '../components/clients/ClientListMobile';
+import ClientTableDesktop from '../components/clients/ClientTableDesktop';
+import ClientFormModal from '../components/clients/ClientFormModal';
+
+const ClientsPage = () => {
+  const { clients, loading, error, addClient } = useClients();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Client-side filtering
+  const filteredClients = clients.filter(c => 
+    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    c.email?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  return (
+    <div className="space-y-6">
+      {/* Header & Actions */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Clients</h1>
+          <p className="text-slate-500 text-sm">Manage your residential and commercial customers</p>
+        </div>
+        
+        <div className="flex gap-3">
+          <div className="relative flex-1 md:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+            <input 
+              type="text"
+              placeholder="Search clients..."
+              className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="bg-brand-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-brand-700 flex items-center gap-2 shadow-sm whitespace-nowrap"
+          >
+            <Plus size={20} />
+            <span className="hidden md:inline">Add Client</span>
+            <span className="md:hidden">Add</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Content */}
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div>
+        </div>
+      ) : error ? (
+        <div className="bg-red-50 text-red-600 p-4 rounded-lg border border-red-100">
+          Error: {error}
+        </div>
+      ) : (
+        <>
+          <ClientListMobile clients={filteredClients} />
+          <ClientTableDesktop clients={filteredClients} />
+        </>
+      )}
+
+      {/* Modals */}
+      <ClientFormModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        onSave={addClient}
+      />
+    </div>
+  );
+};
+
+export default ClientsPage;
+
+```
+---
+
 ## FILE: docs/CONTEXT_DUMP.md
 ```md
 # Fresh Nest: Context Dump
@@ -693,6 +1165,144 @@ createRoot(document.getElementById('root')).render(
 2. Use `lucide-react` for icons.
 3. Tailwind Colors: `bg-brand-500` (Primary), `bg-slate-800` (Sidebar).
 4. Security: All Firestore queries MUST filter by `where("orgId", "==", user.orgId)`.
+```
+---
+
+## FILE: docs/PROJECT_STATUS.md
+```md
+# 📌 Project Status: Fresh Nest
+
+**Current Phase:** Phase 1 - Foundation & Core Data
+**Last Updated:** $(date +%Y-%m-%d)
+
+## ✅ Completed Features
+* **Project Setup:** Vite + React + Tailwind CSS configured.
+* **Authentication:** Firebase Login/Signup with Email & Password.
+* **Multi-Tenancy:** * Custom Claims (`orgId`) implemented.
+    * `init-org.cjs` script created for provisioning new organizations.
+* **Client Management:**
+    * Robust `useClients` hook with `orgId` security filters.
+    * Responsive UI: Mobile Card List + Desktop Data Table.
+    * "Add Client" Modal with validation.
+    * Firestore Security Rules & Composite Indexes deployed.
+
+## 🚧 In Progress / Next Up
+* [ ] **Job Management:** Creating and assigning cleaning jobs.
+* [ ] **Scheduling:** Calendar view for jobs.
+* [ ] **Staff Management:** Adding employees to the Org.
+
+## 🗄️ Database Schema (Firestore)
+
+### `organizations/{orgId}`
+* `name`: String
+* `plan`: String ("basic", "gold")
+* `settings`: Map (currency, etc.)
+
+### `users/{userId}`
+* `email`: String
+* `fullName`: String
+* `orgId`: String (Link to Organization)
+* `role`: String ("admin", "user")
+
+### `clients/{clientId}` (✨ NEW)
+* `orgId`: String (Security Partition)
+* `name`: String
+* `email`: String
+* `phone`: String
+* `address`: String
+* `createdAt`: Timestamp
+
+## 📂 Key Files Created
+* `src/hooks/useClients.js`
+* `src/pages/ClientsPage.jsx`
+* `src/components/clients/*` (Modal, List, Table)
+* `firestore.rules`
+* `firestore.indexes.json`
+
+
+```
+---
+
+## FILE: docs/PROMPT_APPROVAL.md
+```md
+# ✅ AI Approval & Execution Prompt
+
+**Instructions:**
+Use this prompt **after** the AI has presented the 3 Architectural Options. This signals approval for the **Recommended (Robust)** approach and enforces strict coding standards.
+
+---
+
+### **Prompt Template**
+
+**Decision:** I approve the **Recommended (Robust) Approach**. Proceed with implementation.
+
+**Strict Technical Constraints (Best Practices):**
+1.  **React:** Use functional components and proper Hook dependency arrays. Isolate logic in Custom Hooks.
+2.  **Tailwind:** Use mobile-first classes (`block md:flex`). Avoid arbitrary values (e.g., `w-[350px]`) — use the theme.
+3.  **Firebase:**
+    * **Security:** ALL `addDoc` calls must include `orgId`. ALL `onSnapshot` queries must filter by `orgId`.
+    * **Timestamps:** Use `serverTimestamp()` for `createdAt` fields.
+4.  **Code Quality:** No "placeholder" code. Complete files only.
+
+**Output Requirements:**
+
+1.  **The "One-Shot" Installer:**
+    * Provide a single bash script named `scripts/install_feature.sh`.
+    * This script must use `cat << 'EOF' > path/to/file` to safely create the directories and write the file contents.
+    * *Note:* Ensure you escape special characters in the bash script correctly so the React code generates properly.
+
+2.  **QA Checklist (Manual Testing):**
+    * Provide a bulleted list of 3-5 manual tests I should perform to verify this specific feature works.
+    * Include at least one "Security/Isolation" test case (e.g., verify Org A cannot see Org B's data).
+
+3.  **Git Documentation:**
+    * At the very end, provide a **Git Commit Comment Block**.
+    * Format:
+        * **Branch:** (Verify we are on `feature/...`)
+        * **Message:** `feat: [summary]`
+        * **Description:** Bullet points of changes.
+
+*Please generate the installation script, test checklist, and git docs now.*
+
+```
+---
+
+## FILE: docs/PROMPT_FEATURE_REQUEST.md
+```md
+# 📝 AI Feature Request Prompt (Architectural Mode)
+
+**Instructions:**
+1.  Ensure you have already initialized the AI session using the `PROMPT_INITIALIZATION.md` template.
+2.  Copy the **Prompt Template** below into your AI Chat.
+3.  Fill in the bracketed sections `[ ... ]` with your specific requirements.
+
+---
+
+### **Prompt Template**
+
+**Feature Request:** [INSERT FEATURE NAME]
+
+**Context:**
+I need to add a module to "Fresh Nest" that allows [WHO] to [DO WHAT].
+
+**Core Requirements:**
+1.  **Data:** [Describe data needs, e.g., "Store Client details linked to orgId"]
+2.  **UI:** [Describe UI needs, e.g., "Mobile cards, Desktop table"]
+3.  **Logic:** [Describe logic, e.g., "Real-time updates, security filters"]
+
+**🛑 STOP & THINK: Architectural Options**
+Before writing any code, please propose **3 Distinct Approaches** to implementing this feature:
+
+1.  **The "MVP" Approach:** Fastest to build, simplest code, uses basic HTML/Tailwind. Good for testing value quickly.
+2.  **The " robust & Scalable" Approach (Recommended):** Best balance. Uses proper abstractions (custom hooks), error handling, and reusable components. Future-proofs for growth.
+3.  **The "Over-Engineered" Approach:** Uses advanced libraries (e.g., React Query, Virtualized Tables) or complex patterns. best for massive scale but high initial complexity.
+
+**Your Task:**
+1.  Briefly describe these 3 options (Pros/Cons of each).
+2.  Recommend which one fits our current "Mobile-First SaaS" stage best.
+3.  **WAIT** for my confirmation on which approach to take before generating the code.
+
+
 ```
 ---
 
@@ -884,21 +1494,26 @@ echo "👉 Copy the contents of $OUTPUT_FILE and paste it into your AI chat."
 /**
  * scripts/init-org.js
  * USAGE: 
- * 1. Ensure service-account.json is in this folder.
- * 2. Run: node scripts/init-org.js
+ * 1. Ensure service-account.json is in this folder (scripts/).
+ * 2. Run: node scripts/init-org.cjs
  */
 
 const admin = require('firebase-admin');
-const serviceAccount = require('./service-account.json');
+// Ensure this file exists! You downloaded it from Firebase Console -> Project Settings -> Service Accounts
+const serviceAccount = require('./service-account.json'); 
 
 // --- CONFIGURATION ---
-const TARGET_EMAIL = "rpdouglas@gmail.com"; // <--- 🔴 PUT YOUR EMAIL HERE
-const ORG_NAME = "Fresh Nest HQ"; 
+const TARGET_EMAIL = "FN_TEST_CLEANER@gmail.com"; // <--- The account you want to give a "Home" to
+const ORG_NAME = "Cleaner Test Org";              // <--- The name of their new Organization
 // ---------------------
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
-});
+// Initialize the Admin SDK
+// Check if already initialized to avoid hot-reload errors (though rare in scripts)
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+  });
+}
 
 const db = admin.firestore();
 const auth = admin.auth();
@@ -908,28 +1523,34 @@ async function bootstrap() {
     console.log(`🚀 Starting bootstrap for: ${TARGET_EMAIL}`);
 
     // 1. Find the user
-    const user = await auth.getUserByEmail(TARGET_EMAIL);
-    console.log(`✅ Found User: ${user.uid}`);
+    let user;
+    try {
+      user = await auth.getUserByEmail(TARGET_EMAIL);
+      console.log(`✅ Found User: ${user.uid}`);
+    } catch (e) {
+      console.error(`❌ User ${TARGET_EMAIL} not found in Auth. Did you sign up in the browser first?`);
+      process.exit(1);
+    }
 
     // 2. Create the Organization
     const orgRef = await db.collection('organizations').add({
       name: ORG_NAME,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      plan: 'gold',
+      plan: 'basic', // Default plan for new orgs
       settings: {
         currency: 'USD',
         geoFenceRadius: 200
       }
     });
-    console.log(`✅ Created Organization: ${orgRef.id}`);
+    console.log(`✅ Created Organization: ${orgRef.id} (${ORG_NAME})`);
 
     // 3. Update the User Profile (Firestore)
     // We create a public profile for this user so we can find them easily later
     await db.collection('users').doc(user.uid).set({
       email: user.email,
       orgId: orgRef.id,
-      role: 'admin',
-      fullName: 'Admin User',
+      role: 'admin', // First user is always admin
+      fullName: 'Test User',
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
     console.log(`✅ Created User Profile in Firestore`);
@@ -942,14 +1563,677 @@ async function bootstrap() {
     });
     console.log(`✅ Claims set on Auth Token!`);
 
-    console.log("\n🎉 SUCCESS! You must Sign Out and Sign In again on the app to refresh your token.");
+    console.log("\n🎉 SUCCESS! You MUST Sign Out and Sign In again on the app to refresh your token.");
 
   } catch (error) {
-    console.error("❌ Error:", error.message);
+    console.error("❌ Error during bootstrap:", error);
   }
 }
 
 bootstrap();
+```
+---
+
+## FILE: scripts/init-org.js
+```js
+/**
+ * scripts/init-org.js
+ * USAGE: 
+ * 1. Ensure service-account.json is in this folder (scripts/).
+ * 2. Run: node scripts/init-org.cjs
+ */
+
+const admin = require('firebase-admin');
+// Ensure this file exists! You downloaded it from Firebase Console -> Project Settings -> Service Accounts
+const serviceAccount = require('./service-account.json'); 
+
+// --- CONFIGURATION ---
+const TARGET_EMAIL = "FN_TEST_CLEANER@gmail.com"; // <--- The account you want to give a "Home" to
+const ORG_NAME = "Cleaner Test Org";              // <--- The name of their new Organization
+// ---------------------
+
+// Initialize the Admin SDK
+// Check if already initialized to avoid hot-reload errors (though rare in scripts)
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+  });
+}
+
+const db = admin.firestore();
+const auth = admin.auth();
+
+async function bootstrap() {
+  try {
+    console.log(`🚀 Starting bootstrap for: ${TARGET_EMAIL}`);
+
+    // 1. Find the user
+    let user;
+    try {
+      user = await auth.getUserByEmail(TARGET_EMAIL);
+      console.log(`✅ Found User: ${user.uid}`);
+    } catch (e) {
+      console.error(`❌ User ${TARGET_EMAIL} not found in Auth. Did you sign up in the browser first?`);
+      process.exit(1);
+    }
+
+    // 2. Create the Organization
+    const orgRef = await db.collection('organizations').add({
+      name: ORG_NAME,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      plan: 'basic', // Default plan for new orgs
+      settings: {
+        currency: 'USD',
+        geoFenceRadius: 200
+      }
+    });
+    console.log(`✅ Created Organization: ${orgRef.id} (${ORG_NAME})`);
+
+    // 3. Update the User Profile (Firestore)
+    // We create a public profile for this user so we can find them easily later
+    await db.collection('users').doc(user.uid).set({
+      email: user.email,
+      orgId: orgRef.id,
+      role: 'admin', // First user is always admin
+      fullName: 'Test User',
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    console.log(`✅ Created User Profile in Firestore`);
+
+    // 4. Set Custom Claims (The "Magic" Token)
+    // This allows the frontend to know their role without querying the DB
+    await auth.setCustomUserClaims(user.uid, {
+      orgId: orgRef.id,
+      role: 'admin'
+    });
+    console.log(`✅ Claims set on Auth Token!`);
+
+    console.log("\n🎉 SUCCESS! You MUST Sign Out and Sign In again on the app to refresh your token.");
+
+  } catch (error) {
+    console.error("❌ Error during bootstrap:", error);
+  }
+}
+
+bootstrap();
+```
+---
+
+## FILE: scripts/install_feature.sh
+```sh
+#!/bin/bash
+
+# ====================================================
+# FRESH NEST: FEATURE INSTALLER
+# Feature: Client Management Module
+# Approach: Robust (Hook + Components + Page)
+# ====================================================
+
+echo "🚀 Installing Client Management Feature..."
+
+# 1. Create Directories
+mkdir -p src/hooks
+mkdir -p src/pages
+mkdir -p src/components/clients
+
+# 2. Create the Custom Hook (Logic Layer)
+echo "📝 Writing src/hooks/useClients.js..."
+cat << 'EOF' > src/hooks/useClients.js
+import { useState, useEffect } from 'react';
+import { 
+  collection, 
+  query, 
+  where, 
+  onSnapshot, 
+  addDoc, 
+  serverTimestamp,
+  orderBy 
+} from 'firebase/firestore';
+import { auth, db } from '../lib/firebase';
+
+export const useClients = () => {
+  const [clients, setClients] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    // Get the orgId from the token claims (stored in local state or refetch)
+    // For now, we assume the user object is hydrated or we fetch the token result.
+    // In a robust app, we'd use a generic AuthContext, but here we access the ID token.
+    user.getIdTokenResult().then((idTokenResult) => {
+      const orgId = idTokenResult.claims.orgId;
+
+      if (!orgId) {
+        setError("Organization ID missing from user profile.");
+        setLoading(false);
+        return;
+      }
+
+      // SECURITY: Subscribe ONLY to clients in this user's Org
+      const q = query(
+        collection(db, 'clients'),
+        where('orgId', '==', orgId),
+        orderBy('createdAt', 'desc')
+      );
+
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const clientData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setClients(clientData);
+        setLoading(false);
+      }, (err) => {
+        console.error("Error fetching clients:", err);
+        setError("Failed to load clients.");
+        setLoading(false);
+      });
+
+      return () => unsubscribe();
+    });
+  }, []);
+
+  const addClient = async (clientData) => {
+    const user = auth.currentUser;
+    if (!user) throw new Error("Not authenticated");
+
+    const idTokenResult = await user.getIdTokenResult();
+    const orgId = idTokenResult.claims.orgId;
+
+    if (!orgId) throw new Error("No Organization ID found.");
+
+    // SECURITY: Force attach orgId and server timestamp
+    await addDoc(collection(db, 'clients'), {
+      ...clientData,
+      orgId, 
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+  };
+
+  return { clients, loading, error, addClient };
+};
+EOF
+
+# 3. Create Components (UI Layer)
+
+echo "📝 Writing src/components/clients/ClientFormModal.jsx..."
+cat << 'EOF' > src/components/clients/ClientFormModal.jsx
+import React, { useState } from 'react';
+import { X, Save, Loader } from 'lucide-react';
+
+const ClientFormModal = ({ isOpen, onClose, onSave }) => {
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    address: ''
+  });
+
+  if (!isOpen) return null;
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await onSave(formData);
+      setFormData({ name: '', email: '', phone: '', address: '' }); // Reset
+      onClose();
+    } catch (error) {
+      console.error(error);
+      alert("Failed to save client. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden">
+        
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+          <h3 className="font-bold text-lg text-slate-800">Add New Client</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X size={24} />
+          </button>
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Client Name *</label>
+            <input
+              type="text"
+              required
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
+              value={formData.name}
+              onChange={(e) => setFormData({...formData, name: e.target.value})}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+              <input
+                type="email"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                value={formData.email}
+                onChange={(e) => setFormData({...formData, email: e.target.value})}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
+              <input
+                type="tel"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                value={formData.phone}
+                onChange={(e) => setFormData({...formData, phone: e.target.value})}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Address</label>
+            <textarea
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
+              rows="3"
+              value={formData.address}
+              onChange={(e) => setFormData({...formData, address: e.target.value})}
+            ></textarea>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-4 py-2 bg-brand-600 text-white rounded-lg font-medium hover:bg-brand-700 flex items-center gap-2 disabled:opacity-50"
+            >
+              {loading ? <Loader className="animate-spin" size={18} /> : <Save size={18} />}
+              Save Client
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default ClientFormModal;
+EOF
+
+echo "📝 Writing src/components/clients/ClientListMobile.jsx..."
+cat << 'EOF' > src/components/clients/ClientListMobile.jsx
+import React from 'react';
+import { MapPin, Phone, Mail } from 'lucide-react';
+
+const ClientListMobile = ({ clients }) => {
+  if (clients.length === 0) {
+    return (
+      <div className="text-center py-10 bg-white rounded-xl border border-gray-100">
+        <p className="text-gray-500">No clients found.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4 md:hidden">
+      {clients.map((client) => (
+        <div key={client.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+          <div className="flex justify-between items-start mb-2">
+            <h3 className="font-bold text-slate-800 text-lg">{client.name}</h3>
+          </div>
+          
+          <div className="space-y-2 text-sm text-slate-600">
+            {client.address && (
+              <div className="flex items-start gap-2">
+                <MapPin size={16} className="text-brand-500 shrink-0 mt-0.5" />
+                <span>{client.address}</span>
+              </div>
+            )}
+            
+            <div className="flex gap-3 mt-3 pt-3 border-t border-gray-50">
+              {client.phone && (
+                <a 
+                  href={`tel:${client.phone}`}
+                  className="flex-1 flex items-center justify-center gap-2 py-2 bg-green-50 text-green-700 rounded-lg font-medium text-xs active:bg-green-100"
+                >
+                  <Phone size={14} /> Call
+                </a>
+              )}
+              {client.email && (
+                <a 
+                  href={`mailto:${client.email}`}
+                  className="flex-1 flex items-center justify-center gap-2 py-2 bg-blue-50 text-blue-700 rounded-lg font-medium text-xs active:bg-blue-100"
+                >
+                  <Mail size={14} /> Email
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+export default ClientListMobile;
+EOF
+
+echo "📝 Writing src/components/clients/ClientTableDesktop.jsx..."
+cat << 'EOF' > src/components/clients/ClientTableDesktop.jsx
+import React from 'react';
+import { MapPin, Phone, Mail, MoreHorizontal } from 'lucide-react';
+
+const ClientTableDesktop = ({ clients }) => {
+  if (clients.length === 0) {
+    return (
+      <div className="hidden md:block bg-white p-12 text-center rounded-xl border border-gray-200">
+        <p className="text-gray-500">No clients found. Add one to get started.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="hidden md:block bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <table className="w-full text-left border-collapse">
+        <thead>
+          <tr className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold">
+            <th className="px-6 py-4">Client Name</th>
+            <th className="px-6 py-4">Contact Info</th>
+            <th className="px-6 py-4">Address</th>
+            <th className="px-6 py-4 text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {clients.map((client) => (
+            <tr key={client.id} className="hover:bg-gray-50 transition-colors">
+              <td className="px-6 py-4">
+                <div className="font-medium text-slate-900">{client.name}</div>
+                <div className="text-xs text-slate-400">ID: {client.id.slice(0,8)}...</div>
+              </td>
+              <td className="px-6 py-4">
+                <div className="flex flex-col gap-1 text-sm text-slate-600">
+                  {client.phone && (
+                    <div className="flex items-center gap-2">
+                      <Phone size={14} className="text-slate-400" />
+                      {client.phone}
+                    </div>
+                  )}
+                  {client.email && (
+                    <div className="flex items-center gap-2">
+                      <Mail size={14} className="text-slate-400" />
+                      {client.email}
+                    </div>
+                  )}
+                </div>
+              </td>
+              <td className="px-6 py-4">
+                <div className="flex items-start gap-2 text-sm text-slate-600 max-w-[200px]">
+                  <MapPin size={14} className="text-slate-400 shrink-0 mt-0.5" />
+                  <span className="truncate">{client.address}</span>
+                </div>
+              </td>
+              <td className="px-6 py-4 text-right">
+                <button className="text-slate-400 hover:text-brand-600 p-2">
+                  <MoreHorizontal size={20} />
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+export default ClientTableDesktop;
+EOF
+
+# 4. Create the Page Container
+echo "📝 Writing src/pages/ClientsPage.jsx..."
+cat << 'EOF' > src/pages/ClientsPage.jsx
+import React, { useState } from 'react';
+import { Plus, Search } from 'lucide-react';
+import { useClients } from '../hooks/useClients';
+import ClientListMobile from '../components/clients/ClientListMobile';
+import ClientTableDesktop from '../components/clients/ClientTableDesktop';
+import ClientFormModal from '../components/clients/ClientFormModal';
+
+const ClientsPage = () => {
+  const { clients, loading, error, addClient } = useClients();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Client-side filtering
+  const filteredClients = clients.filter(c => 
+    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    c.email?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  return (
+    <div className="space-y-6">
+      {/* Header & Actions */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Clients</h1>
+          <p className="text-slate-500 text-sm">Manage your residential and commercial customers</p>
+        </div>
+        
+        <div className="flex gap-3">
+          <div className="relative flex-1 md:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+            <input 
+              type="text"
+              placeholder="Search clients..."
+              className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="bg-brand-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-brand-700 flex items-center gap-2 shadow-sm whitespace-nowrap"
+          >
+            <Plus size={20} />
+            <span className="hidden md:inline">Add Client</span>
+            <span className="md:hidden">Add</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Content */}
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div>
+        </div>
+      ) : error ? (
+        <div className="bg-red-50 text-red-600 p-4 rounded-lg border border-red-100">
+          Error: {error}
+        </div>
+      ) : (
+        <>
+          <ClientListMobile clients={filteredClients} />
+          <ClientTableDesktop clients={filteredClients} />
+        </>
+      )}
+
+      {/* Modals */}
+      <ClientFormModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        onSave={addClient}
+      />
+    </div>
+  );
+};
+
+export default ClientsPage;
+EOF
+
+# 5. Update Navigation & Routing
+echo "📝 Updating Routing and Navigation..."
+
+# Overwriting App.jsx to add the route
+cat << 'EOF' > src/App.jsx
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import AppLayout from './components/layout/AppLayout';
+import AuthGuard from './components/layout/AuthGuard';
+import LoginPage from './features/auth/LoginPage';
+import ClientsPage from './pages/ClientsPage';
+import DebugClaims from './components/debug/DebugClaims';
+
+// Placeholder Pages
+const Dashboard = () => (
+  <div>
+    <h2 className="text-2xl font-bold mb-4">My Jobs Today</h2>
+    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+      <p className="text-gray-500">No jobs scheduled yet.</p>
+    </div>
+    <DebugClaims />
+  </div>
+);
+
+const Schedule = () => <h2 className="text-2xl font-bold">Schedule View</h2>;
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        {/* Public Route */}
+        <Route path="/login" element={<LoginPage />} />
+
+        {/* Protected Routes */}
+        <Route path="/" element={
+          <AuthGuard>
+            <AppLayout />
+          </AuthGuard>
+        }>
+          <Route index element={<Dashboard />} />
+          <Route path="schedule" element={<Schedule />} />
+          <Route path="clients" element={<ClientsPage />} />
+          {/* Catch-all redirects to home */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+export default App;
+EOF
+
+# Updating Sidebar to highlight Clients
+cat << 'EOF' > src/components/layout/Sidebar.jsx
+import React from 'react';
+import { NavLink } from 'react-router-dom';
+import { LayoutDashboard, Calendar, Users, Settings, LogOut } from 'lucide-react';
+
+const Sidebar = () => {
+  const navItems = [
+    { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
+    { icon: Calendar, label: 'Schedule', path: '/schedule' },
+    { icon: Users, label: 'Clients', path: '/clients' },
+    { icon: Settings, label: 'Settings', path: '/settings' },
+  ];
+
+  return (
+    <aside className="hidden md:flex flex-col w-64 bg-slate-800 text-white h-screen fixed left-0 top-0">
+      <div className="p-6">
+        <h1 className="text-2xl font-bold text-brand-500">Fresh Nest</h1>
+        <p className="text-xs text-slate-400">Operations Manager</p>
+      </div>
+      
+      <nav className="flex-1 px-4 space-y-2">
+        {navItems.map((item) => (
+          <NavLink
+            key={item.path}
+            to={item.path}
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                isActive ? 'bg-brand-600 text-white' : 'text-slate-300 hover:bg-slate-700'
+              }`
+            }
+          >
+            <item.icon size={20} />
+            <span>{item.label}</span>
+          </NavLink>
+        ))}
+      </nav>
+
+      <div className="p-4 border-t border-slate-700">
+        <button className="flex items-center gap-3 px-4 py-2 text-slate-300 hover:text-white w-full">
+          <LogOut size={20} />
+          <span>Sign Out</span>
+        </button>
+      </div>
+    </aside>
+  );
+};
+
+export default Sidebar;
+EOF
+
+# Updating BottomNav to include Clients
+cat << 'EOF' > src/components/layout/BottomNav.jsx
+import React from 'react';
+import { NavLink } from 'react-router-dom';
+import { LayoutDashboard, Calendar, Users, Menu } from 'lucide-react';
+
+const BottomNav = () => {
+  return (
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-6 py-3 flex justify-between items-center z-50">
+      <NavLink 
+        to="/" 
+        className={({ isActive }) => `flex flex-col items-center gap-1 ${isActive ? 'text-brand-600' : 'text-gray-400'}`}
+      >
+        <LayoutDashboard size={24} />
+        <span className="text-xs">Jobs</span>
+      </NavLink>
+
+      <NavLink 
+        to="/schedule" 
+        className={({ isActive }) => `flex flex-col items-center gap-1 ${isActive ? 'text-brand-600' : 'text-gray-400'}`}
+      >
+        <Calendar size={24} />
+        <span className="text-xs">Schedule</span>
+      </NavLink>
+
+      <NavLink 
+        to="/clients" 
+        className={({ isActive }) => `flex flex-col items-center gap-1 ${isActive ? 'text-brand-600' : 'text-gray-400'}`}
+      >
+        <Users size={24} />
+        <span className="text-xs">Clients</span>
+      </NavLink>
+
+      <button className="flex flex-col items-center gap-1 text-gray-400">
+        <Menu size={24} />
+        <span className="text-xs">More</span>
+      </button>
+    </nav>
+  );
+};
+
+export default BottomNav;
+EOF
+
+echo "✅ SUCCESS! Client Management Module installed."
 ```
 ---
 

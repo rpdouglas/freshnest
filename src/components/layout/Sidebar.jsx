@@ -1,12 +1,13 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Calendar, Users, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, Calendar, Users, Settings, LogOut, Briefcase } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
 
 const Sidebar = () => {
   const navItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
+    { icon: Briefcase, label: 'Jobs', path: '/jobs' },
     { icon: Calendar, label: 'Schedule', path: '/schedule' },
     { icon: Users, label: 'Clients', path: '/clients' },
     { icon: Settings, label: 'Settings', path: '/settings' },
@@ -15,8 +16,6 @@ const Sidebar = () => {
   const handleSignOut = async () => {
     try {
       await signOut(auth);
-      // No need to navigate manually; AuthGuard will detect the change 
-      // and redirect to /login automatically.
     } catch (error) {
       console.error("Error signing out:", error);
     }
