@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Calendar, Menu } from 'lucide-react';
+import { LayoutDashboard, Calendar, Users, Menu } from 'lucide-react';
 
 const BottomNav = () => {
   return (
@@ -19,6 +19,14 @@ const BottomNav = () => {
       >
         <Calendar size={24} />
         <span className="text-xs">Schedule</span>
+      </NavLink>
+
+      <NavLink 
+        to="/clients" 
+        className={({ isActive }) => `flex flex-col items-center gap-1 ${isActive ? 'text-brand-600' : 'text-gray-400'}`}
+      >
+        <Users size={24} />
+        <span className="text-xs">Clients</span>
       </NavLink>
 
       <button className="flex flex-col items-center gap-1 text-gray-400">
