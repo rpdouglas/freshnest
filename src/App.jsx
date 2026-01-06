@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import AppLayout from './components/layout/AppLayout';
 import AuthGuard from './components/layout/AuthGuard';
 import LoginPage from './features/auth/LoginPage';
+import ClientsPage from './pages/ClientsPage';
 import DebugClaims from './components/debug/DebugClaims';
 
 // Placeholder Pages
@@ -33,6 +34,7 @@ function App() {
         }>
           <Route index element={<Dashboard />} />
           <Route path="schedule" element={<Schedule />} />
+          <Route path="clients" element={<ClientsPage />} />
           {/* Catch-all redirects to home */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

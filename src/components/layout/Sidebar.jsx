@@ -1,6 +1,8 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { LayoutDashboard, Calendar, Users, Settings, LogOut } from 'lucide-react';
+import { signOut } from 'firebase/auth';
+import { auth } from '../../lib/firebase';
 
 const Sidebar = () => {
   const navItems = [
@@ -9,6 +11,16 @@ const Sidebar = () => {
     { icon: Users, label: 'Clients', path: '/clients' },
     { icon: Settings, label: 'Settings', path: '/settings' },
   ];
+
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+      // No need to navigate manually; AuthGuard will detect the change 
+      // and redirect to /login automatically.
+    } catch (error) {
+      console.error("Error signing out:", error);
+    }
+  };
 
   return (
     <aside className="hidden md:flex flex-col w-64 bg-slate-800 text-white h-screen fixed left-0 top-0">
@@ -35,7 +47,10 @@ const Sidebar = () => {
       </nav>
 
       <div className="p-4 border-t border-slate-700">
-        <button className="flex items-center gap-3 px-4 py-2 text-slate-300 hover:text-white w-full">
+        <button 
+          onClick={handleSignOut}
+          className="flex items-center gap-3 px-4 py-2 text-slate-300 hover:text-white w-full hover:bg-slate-700 rounded-lg transition-colors"
+        >
           <LogOut size={20} />
           <span>Sign Out</span>
         </button>
