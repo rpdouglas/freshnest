@@ -15,10 +15,13 @@
     * UI: Jobs List with "Join" logic (Client Name lookup).
     * "Add Job" Modal with Client Dropdown.
     * Security Rules & Composite Index (`orgId` + `scheduledDate`) deployed.
+* **Schedule View:**
+    * `useSchedule` hook (Date Range filtering).
+    * Mobile-First Agenda UI (Date Strip + Daily List).
 
 ## 🚧 In Progress / Next Up
-* [ ] **Schedule View:** A dedicated Calendar view for upcoming jobs.
-* [ ] **Staff Management:** Adding employees to the Org.
+* [ ] **Staff Management:** Adding employees to the Org (User Invite flow).
+* [ ] **Job Assignment:** Assigning specific jobs to specific staff members.
 
 ## 🗄️ Database Schema (Firestore)
 
@@ -31,15 +34,11 @@
 ### `clients/{clientId}`
 * `orgId`, `name`, `email`, `phone`, `address`
 
-### `jobs/{jobId}` (✨ NEW)
-* `orgId`: String
-* `clientId`: String (Ref to Client)
-* `scheduledDate`: Timestamp
-* `status`: String ('scheduled', 'completed')
-* `serviceType`: String
-* `price`: Number
+### `jobs/{jobId}`
+* `orgId`, `clientId` (Ref), `scheduledDate` (Timestamp)
+* `status`, `serviceType`, `price`
 
 ## 📂 Key Files Created
-* `src/hooks/useClients.js`, `src/hooks/useJobs.js`
-* `src/pages/ClientsPage.jsx`, `src/pages/JobsPage.jsx`
+* `src/hooks/useClients.js`, `src/hooks/useJobs.js`, `src/hooks/useSchedule.js`
+* `src/pages/ClientsPage.jsx`, `src/pages/JobsPage.jsx`, `src/pages/SchedulePage.jsx`
 * `firestore.rules`

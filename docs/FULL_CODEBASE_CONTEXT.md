@@ -1,5 +1,5 @@
 # FRESH NEST: CODEBASE DUMP
-**Date:** Mon Jan  5 22:10:20 EST 2026
+**Date:** Mon Jan  5 22:48:07 EST 2026
 **Description:** Complete codebase context excluding modules and secrets.
 
 ## FILE: package.json
@@ -263,14 +263,18 @@ import AppLayout from './components/layout/AppLayout';
 import AuthGuard from './components/layout/AuthGuard';
 import LoginPage from './features/auth/LoginPage';
 import ClientsPage from './pages/ClientsPage';
+import JobsPage from './pages/JobsPage';
 import DebugClaims from './components/debug/DebugClaims';
 
 // Placeholder Pages
 const Dashboard = () => (
   <div>
-    <h2 className="text-2xl font-bold mb-4">My Jobs Today</h2>
-    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-      <p className="text-gray-500">No jobs scheduled yet.</p>
+    <h2 className="text-2xl font-bold mb-4">Dashboard</h2>
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <h3 className="text-gray-500 text-sm font-medium">Jobs Today</h3>
+        <p className="text-2xl font-bold text-slate-800">0</p>
+      </div>
     </div>
     <DebugClaims />
   </div>
@@ -292,9 +296,9 @@ function App() {
           </AuthGuard>
         }>
           <Route index element={<Dashboard />} />
+          <Route path="jobs" element={<JobsPage />} />
           <Route path="schedule" element={<Schedule />} />
           <Route path="clients" element={<ClientsPage />} />
-          {/* Catch-all redirects to home */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
@@ -604,6 +608,325 @@ export default DebugClaims;
 ```
 ---
 
+## FILE: src/components/jobs/JobFormModal.jsx
+```jsx
+import React, { useState } from 'react';
+import { X, Save, Loader, Calendar, DollarSign } from 'lucide-react';
+
+const JobFormModal = ({ isOpen, onClose, onSave, clients }) => {
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    clientId: '',
+    scheduledDate: '',
+    serviceType: 'standard',
+    price: '',
+    notes: ''
+  });
+
+  if (!isOpen) return null;
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.clientId) {
+      alert("Please select a client.");
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      await onSave(formData);
+      // Reset form
+      setFormData({
+        clientId: '',
+        scheduledDate: '',
+        serviceType: 'standard',
+        price: '',
+        notes: ''
+      });
+      onClose();
+    } catch (error) {
+      console.error(error);
+      alert("Failed to create job.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden">
+        
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+          <h3 className="font-bold text-lg text-slate-800">Schedule New Job</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X size={24} />
+          </button>
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          
+          {/* Client Selector (The Relational Link) */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Select Client *</label>
+            <select
+              required
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none bg-white"
+              value={formData.clientId}
+              onChange={(e) => setFormData({...formData, clientId: e.target.value})}
+            >
+              <option value="">-- Choose a Client --</option>
+              {clients.map(client => (
+                <option key={client.id} value={client.id}>
+                  {client.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Date & Time *</label>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-2.5 text-slate-400" size={18} />
+                <input
+                  type="datetime-local"
+                  required
+                  className="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                  value={formData.scheduledDate}
+                  onChange={(e) => setFormData({...formData, scheduledDate: e.target.value})}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Service Type</label>
+              <select
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none bg-white"
+                value={formData.serviceType}
+                onChange={(e) => setFormData({...formData, serviceType: e.target.value})}
+              >
+                <option value="standard">Standard Clean</option>
+                <option value="deep">Deep Clean</option>
+                <option value="move-in-out">Move In/Out</option>
+                <option value="commercial">Commercial</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Price Estimate</label>
+            <div className="relative">
+              <DollarSign className="absolute left-3 top-2.5 text-slate-400" size={18} />
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="0.00"
+                className="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                value={formData.price}
+                onChange={(e) => setFormData({...formData, price: e.target.value})}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Internal Notes</label>
+            <textarea
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
+              rows="3"
+              placeholder="Gate code, pets, special instructions..."
+              value={formData.notes}
+              onChange={(e) => setFormData({...formData, notes: e.target.value})}
+            ></textarea>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-4 py-2 bg-brand-600 text-white rounded-lg font-medium hover:bg-brand-700 flex items-center gap-2 disabled:opacity-50"
+            >
+              {loading ? <Loader className="animate-spin" size={18} /> : <Save size={18} />}
+              Schedule Job
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default JobFormModal;
+
+```
+---
+
+## FILE: src/components/jobs/JobListMobile.jsx
+```jsx
+import React from 'react';
+import { Calendar, Clock, DollarSign, MapPin } from 'lucide-react';
+import { format } from 'date-fns';
+
+const JobListMobile = ({ jobs, clients }) => {
+  // Helper to find client name
+  const getClientName = (id) => clients.find(c => c.id === id)?.name || 'Unknown Client';
+  const getClientAddress = (id) => clients.find(c => c.id === id)?.address;
+
+  if (jobs.length === 0) {
+    return (
+      <div className="text-center py-10 bg-white rounded-xl border border-gray-100">
+        <p className="text-gray-500">No upcoming jobs.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4 md:hidden">
+      {jobs.map((job) => (
+        <div key={job.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+          <div className="flex justify-between items-start mb-2">
+            <div>
+              <h3 className="font-bold text-slate-800 text-lg">{getClientName(job.clientId)}</h3>
+              <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 capitalize mt-1">
+                {job.serviceType}
+              </span>
+            </div>
+            <div className="text-right">
+              <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                job.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+              }`}>
+                {job.status}
+              </span>
+            </div>
+          </div>
+          
+          <div className="space-y-2 text-sm text-slate-600 mt-3">
+            <div className="flex items-center gap-2">
+              <Calendar size={16} className="text-brand-500 shrink-0" />
+              <span className="font-medium text-slate-900">
+                {job.scheduledDate ? format(job.scheduledDate, 'MMM d, yyyy') : 'No Date'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Clock size={16} className="text-brand-500 shrink-0" />
+              <span>
+                {job.scheduledDate ? format(job.scheduledDate, 'h:mm a') : 'TBD'}
+              </span>
+            </div>
+            {getClientAddress(job.clientId) && (
+               <div className="flex items-start gap-2">
+                 <MapPin size={16} className="text-brand-500 shrink-0 mt-0.5" />
+                 <span className="truncate">{getClientAddress(job.clientId)}</span>
+               </div>
+            )}
+             {job.price > 0 && (
+               <div className="flex items-center gap-2 text-slate-500">
+                 <DollarSign size={16} className="text-slate-400 shrink-0" />
+                 <span>${job.price}</span>
+               </div>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+export default JobListMobile;
+
+```
+---
+
+## FILE: src/components/jobs/JobTableDesktop.jsx
+```jsx
+import React from 'react';
+import { MoreHorizontal, Calendar, Clock, MapPin } from 'lucide-react';
+import { format } from 'date-fns';
+
+const JobTableDesktop = ({ jobs, clients }) => {
+  const getClient = (id) => clients.find(c => c.id === id) || {};
+
+  if (jobs.length === 0) {
+    return (
+      <div className="hidden md:block bg-white p-12 text-center rounded-xl border border-gray-200">
+        <p className="text-gray-500">No upcoming jobs.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="hidden md:block bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <table className="w-full text-left border-collapse">
+        <thead>
+          <tr className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold">
+            <th className="px-6 py-4">Scheduled Date</th>
+            <th className="px-6 py-4">Client</th>
+            <th className="px-6 py-4">Service</th>
+            <th className="px-6 py-4">Status</th>
+            <th className="px-6 py-4 text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {jobs.map((job) => {
+            const client = getClient(job.clientId);
+            return (
+              <tr key={job.id} className="hover:bg-gray-50 transition-colors">
+                <td className="px-6 py-4">
+                  <div className="flex items-center gap-2 font-medium text-slate-900">
+                    <Calendar size={16} className="text-brand-500" />
+                    {job.scheduledDate ? format(job.scheduledDate, 'MMM d, yyyy') : 'TBD'}
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-slate-500 mt-1 pl-6">
+                    <Clock size={12} />
+                    {job.scheduledDate ? format(job.scheduledDate, 'h:mm a') : ''}
+                  </div>
+                </td>
+                <td className="px-6 py-4">
+                  <div className="font-medium text-slate-900">{client.name || 'Unknown'}</div>
+                  <div className="flex items-center gap-1 text-xs text-slate-400 mt-0.5">
+                    <MapPin size={12} />
+                    <span className="truncate max-w-[150px]">{client.address || 'No address'}</span>
+                  </div>
+                </td>
+                <td className="px-6 py-4">
+                  <span className="capitalize text-sm text-slate-700">{job.serviceType}</span>
+                  {job.price > 0 && <div className="text-xs text-slate-400">${job.price}</div>}
+                </td>
+                <td className="px-6 py-4">
+                  <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                    job.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                  }`}>
+                    {job.status.toUpperCase()}
+                  </span>
+                </td>
+                <td className="px-6 py-4 text-right">
+                  <button className="text-slate-400 hover:text-brand-600 p-2">
+                    <MoreHorizontal size={20} />
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+export default JobTableDesktop;
+
+```
+---
+
 ## FILE: src/components/layout/AppLayout.jsx
 ```jsx
 import React from 'react';
@@ -679,7 +1002,7 @@ export default AuthGuard;
 ```jsx
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Calendar, Users, Menu } from 'lucide-react';
+import { LayoutDashboard, Calendar, Users, Menu, Briefcase } from 'lucide-react';
 
 const BottomNav = () => {
   return (
@@ -689,6 +1012,14 @@ const BottomNav = () => {
         className={({ isActive }) => `flex flex-col items-center gap-1 ${isActive ? 'text-brand-600' : 'text-gray-400'}`}
       >
         <LayoutDashboard size={24} />
+        <span className="text-xs">Dash</span>
+      </NavLink>
+
+      <NavLink 
+        to="/jobs" 
+        className={({ isActive }) => `flex flex-col items-center gap-1 ${isActive ? 'text-brand-600' : 'text-gray-400'}`}
+      >
+        <Briefcase size={24} />
         <span className="text-xs">Jobs</span>
       </NavLink>
 
@@ -725,13 +1056,14 @@ export default BottomNav;
 ```jsx
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Calendar, Users, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, Calendar, Users, Settings, LogOut, Briefcase } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
 
 const Sidebar = () => {
   const navItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
+    { icon: Briefcase, label: 'Jobs', path: '/jobs' },
     { icon: Calendar, label: 'Schedule', path: '/schedule' },
     { icon: Users, label: 'Clients', path: '/clients' },
     { icon: Settings, label: 'Settings', path: '/settings' },
@@ -740,8 +1072,6 @@ const Sidebar = () => {
   const handleSignOut = async () => {
     try {
       await signOut(auth);
-      // No need to navigate manually; AuthGuard will detect the change 
-      // and redirect to /login automatically.
     } catch (error) {
       console.error("Error signing out:", error);
     }
@@ -785,6 +1115,7 @@ const Sidebar = () => {
 };
 
 export default Sidebar;
+
 ```
 ---
 
@@ -1004,6 +1335,100 @@ export const useClients = () => {
 ```
 ---
 
+## FILE: src/hooks/useJobs.js
+```js
+import { useState, useEffect } from 'react';
+import { 
+  collection, 
+  query, 
+  where, 
+  onSnapshot, 
+  addDoc, 
+  serverTimestamp,
+  orderBy,
+  Timestamp 
+} from 'firebase/firestore';
+import { auth, db } from '../lib/firebase';
+
+export const useJobs = () => {
+  const [jobs, setJobs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    user.getIdTokenResult().then((idTokenResult) => {
+      const orgId = idTokenResult.claims.orgId;
+
+      if (!orgId) {
+        setError("Organization ID missing.");
+        setLoading(false);
+        return;
+      }
+
+      // SECURITY: Filter by orgId
+      // Note: This requires a composite index (orgId + scheduledDate)
+      const q = query(
+        collection(db, 'jobs'),
+        where('orgId', '==', orgId),
+        orderBy('scheduledDate', 'asc')
+      );
+
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const jobData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          // Convert Firestore Timestamp to JS Date for easier UI handling
+          scheduledDate: doc.data().scheduledDate?.toDate()
+        }));
+        setJobs(jobData);
+        setLoading(false);
+      }, (err) => {
+        console.error("Error fetching jobs:", err);
+        setError("Failed to load jobs. (Check console for Index link)");
+        setLoading(false);
+      });
+
+      return () => unsubscribe();
+    });
+  }, []);
+
+  const addJob = async (jobData) => {
+    const user = auth.currentUser;
+    if (!user) throw new Error("Not authenticated");
+
+    const idTokenResult = await user.getIdTokenResult();
+    const orgId = idTokenResult.claims.orgId;
+
+    if (!orgId) throw new Error("No Organization ID found.");
+
+    // Convert string date (from input) to Firestore Timestamp
+    const timestampDate = new Date(jobData.scheduledDate);
+
+    await addDoc(collection(db, 'jobs'), {
+      clientId: jobData.clientId,
+      serviceType: jobData.serviceType,
+      price: Number(jobData.price),
+      notes: jobData.notes,
+      status: 'scheduled', // Default status
+      scheduledDate: Timestamp.fromDate(timestampDate),
+      orgId, 
+      createdAt: serverTimestamp(),
+      createdBy: user.uid
+    });
+  };
+
+  return { jobs, loading, error, addJob };
+};
+
+```
+---
+
 ## FILE: src/index.css
 ```css
 @tailwind base;
@@ -1145,6 +1570,94 @@ export default ClientsPage;
 ```
 ---
 
+## FILE: src/pages/JobsPage.jsx
+```jsx
+import React, { useState } from 'react';
+import { Plus, Search, Filter } from 'lucide-react';
+import { useJobs } from '../hooks/useJobs';
+import { useClients } from '../hooks/useClients'; // Required for dropdown & joins
+import JobListMobile from '../components/jobs/JobListMobile';
+import JobTableDesktop from '../components/jobs/JobTableDesktop';
+import JobFormModal from '../components/jobs/JobFormModal';
+
+const JobsPage = () => {
+  const { jobs, loading: jobsLoading, error: jobsError, addJob } = useJobs();
+  const { clients, loading: clientsLoading } = useClients(); // Fetch clients to populate UI
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const loading = jobsLoading || clientsLoading;
+
+  // Simple filtering
+  const filteredJobs = jobs.filter(job => {
+    // Find client name for search
+    const clientName = clients.find(c => c.id === job.clientId)?.name?.toLowerCase() || '';
+    return clientName.includes(searchTerm.toLowerCase());
+  });
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Job Management</h1>
+          <p className="text-slate-500 text-sm">Schedule and track cleaning appointments</p>
+        </div>
+        
+        <div className="flex gap-3">
+          <div className="relative flex-1 md:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+            <input 
+              type="text"
+              placeholder="Search by client..."
+              className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="bg-brand-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-brand-700 flex items-center gap-2 shadow-sm whitespace-nowrap"
+          >
+            <Plus size={20} />
+            <span className="hidden md:inline">New Job</span>
+            <span className="md:hidden">New</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Content */}
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div>
+        </div>
+      ) : jobsError ? (
+        <div className="bg-red-50 text-red-600 p-4 rounded-lg border border-red-100">
+          Error: {jobsError}
+        </div>
+      ) : (
+        <>
+          <JobListMobile jobs={filteredJobs} clients={clients} />
+          <JobTableDesktop jobs={filteredJobs} clients={clients} />
+        </>
+      )}
+
+      {/* Modals */}
+      <JobFormModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        onSave={addJob}
+        clients={clients} 
+      />
+    </div>
+  );
+};
+
+export default JobsPage;
+
+```
+---
+
 ## FILE: docs/CONTEXT_DUMP.md
 ```md
 # Fresh Nest: Context Dump
@@ -1178,47 +1691,43 @@ export default ClientsPage;
 ## ✅ Completed Features
 * **Project Setup:** Vite + React + Tailwind CSS configured.
 * **Authentication:** Firebase Login/Signup with Email & Password.
-* **Multi-Tenancy:** * Custom Claims (`orgId`) implemented.
-    * `init-org.cjs` script created for provisioning new organizations.
+* **Multi-Tenancy:** Custom Claims (`orgId`) & Provisioning Script.
 * **Client Management:**
-    * Robust `useClients` hook with `orgId` security filters.
-    * Responsive UI: Mobile Card List + Desktop Data Table.
-    * "Add Client" Modal with validation.
-    * Firestore Security Rules & Composite Indexes deployed.
+    * `useClients` hook, Mobile Cards, Desktop Table.
+    * Security Rules & Indexes deployed.
+* **Job Management:**
+    * `useJobs` hook with Relational Data (`clientId`).
+    * UI: Jobs List with "Join" logic (Client Name lookup).
+    * "Add Job" Modal with Client Dropdown.
+    * Security Rules & Composite Index (`orgId` + `scheduledDate`) deployed.
 
 ## 🚧 In Progress / Next Up
-* [ ] **Job Management:** Creating and assigning cleaning jobs.
-* [ ] **Scheduling:** Calendar view for jobs.
+* [ ] **Schedule View:** A dedicated Calendar view for upcoming jobs.
 * [ ] **Staff Management:** Adding employees to the Org.
 
 ## 🗄️ Database Schema (Firestore)
 
 ### `organizations/{orgId}`
-* `name`: String
-* `plan`: String ("basic", "gold")
-* `settings`: Map (currency, etc.)
+* `name`, `plan`, `settings`
 
 ### `users/{userId}`
-* `email`: String
-* `fullName`: String
-* `orgId`: String (Link to Organization)
-* `role`: String ("admin", "user")
+* `email`, `fullName`, `orgId`, `role`
 
-### `clients/{clientId}` (✨ NEW)
-* `orgId`: String (Security Partition)
-* `name`: String
-* `email`: String
-* `phone`: String
-* `address`: String
-* `createdAt`: Timestamp
+### `clients/{clientId}`
+* `orgId`, `name`, `email`, `phone`, `address`
+
+### `jobs/{jobId}` (✨ NEW)
+* `orgId`: String
+* `clientId`: String (Ref to Client)
+* `scheduledDate`: Timestamp
+* `status`: String ('scheduled', 'completed')
+* `serviceType`: String
+* `price`: Number
 
 ## 📂 Key Files Created
-* `src/hooks/useClients.js`
-* `src/pages/ClientsPage.jsx`
-* `src/components/clients/*` (Modal, List, Table)
+* `src/hooks/useClients.js`, `src/hooks/useJobs.js`
+* `src/pages/ClientsPage.jsx`, `src/pages/JobsPage.jsx`
 * `firestore.rules`
-* `firestore.indexes.json`
-
 
 ```
 ---
@@ -1308,38 +1817,41 @@ Before writing any code, please propose **3 Distinct Approaches** to implementin
 
 ## FILE: docs/PROMPT_INITIALIZATION.md
 ```md
-# 🚀 AI Initialization Prompt
+# 🤖 AI Session Initialization Prompt
 
 **Instructions:**
-1.  Run `./scripts/generate-context.sh` to update your codebase context.
-2.  Open a new AI Chat session (Gemini/ChatGPT).
-3.  Copy the **Prompt Template** below.
-4.  Replace the placeholder `[PASTE_FULL_CODEBASE_CONTEXT_HERE]` with the actual text content of `docs/FULL_CODEBASE_CONTEXT.md`.
+1.  Run `scripts/generate-context.sh` to copy your current codebase to your clipboard (or file).
+2.  Paste the **Codebase Context** into the bottom of this prompt.
+3.  Send the *entire* block below to your AI assistant to start a new session.
 
 ---
-
-### **Prompt Template**
 
 **Role:** You are the Senior Lead Developer and Architect for "Fresh Nest," a React + Firebase SaaS application.
 
 **Input:** I am providing the full codebase context below.
 
 **Your Goal:** Ingest this context to completely understand our:
-1.  **Tech Stack:** React (Vite), Tailwind CSS, Firebase (Auth, Firestore, Functions).
-2.  **Architecture:** Multi-Tenant SaaS using `orgId` in Custom Claims for data isolation.
-3.  **Current State:** File structure, existing components, and coding style.
+* **Tech Stack:** React (Vite), Tailwind CSS, Firebase (Auth, Firestore, Functions).
+* **Architecture:** Multi-Tenant SaaS using `orgId` in Custom Claims for data isolation.
+* **Current State:** File structure, existing components, and coding style.
 
 **Critical Rules for Interaction:**
-* **NO Placeholders:** Never use `// ... rest of code` or `// ... existing logic`. Always provide **COMPLETE, COPY-PASTEABLE FILES**.
-* **Mobile First:** All UI must be fully responsive. Use Tailwind's `md:`, `lg:` prefixes.
-* **Icons:** Use `lucide-react` for all icons.
-* **Security:** Every Firestore query MUST filter by `where("orgId", "==", user.orgId)`. Every write must include `orgId`.
-* **Style:** Use standard React Hooks patterns and clean, modular code.
+1.  **NO Placeholders:** Never use `// ... rest of code` or `// ... existing logic`. Always provide **COMPLETE, COPY-PASTEABLE FILES**.
+2.  **Mobile First:** All UI must be fully responsive. Use Tailwind's `md:`, `lg:` prefixes.
+3.  **Icons:** Use `lucide-react` for all icons.
+4.  **Security & Data:**
+    * Every Firestore query MUST filter by `.where("orgId", "==", user.orgId)`.
+    * Every write must include `orgId`.
+    * **If a query involves Sorting (`orderBy`), you must explicitly warn about required Firestore Indexes.**
+5.  **Functionality & Quality:**
+    * **All buttons and inputs must be functional** (e.g., `onClick` handlers attached, Form `onSubmit` handled). Do not build "UI-only" shells unless asked.
+    * **Adhere to HTML best practices** (e.g., proper `autocomplete` attributes on inputs, `type="button"` vs `type="submit"`).
+6.  **Style:** Use standard React Hooks patterns and clean, modular code.
 
 **Codebase Context:**
 [PASTE_FULL_CODEBASE_CONTEXT_HERE]
 
-*Reply "Context Received. Ready for instructions." if you understand.*
+**Reply "Context Received. Ready for instructions." if you understand.**
 
 ```
 ---
@@ -1665,20 +2177,20 @@ bootstrap();
 
 # ====================================================
 # FRESH NEST: FEATURE INSTALLER
-# Feature: Client Management Module
-# Approach: Robust (Hook + Components + Page)
+# Feature: Job Management Module
+# Approach: Robust (Relational Data + Lookup)
 # ====================================================
 
-echo "🚀 Installing Client Management Feature..."
+echo "🚀 Installing Job Management Feature..."
 
 # 1. Create Directories
 mkdir -p src/hooks
 mkdir -p src/pages
-mkdir -p src/components/clients
+mkdir -p src/components/jobs
 
 # 2. Create the Custom Hook (Logic Layer)
-echo "📝 Writing src/hooks/useClients.js..."
-cat << 'EOF' > src/hooks/useClients.js
+echo "📝 Writing src/hooks/useJobs.js..."
+cat << 'EOF' > src/hooks/useJobs.js
 import { useState, useEffect } from 'react';
 import { 
   collection, 
@@ -1687,12 +2199,13 @@ import {
   onSnapshot, 
   addDoc, 
   serverTimestamp,
-  orderBy 
+  orderBy,
+  Timestamp 
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 
-export const useClients = () => {
-  const [clients, setClients] = useState([]);
+export const useJobs = () => {
+  const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -1703,35 +2216,35 @@ export const useClients = () => {
       return;
     }
 
-    // Get the orgId from the token claims (stored in local state or refetch)
-    // For now, we assume the user object is hydrated or we fetch the token result.
-    // In a robust app, we'd use a generic AuthContext, but here we access the ID token.
     user.getIdTokenResult().then((idTokenResult) => {
       const orgId = idTokenResult.claims.orgId;
 
       if (!orgId) {
-        setError("Organization ID missing from user profile.");
+        setError("Organization ID missing.");
         setLoading(false);
         return;
       }
 
-      // SECURITY: Subscribe ONLY to clients in this user's Org
+      // SECURITY: Filter by orgId
+      // Note: This requires a composite index (orgId + scheduledDate)
       const q = query(
-        collection(db, 'clients'),
+        collection(db, 'jobs'),
         where('orgId', '==', orgId),
-        orderBy('createdAt', 'desc')
+        orderBy('scheduledDate', 'asc')
       );
 
       const unsubscribe = onSnapshot(q, (snapshot) => {
-        const clientData = snapshot.docs.map(doc => ({
+        const jobData = snapshot.docs.map(doc => ({
           id: doc.id,
-          ...doc.data()
+          ...doc.data(),
+          // Convert Firestore Timestamp to JS Date for easier UI handling
+          scheduledDate: doc.data().scheduledDate?.toDate()
         }));
-        setClients(clientData);
+        setJobs(jobData);
         setLoading(false);
       }, (err) => {
-        console.error("Error fetching clients:", err);
-        setError("Failed to load clients.");
+        console.error("Error fetching jobs:", err);
+        setError("Failed to load jobs. (Check console for Index link)");
         setLoading(false);
       });
 
@@ -1739,7 +2252,7 @@ export const useClients = () => {
     });
   }, []);
 
-  const addClient = async (clientData) => {
+  const addJob = async (jobData) => {
     const user = auth.currentUser;
     if (!user) throw new Error("Not authenticated");
 
@@ -1748,47 +2261,67 @@ export const useClients = () => {
 
     if (!orgId) throw new Error("No Organization ID found.");
 
-    // SECURITY: Force attach orgId and server timestamp
-    await addDoc(collection(db, 'clients'), {
-      ...clientData,
+    // Convert string date (from input) to Firestore Timestamp
+    const timestampDate = new Date(jobData.scheduledDate);
+
+    await addDoc(collection(db, 'jobs'), {
+      clientId: jobData.clientId,
+      serviceType: jobData.serviceType,
+      price: Number(jobData.price),
+      notes: jobData.notes,
+      status: 'scheduled', // Default status
+      scheduledDate: Timestamp.fromDate(timestampDate),
       orgId, 
       createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
+      createdBy: user.uid
     });
   };
 
-  return { clients, loading, error, addClient };
+  return { jobs, loading, error, addJob };
 };
 EOF
 
 # 3. Create Components (UI Layer)
 
-echo "📝 Writing src/components/clients/ClientFormModal.jsx..."
-cat << 'EOF' > src/components/clients/ClientFormModal.jsx
+echo "📝 Writing src/components/jobs/JobFormModal.jsx..."
+cat << 'EOF' > src/components/jobs/JobFormModal.jsx
 import React, { useState } from 'react';
-import { X, Save, Loader } from 'lucide-react';
+import { X, Save, Loader, Calendar, DollarSign } from 'lucide-react';
 
-const ClientFormModal = ({ isOpen, onClose, onSave }) => {
+const JobFormModal = ({ isOpen, onClose, onSave, clients }) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    address: ''
+    clientId: '',
+    scheduledDate: '',
+    serviceType: 'standard',
+    price: '',
+    notes: ''
   });
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!formData.clientId) {
+      alert("Please select a client.");
+      return;
+    }
+    
     setLoading(true);
     try {
       await onSave(formData);
-      setFormData({ name: '', email: '', phone: '', address: '' }); // Reset
+      // Reset form
+      setFormData({
+        clientId: '',
+        scheduledDate: '',
+        serviceType: 'standard',
+        price: '',
+        notes: ''
+      });
       onClose();
     } catch (error) {
       console.error(error);
-      alert("Failed to save client. Please try again.");
+      alert("Failed to create job.");
     } finally {
       setLoading(false);
     }
@@ -1800,7 +2333,7 @@ const ClientFormModal = ({ isOpen, onClose, onSave }) => {
         
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-          <h3 className="font-bold text-lg text-slate-800">Add New Client</h3>
+          <h3 className="font-bold text-lg text-slate-800">Schedule New Job</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X size={24} />
           </button>
@@ -1808,45 +2341,79 @@ const ClientFormModal = ({ isOpen, onClose, onSave }) => {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          
+          {/* Client Selector (The Relational Link) */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Client Name *</label>
-            <input
-              type="text"
+            <label className="block text-sm font-medium text-slate-700 mb-1">Select Client *</label>
+            <select
               required
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
-              value={formData.name}
-              onChange={(e) => setFormData({...formData, name: e.target.value})}
-            />
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none bg-white"
+              value={formData.clientId}
+              onChange={(e) => setFormData({...formData, clientId: e.target.value})}
+            >
+              <option value="">-- Choose a Client --</option>
+              {clients.map(client => (
+                <option key={client.id} value={client.id}>
+                  {client.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-              <input
-                type="email"
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
-                value={formData.email}
-                onChange={(e) => setFormData({...formData, email: e.target.value})}
-              />
+              <label className="block text-sm font-medium text-slate-700 mb-1">Date & Time *</label>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-2.5 text-slate-400" size={18} />
+                <input
+                  type="datetime-local"
+                  required
+                  className="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                  value={formData.scheduledDate}
+                  onChange={(e) => setFormData({...formData, scheduledDate: e.target.value})}
+                />
+              </div>
             </div>
+
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Service Type</label>
+              <select
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none bg-white"
+                value={formData.serviceType}
+                onChange={(e) => setFormData({...formData, serviceType: e.target.value})}
+              >
+                <option value="standard">Standard Clean</option>
+                <option value="deep">Deep Clean</option>
+                <option value="move-in-out">Move In/Out</option>
+                <option value="commercial">Commercial</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Price Estimate</label>
+            <div className="relative">
+              <DollarSign className="absolute left-3 top-2.5 text-slate-400" size={18} />
               <input
-                type="tel"
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
-                value={formData.phone}
-                onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="0.00"
+                className="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                value={formData.price}
+                onChange={(e) => setFormData({...formData, price: e.target.value})}
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Address</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Internal Notes</label>
             <textarea
               className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
               rows="3"
-              value={formData.address}
-              onChange={(e) => setFormData({...formData, address: e.target.value})}
+              placeholder="Gate code, pets, special instructions..."
+              value={formData.notes}
+              onChange={(e) => setFormData({...formData, notes: e.target.value})}
             ></textarea>
           </div>
 
@@ -1864,7 +2431,7 @@ const ClientFormModal = ({ isOpen, onClose, onSave }) => {
               className="px-4 py-2 bg-brand-600 text-white rounded-lg font-medium hover:bg-brand-700 flex items-center gap-2 disabled:opacity-50"
             >
               {loading ? <Loader className="animate-spin" size={18} /> : <Save size={18} />}
-              Save Client
+              Schedule Job
             </button>
           </div>
         </form>
@@ -1873,57 +2440,73 @@ const ClientFormModal = ({ isOpen, onClose, onSave }) => {
   );
 };
 
-export default ClientFormModal;
+export default JobFormModal;
 EOF
 
-echo "📝 Writing src/components/clients/ClientListMobile.jsx..."
-cat << 'EOF' > src/components/clients/ClientListMobile.jsx
+echo "📝 Writing src/components/jobs/JobListMobile.jsx..."
+cat << 'EOF' > src/components/jobs/JobListMobile.jsx
 import React from 'react';
-import { MapPin, Phone, Mail } from 'lucide-react';
+import { Calendar, Clock, DollarSign, MapPin } from 'lucide-react';
+import { format } from 'date-fns';
 
-const ClientListMobile = ({ clients }) => {
-  if (clients.length === 0) {
+const JobListMobile = ({ jobs, clients }) => {
+  // Helper to find client name
+  const getClientName = (id) => clients.find(c => c.id === id)?.name || 'Unknown Client';
+  const getClientAddress = (id) => clients.find(c => c.id === id)?.address;
+
+  if (jobs.length === 0) {
     return (
       <div className="text-center py-10 bg-white rounded-xl border border-gray-100">
-        <p className="text-gray-500">No clients found.</p>
+        <p className="text-gray-500">No upcoming jobs.</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-4 md:hidden">
-      {clients.map((client) => (
-        <div key={client.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+      {jobs.map((job) => (
+        <div key={job.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
           <div className="flex justify-between items-start mb-2">
-            <h3 className="font-bold text-slate-800 text-lg">{client.name}</h3>
+            <div>
+              <h3 className="font-bold text-slate-800 text-lg">{getClientName(job.clientId)}</h3>
+              <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 capitalize mt-1">
+                {job.serviceType}
+              </span>
+            </div>
+            <div className="text-right">
+              <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                job.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+              }`}>
+                {job.status}
+              </span>
+            </div>
           </div>
           
-          <div className="space-y-2 text-sm text-slate-600">
-            {client.address && (
-              <div className="flex items-start gap-2">
-                <MapPin size={16} className="text-brand-500 shrink-0 mt-0.5" />
-                <span>{client.address}</span>
-              </div>
-            )}
-            
-            <div className="flex gap-3 mt-3 pt-3 border-t border-gray-50">
-              {client.phone && (
-                <a 
-                  href={`tel:${client.phone}`}
-                  className="flex-1 flex items-center justify-center gap-2 py-2 bg-green-50 text-green-700 rounded-lg font-medium text-xs active:bg-green-100"
-                >
-                  <Phone size={14} /> Call
-                </a>
-              )}
-              {client.email && (
-                <a 
-                  href={`mailto:${client.email}`}
-                  className="flex-1 flex items-center justify-center gap-2 py-2 bg-blue-50 text-blue-700 rounded-lg font-medium text-xs active:bg-blue-100"
-                >
-                  <Mail size={14} /> Email
-                </a>
-              )}
+          <div className="space-y-2 text-sm text-slate-600 mt-3">
+            <div className="flex items-center gap-2">
+              <Calendar size={16} className="text-brand-500 shrink-0" />
+              <span className="font-medium text-slate-900">
+                {job.scheduledDate ? format(job.scheduledDate, 'MMM d, yyyy') : 'No Date'}
+              </span>
             </div>
+            <div className="flex items-center gap-2">
+              <Clock size={16} className="text-brand-500 shrink-0" />
+              <span>
+                {job.scheduledDate ? format(job.scheduledDate, 'h:mm a') : 'TBD'}
+              </span>
+            </div>
+            {getClientAddress(job.clientId) && (
+               <div className="flex items-start gap-2">
+                 <MapPin size={16} className="text-brand-500 shrink-0 mt-0.5" />
+                 <span className="truncate">{getClientAddress(job.clientId)}</span>
+               </div>
+            )}
+             {job.price > 0 && (
+               <div className="flex items-center gap-2 text-slate-500">
+                 <DollarSign size={16} className="text-slate-400 shrink-0" />
+                 <span>${job.price}</span>
+               </div>
+            )}
           </div>
         </div>
       ))}
@@ -1931,19 +2514,22 @@ const ClientListMobile = ({ clients }) => {
   );
 };
 
-export default ClientListMobile;
+export default JobListMobile;
 EOF
 
-echo "📝 Writing src/components/clients/ClientTableDesktop.jsx..."
-cat << 'EOF' > src/components/clients/ClientTableDesktop.jsx
+echo "📝 Writing src/components/jobs/JobTableDesktop.jsx..."
+cat << 'EOF' > src/components/jobs/JobTableDesktop.jsx
 import React from 'react';
-import { MapPin, Phone, Mail, MoreHorizontal } from 'lucide-react';
+import { MoreHorizontal, Calendar, Clock, MapPin } from 'lucide-react';
+import { format } from 'date-fns';
 
-const ClientTableDesktop = ({ clients }) => {
-  if (clients.length === 0) {
+const JobTableDesktop = ({ jobs, clients }) => {
+  const getClient = (id) => clients.find(c => c.id === id) || {};
+
+  if (jobs.length === 0) {
     return (
       <div className="hidden md:block bg-white p-12 text-center rounded-xl border border-gray-200">
-        <p className="text-gray-500">No clients found. Add one to get started.</p>
+        <p className="text-gray-500">No upcoming jobs.</p>
       </div>
     );
   }
@@ -1953,85 +2539,96 @@ const ClientTableDesktop = ({ clients }) => {
       <table className="w-full text-left border-collapse">
         <thead>
           <tr className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold">
-            <th className="px-6 py-4">Client Name</th>
-            <th className="px-6 py-4">Contact Info</th>
-            <th className="px-6 py-4">Address</th>
+            <th className="px-6 py-4">Scheduled Date</th>
+            <th className="px-6 py-4">Client</th>
+            <th className="px-6 py-4">Service</th>
+            <th className="px-6 py-4">Status</th>
             <th className="px-6 py-4 text-right">Actions</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
-          {clients.map((client) => (
-            <tr key={client.id} className="hover:bg-gray-50 transition-colors">
-              <td className="px-6 py-4">
-                <div className="font-medium text-slate-900">{client.name}</div>
-                <div className="text-xs text-slate-400">ID: {client.id.slice(0,8)}...</div>
-              </td>
-              <td className="px-6 py-4">
-                <div className="flex flex-col gap-1 text-sm text-slate-600">
-                  {client.phone && (
-                    <div className="flex items-center gap-2">
-                      <Phone size={14} className="text-slate-400" />
-                      {client.phone}
-                    </div>
-                  )}
-                  {client.email && (
-                    <div className="flex items-center gap-2">
-                      <Mail size={14} className="text-slate-400" />
-                      {client.email}
-                    </div>
-                  )}
-                </div>
-              </td>
-              <td className="px-6 py-4">
-                <div className="flex items-start gap-2 text-sm text-slate-600 max-w-[200px]">
-                  <MapPin size={14} className="text-slate-400 shrink-0 mt-0.5" />
-                  <span className="truncate">{client.address}</span>
-                </div>
-              </td>
-              <td className="px-6 py-4 text-right">
-                <button className="text-slate-400 hover:text-brand-600 p-2">
-                  <MoreHorizontal size={20} />
-                </button>
-              </td>
-            </tr>
-          ))}
+          {jobs.map((job) => {
+            const client = getClient(job.clientId);
+            return (
+              <tr key={job.id} className="hover:bg-gray-50 transition-colors">
+                <td className="px-6 py-4">
+                  <div className="flex items-center gap-2 font-medium text-slate-900">
+                    <Calendar size={16} className="text-brand-500" />
+                    {job.scheduledDate ? format(job.scheduledDate, 'MMM d, yyyy') : 'TBD'}
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-slate-500 mt-1 pl-6">
+                    <Clock size={12} />
+                    {job.scheduledDate ? format(job.scheduledDate, 'h:mm a') : ''}
+                  </div>
+                </td>
+                <td className="px-6 py-4">
+                  <div className="font-medium text-slate-900">{client.name || 'Unknown'}</div>
+                  <div className="flex items-center gap-1 text-xs text-slate-400 mt-0.5">
+                    <MapPin size={12} />
+                    <span className="truncate max-w-[150px]">{client.address || 'No address'}</span>
+                  </div>
+                </td>
+                <td className="px-6 py-4">
+                  <span className="capitalize text-sm text-slate-700">{job.serviceType}</span>
+                  {job.price > 0 && <div className="text-xs text-slate-400">${job.price}</div>}
+                </td>
+                <td className="px-6 py-4">
+                  <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                    job.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                  }`}>
+                    {job.status.toUpperCase()}
+                  </span>
+                </td>
+                <td className="px-6 py-4 text-right">
+                  <button className="text-slate-400 hover:text-brand-600 p-2">
+                    <MoreHorizontal size={20} />
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
   );
 };
 
-export default ClientTableDesktop;
+export default JobTableDesktop;
 EOF
 
 # 4. Create the Page Container
-echo "📝 Writing src/pages/ClientsPage.jsx..."
-cat << 'EOF' > src/pages/ClientsPage.jsx
+echo "📝 Writing src/pages/JobsPage.jsx..."
+cat << 'EOF' > src/pages/JobsPage.jsx
 import React, { useState } from 'react';
-import { Plus, Search } from 'lucide-react';
-import { useClients } from '../hooks/useClients';
-import ClientListMobile from '../components/clients/ClientListMobile';
-import ClientTableDesktop from '../components/clients/ClientTableDesktop';
-import ClientFormModal from '../components/clients/ClientFormModal';
+import { Plus, Search, Filter } from 'lucide-react';
+import { useJobs } from '../hooks/useJobs';
+import { useClients } from '../hooks/useClients'; // Required for dropdown & joins
+import JobListMobile from '../components/jobs/JobListMobile';
+import JobTableDesktop from '../components/jobs/JobTableDesktop';
+import JobFormModal from '../components/jobs/JobFormModal';
 
-const ClientsPage = () => {
-  const { clients, loading, error, addClient } = useClients();
+const JobsPage = () => {
+  const { jobs, loading: jobsLoading, error: jobsError, addJob } = useJobs();
+  const { clients, loading: clientsLoading } = useClients(); // Fetch clients to populate UI
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Client-side filtering
-  const filteredClients = clients.filter(c => 
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.email?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const loading = jobsLoading || clientsLoading;
+
+  // Simple filtering
+  const filteredJobs = jobs.filter(job => {
+    // Find client name for search
+    const clientName = clients.find(c => c.id === job.clientId)?.name?.toLowerCase() || '';
+    return clientName.includes(searchTerm.toLowerCase());
+  });
 
   return (
     <div className="space-y-6">
-      {/* Header & Actions */}
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Clients</h1>
-          <p className="text-slate-500 text-sm">Manage your residential and commercial customers</p>
+          <h1 className="text-2xl font-bold text-slate-900">Job Management</h1>
+          <p className="text-slate-500 text-sm">Schedule and track cleaning appointments</p>
         </div>
         
         <div className="flex gap-3">
@@ -2039,7 +2636,7 @@ const ClientsPage = () => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
             <input 
               type="text"
-              placeholder="Search clients..."
+              placeholder="Search by client..."
               className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -2050,8 +2647,8 @@ const ClientsPage = () => {
             className="bg-brand-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-brand-700 flex items-center gap-2 shadow-sm whitespace-nowrap"
           >
             <Plus size={20} />
-            <span className="hidden md:inline">Add Client</span>
-            <span className="md:hidden">Add</span>
+            <span className="hidden md:inline">New Job</span>
+            <span className="md:hidden">New</span>
           </button>
         </div>
       </div>
@@ -2061,96 +2658,58 @@ const ClientsPage = () => {
         <div className="flex justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div>
         </div>
-      ) : error ? (
+      ) : jobsError ? (
         <div className="bg-red-50 text-red-600 p-4 rounded-lg border border-red-100">
-          Error: {error}
+          Error: {jobsError}
         </div>
       ) : (
         <>
-          <ClientListMobile clients={filteredClients} />
-          <ClientTableDesktop clients={filteredClients} />
+          <JobListMobile jobs={filteredJobs} clients={clients} />
+          <JobTableDesktop jobs={filteredJobs} clients={clients} />
         </>
       )}
 
       {/* Modals */}
-      <ClientFormModal 
+      <JobFormModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
-        onSave={addClient}
+        onSave={addJob}
+        clients={clients} 
       />
     </div>
   );
 };
 
-export default ClientsPage;
+export default JobsPage;
 EOF
 
 # 5. Update Navigation & Routing
-echo "📝 Updating Routing and Navigation..."
+echo "📝 Updating Navigation to include Jobs..."
 
-# Overwriting App.jsx to add the route
-cat << 'EOF' > src/App.jsx
-import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import AppLayout from './components/layout/AppLayout';
-import AuthGuard from './components/layout/AuthGuard';
-import LoginPage from './features/auth/LoginPage';
-import ClientsPage from './pages/ClientsPage';
-import DebugClaims from './components/debug/DebugClaims';
-
-// Placeholder Pages
-const Dashboard = () => (
-  <div>
-    <h2 className="text-2xl font-bold mb-4">My Jobs Today</h2>
-    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-      <p className="text-gray-500">No jobs scheduled yet.</p>
-    </div>
-    <DebugClaims />
-  </div>
-);
-
-const Schedule = () => <h2 className="text-2xl font-bold">Schedule View</h2>;
-
-function App() {
-  return (
-    <BrowserRouter>
-      <Routes>
-        {/* Public Route */}
-        <Route path="/login" element={<LoginPage />} />
-
-        {/* Protected Routes */}
-        <Route path="/" element={
-          <AuthGuard>
-            <AppLayout />
-          </AuthGuard>
-        }>
-          <Route index element={<Dashboard />} />
-          <Route path="schedule" element={<Schedule />} />
-          <Route path="clients" element={<ClientsPage />} />
-          {/* Catch-all redirects to home */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
-  );
-}
-
-export default App;
-EOF
-
-# Updating Sidebar to highlight Clients
+# Sidebar: Add "Jobs" link
 cat << 'EOF' > src/components/layout/Sidebar.jsx
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Calendar, Users, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, Calendar, Users, Settings, LogOut, Briefcase } from 'lucide-react';
+import { signOut } from 'firebase/auth';
+import { auth } from '../../lib/firebase';
 
 const Sidebar = () => {
   const navItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
+    { icon: Briefcase, label: 'Jobs', path: '/jobs' },
     { icon: Calendar, label: 'Schedule', path: '/schedule' },
     { icon: Users, label: 'Clients', path: '/clients' },
     { icon: Settings, label: 'Settings', path: '/settings' },
   ];
+
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error("Error signing out:", error);
+    }
+  };
 
   return (
     <aside className="hidden md:flex flex-col w-64 bg-slate-800 text-white h-screen fixed left-0 top-0">
@@ -2177,7 +2736,10 @@ const Sidebar = () => {
       </nav>
 
       <div className="p-4 border-t border-slate-700">
-        <button className="flex items-center gap-3 px-4 py-2 text-slate-300 hover:text-white w-full">
+        <button 
+          onClick={handleSignOut}
+          className="flex items-center gap-3 px-4 py-2 text-slate-300 hover:text-white w-full hover:bg-slate-700 rounded-lg transition-colors"
+        >
           <LogOut size={20} />
           <span>Sign Out</span>
         </button>
@@ -2189,11 +2751,11 @@ const Sidebar = () => {
 export default Sidebar;
 EOF
 
-# Updating BottomNav to include Clients
+# BottomNav: Update "Jobs" to point to /jobs
 cat << 'EOF' > src/components/layout/BottomNav.jsx
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Calendar, Users, Menu } from 'lucide-react';
+import { LayoutDashboard, Calendar, Users, Menu, Briefcase } from 'lucide-react';
 
 const BottomNav = () => {
   return (
@@ -2203,6 +2765,14 @@ const BottomNav = () => {
         className={({ isActive }) => `flex flex-col items-center gap-1 ${isActive ? 'text-brand-600' : 'text-gray-400'}`}
       >
         <LayoutDashboard size={24} />
+        <span className="text-xs">Dash</span>
+      </NavLink>
+
+      <NavLink 
+        to="/jobs" 
+        className={({ isActive }) => `flex flex-col items-center gap-1 ${isActive ? 'text-brand-600' : 'text-gray-400'}`}
+      >
+        <Briefcase size={24} />
         <span className="text-xs">Jobs</span>
       </NavLink>
 
@@ -2233,7 +2803,61 @@ const BottomNav = () => {
 export default BottomNav;
 EOF
 
-echo "✅ SUCCESS! Client Management Module installed."
+# App.jsx: Add Route
+cat << 'EOF' > src/App.jsx
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import AppLayout from './components/layout/AppLayout';
+import AuthGuard from './components/layout/AuthGuard';
+import LoginPage from './features/auth/LoginPage';
+import ClientsPage from './pages/ClientsPage';
+import JobsPage from './pages/JobsPage';
+import DebugClaims from './components/debug/DebugClaims';
+
+// Placeholder Pages
+const Dashboard = () => (
+  <div>
+    <h2 className="text-2xl font-bold mb-4">Dashboard</h2>
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <h3 className="text-gray-500 text-sm font-medium">Jobs Today</h3>
+        <p className="text-2xl font-bold text-slate-800">0</p>
+      </div>
+    </div>
+    <DebugClaims />
+  </div>
+);
+
+const Schedule = () => <h2 className="text-2xl font-bold">Schedule View</h2>;
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        {/* Public Route */}
+        <Route path="/login" element={<LoginPage />} />
+
+        {/* Protected Routes */}
+        <Route path="/" element={
+          <AuthGuard>
+            <AppLayout />
+          </AuthGuard>
+        }>
+          <Route index element={<Dashboard />} />
+          <Route path="jobs" element={<JobsPage />} />
+          <Route path="schedule" element={<Schedule />} />
+          <Route path="clients" element={<ClientsPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+export default App;
+EOF
+
+echo "✅ SUCCESS! Job Management Module installed."
 ```
 ---
 

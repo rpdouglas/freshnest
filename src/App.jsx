@@ -5,6 +5,7 @@ import AuthGuard from './components/layout/AuthGuard';
 import LoginPage from './features/auth/LoginPage';
 import ClientsPage from './pages/ClientsPage';
 import JobsPage from './pages/JobsPage';
+import SchedulePage from './pages/SchedulePage';
 import DebugClaims from './components/debug/DebugClaims';
 
 // Placeholder Pages
@@ -21,8 +22,6 @@ const Dashboard = () => (
   </div>
 );
 
-const Schedule = () => <h2 className="text-2xl font-bold">Schedule View</h2>;
-
 function App() {
   return (
     <BrowserRouter>
@@ -38,7 +37,7 @@ function App() {
         }>
           <Route index element={<Dashboard />} />
           <Route path="jobs" element={<JobsPage />} />
-          <Route path="schedule" element={<Schedule />} />
+          <Route path="schedule" element={<SchedulePage />} />
           <Route path="clients" element={<ClientsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
