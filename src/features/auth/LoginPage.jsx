@@ -69,6 +69,9 @@ const LoginPage = () => {
                 <Mail className="absolute left-3 top-3 text-slate-400" size={20} />
                 <input
                   type="email"
+                  name="email"
+                  id="email"
+                  autoComplete="email"
                   required
                   className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
                   placeholder="name@company.com"
@@ -84,6 +87,9 @@ const LoginPage = () => {
                 <Lock className="absolute left-3 top-3 text-slate-400" size={20} />
                 <input
                   type="password"
+                  name="password"
+                  id="password"
+                  autoComplete={isLogin ? "current-password" : "new-password"}
                   required
                   className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
                   placeholder="••••••••"
