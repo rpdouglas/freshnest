@@ -6,44 +6,40 @@
 ## ✅ Completed Features
 * **Project Setup:** Vite + React + Tailwind CSS configured.
 * **Authentication:** Firebase Login/Signup with Email & Password.
-* **Multi-Tenancy:** * Custom Claims (`orgId`) implemented.
-    * `init-org.cjs` script created for provisioning new organizations.
+* **Multi-Tenancy:** Custom Claims (`orgId`) & Provisioning Script.
 * **Client Management:**
-    * Robust `useClients` hook with `orgId` security filters.
-    * Responsive UI: Mobile Card List + Desktop Data Table.
-    * "Add Client" Modal with validation.
-    * Firestore Security Rules & Composite Indexes deployed.
+    * `useClients` hook, Mobile Cards, Desktop Table.
+    * Security Rules & Indexes deployed.
+* **Job Management:**
+    * `useJobs` hook with Relational Data (`clientId`).
+    * UI: Jobs List with "Join" logic (Client Name lookup).
+    * "Add Job" Modal with Client Dropdown.
+    * Security Rules & Composite Index (`orgId` + `scheduledDate`) deployed.
 
 ## 🚧 In Progress / Next Up
-* [ ] **Job Management:** Creating and assigning cleaning jobs.
-* [ ] **Scheduling:** Calendar view for jobs.
+* [ ] **Schedule View:** A dedicated Calendar view for upcoming jobs.
 * [ ] **Staff Management:** Adding employees to the Org.
 
 ## 🗄️ Database Schema (Firestore)
 
 ### `organizations/{orgId}`
-* `name`: String
-* `plan`: String ("basic", "gold")
-* `settings`: Map (currency, etc.)
+* `name`, `plan`, `settings`
 
 ### `users/{userId}`
-* `email`: String
-* `fullName`: String
-* `orgId`: String (Link to Organization)
-* `role`: String ("admin", "user")
+* `email`, `fullName`, `orgId`, `role`
 
-### `clients/{clientId}` (✨ NEW)
-* `orgId`: String (Security Partition)
-* `name`: String
-* `email`: String
-* `phone`: String
-* `address`: String
-* `createdAt`: Timestamp
+### `clients/{clientId}`
+* `orgId`, `name`, `email`, `phone`, `address`
+
+### `jobs/{jobId}` (✨ NEW)
+* `orgId`: String
+* `clientId`: String (Ref to Client)
+* `scheduledDate`: Timestamp
+* `status`: String ('scheduled', 'completed')
+* `serviceType`: String
+* `price`: Number
 
 ## 📂 Key Files Created
-* `src/hooks/useClients.js`
-* `src/pages/ClientsPage.jsx`
-* `src/components/clients/*` (Modal, List, Table)
+* `src/hooks/useClients.js`, `src/hooks/useJobs.js`
+* `src/pages/ClientsPage.jsx`, `src/pages/JobsPage.jsx`
 * `firestore.rules`
-* `firestore.indexes.json`
-
