@@ -24,11 +24,15 @@ Use this prompt **after** the AI has presented the 3 Architectural Options. This
     * This script must use `cat << 'EOF' > path/to/file` to safely create the directories and write the file contents.
     * *Note:* Ensure you escape special characters in the bash script correctly so the React code generates properly.
 
-2.  **Git Documentation:**
-    * At the end of your response, provide a **Git Commit Comment Block**.
+2.  **QA Checklist (Manual Testing):**
+    * Provide a bulleted list of 3-5 manual tests I should perform to verify this specific feature works.
+    * Include at least one "Security/Isolation" test case (e.g., verify Org A cannot see Org B's data).
+
+3.  **Git Documentation:**
+    * At the very end, provide a **Git Commit Comment Block**.
     * Format:
         * **Branch:** (Verify we are on `feature/...`)
         * **Message:** `feat: [summary]`
         * **Description:** Bullet points of changes.
 
-*Please generate the installation script and git docs now.*
+*Please generate the installation script, test checklist, and git docs now.*
