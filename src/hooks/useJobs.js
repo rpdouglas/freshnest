@@ -1,13 +1,6 @@
 import { useState, useEffect } from 'react';
 import { 
-  collection, 
-  query, 
-  where, 
-  onSnapshot, 
-  addDoc, 
-  serverTimestamp,
-  orderBy,
-  Timestamp 
+  collection, query, where, onSnapshot, addDoc, serverTimestamp, orderBy, Timestamp, doc, getDoc 
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 
@@ -15,6 +8,7 @@ export const useJobs = () => {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [currentOrgId, setCurrentOrgId] = useState(null);
 
   useEffect(() => {
     const user = auth.currentUser;
@@ -23,64 +17,68 @@ export const useJobs = () => {
       return;
     }
 
-    user.getIdTokenResult().then((idTokenResult) => {
-      const orgId = idTokenResult.claims.orgId;
+    const fetchOrgAndSubscribe = async () => {
+      try {
+        const userDocRef = doc(db, 'users', user.uid);
+        const userDoc = await getDoc(userDocRef);
+        const orgId = userDoc.exists() ? userDoc.data().orgId : null;
+        setCurrentOrgId(orgId);
 
-      if (!orgId) {
-        setError("Organization ID missing.");
+        if (!orgId) {
+          setError("Organization ID missing.");
+          setLoading(false);
+          return;
+        }
+
+        const q = query(
+          collection(db, 'jobs'),
+          where('orgId', '==', orgId),
+          orderBy('scheduledDate', 'asc')
+        );
+
+        return onSnapshot(q, (snapshot) => {
+          const jobData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            scheduledDate: doc.data().scheduledDate?.toDate()
+          }));
+          setJobs(jobData);
+          setLoading(false);
+        }, (err) => {
+          console.error("Error fetching jobs:", err);
+          setError("Failed to load jobs.");
+          setLoading(false);
+        });
+      } catch (err) {
+        console.error(err);
         setLoading(false);
-        return;
       }
+    };
 
-      // SECURITY: Filter by orgId
-      // Note: This requires a composite index (orgId + scheduledDate)
-      const q = query(
-        collection(db, 'jobs'),
-        where('orgId', '==', orgId),
-        orderBy('scheduledDate', 'asc')
-      );
-
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const jobData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          // Convert Firestore Timestamp to JS Date for easier UI handling
-          scheduledDate: doc.data().scheduledDate?.toDate()
-        }));
-        setJobs(jobData);
-        setLoading(false);
-      }, (err) => {
-        console.error("Error fetching jobs:", err);
-        setError("Failed to load jobs. (Check console for Index link)");
-        setLoading(false);
-      });
-
-      return () => unsubscribe();
-    });
+    const unsubscribePromise = fetchOrgAndSubscribe();
+    return () => { unsubscribePromise.then(unsub => unsub && unsub()); };
   }, []);
 
   const addJob = async (jobData) => {
-    const user = auth.currentUser;
-    if (!user) throw new Error("Not authenticated");
+    if (!currentOrgId) throw new Error("No Organization ID found.");
 
-    const idTokenResult = await user.getIdTokenResult();
-    const orgId = idTokenResult.claims.orgId;
-
-    if (!orgId) throw new Error("No Organization ID found.");
-
-    // Convert string date (from input) to Firestore Timestamp
     const timestampDate = new Date(jobData.scheduledDate);
+
+    // Prepare Assignment Array
+    // Even though UI is single select, we store as array for future proofing
+    const assignedTo = jobData.assignedStaffId ? [jobData.assignedStaffId] : [];
 
     await addDoc(collection(db, 'jobs'), {
       clientId: jobData.clientId,
       serviceType: jobData.serviceType,
       price: Number(jobData.price),
       notes: jobData.notes,
-      status: 'scheduled', // Default status
+      assignedTo: assignedTo, // ✨ NEW FIELD
+      status: 'scheduled',
       scheduledDate: Timestamp.fromDate(timestampDate),
-      orgId, 
+      orgId: currentOrgId, 
       createdAt: serverTimestamp(),
-      createdBy: user.uid
+      createdBy: auth.currentUser.uid
     });
   };
 

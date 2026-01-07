@@ -1,27 +1,23 @@
 # 📌 Project Status: Fresh Nest
 
-**Current Phase:** Phase 1 - Foundation & Core Data
+**Current Phase:** Phase 1 Complete / Starting Phase 2 (Operations)
 **Last Updated:** $(date +%Y-%m-%d)
 
 ## ✅ Completed Features
 * **Project Setup:** Vite + React + Tailwind CSS configured.
 * **Authentication:** Firebase Login/Signup with Email & Password.
-* **Multi-Tenancy:** Custom Claims (`orgId`) & Provisioning Script.
-* **Client Management:**
-    * `useClients` hook, Mobile Cards, Desktop Table.
-    * Security Rules & Indexes deployed.
-* **Job Management:**
-    * `useJobs` hook with Relational Data (`clientId`).
-    * UI: Jobs List with "Join" logic (Client Name lookup).
-    * "Add Job" Modal with Client Dropdown.
-    * Security Rules & Composite Index (`orgId` + `scheduledDate`) deployed.
-* **Schedule View:**
-    * `useSchedule` hook (Date Range filtering).
-    * Mobile-First Agenda UI (Date Strip + Daily List).
+* **Architecture:** Client-Side Multi-Tenancy (OrgId stored in User Profile).
+* **Client Management:** `useClients` hook, Mobile Cards, Desktop Table.
+* **Job Management:** `useJobs` hook, Relational Data, Scheduling.
+* **Schedule View:** Mobile-First Agenda UI with Date Range filtering.
+* **Staff Management:** * User Invites (Admin sends email).
+    * Onboarding (Auto-linking to Org upon signup).
+    * Security Rules (Profile-based access control).
+* **DevOps:** Automated Build Versioning & Git Hash injection.
 
 ## 🚧 In Progress / Next Up
-* [ ] **Staff Management:** Adding employees to the Org (User Invite flow).
 * [ ] **Job Assignment:** Assigning specific jobs to specific staff members.
+* [ ] **Worker View:** A restricted view for staff to see only *their* jobs.
 
 ## 🗄️ Database Schema (Firestore)
 
@@ -29,7 +25,11 @@
 * `name`, `plan`, `settings`
 
 ### `users/{userId}`
-* `email`, `fullName`, `orgId`, `role`
+* `email`, `fullName`, `orgId` (Link to Org), `role` ('admin'|'staff')
+* `createdAt`
+
+### `invites/{inviteId}`
+* `email`, `orgId`, `role`, `status`
 
 ### `clients/{clientId}`
 * `orgId`, `name`, `email`, `phone`, `address`
@@ -37,8 +37,10 @@
 ### `jobs/{jobId}`
 * `orgId`, `clientId` (Ref), `scheduledDate` (Timestamp)
 * `status`, `serviceType`, `price`
+* `assignedTo` (Array of userIds - Coming Soon)
 
 ## 📂 Key Files Created
-* `src/hooks/useClients.js`, `src/hooks/useJobs.js`, `src/hooks/useSchedule.js`
-* `src/pages/ClientsPage.jsx`, `src/pages/JobsPage.jsx`, `src/pages/SchedulePage.jsx`
-* `firestore.rules`
+* `src/hooks/useSettings.js`
+* `src/pages/SettingsPage.jsx`
+* `src/features/auth/LoginPage.jsx` (Onboarding Logic)
+* `firestore.rules` (Profile-Based Security)

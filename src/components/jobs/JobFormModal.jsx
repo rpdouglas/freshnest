@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { X, Save, Loader, Calendar, DollarSign } from 'lucide-react';
+import { X, Save, Loader, Calendar, DollarSign, User } from 'lucide-react';
 
-const JobFormModal = ({ isOpen, onClose, onSave, clients }) => {
+const JobFormModal = ({ isOpen, onClose, onSave, clients, staff }) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     clientId: '',
+    assignedStaffId: '', // Single select for UI
     scheduledDate: '',
     serviceType: 'standard',
     price: '',
@@ -26,6 +27,7 @@ const JobFormModal = ({ isOpen, onClose, onSave, clients }) => {
       // Reset form
       setFormData({
         clientId: '',
+        assignedStaffId: '',
         scheduledDate: '',
         serviceType: 'standard',
         price: '',
@@ -55,7 +57,7 @@ const JobFormModal = ({ isOpen, onClose, onSave, clients }) => {
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           
-          {/* Client Selector (The Relational Link) */}
+          {/* Client Selector */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Select Client *</label>
             <select
@@ -103,6 +105,26 @@ const JobFormModal = ({ isOpen, onClose, onSave, clients }) => {
             </div>
           </div>
 
+          {/* STAFF ASSIGNMENT (New) */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Assign Staff</label>
+            <div className="relative">
+              <User className="absolute left-3 top-2.5 text-slate-400" size={18} />
+              <select
+                className="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none bg-white"
+                value={formData.assignedStaffId}
+                onChange={(e) => setFormData({...formData, assignedStaffId: e.target.value})}
+              >
+                <option value="">-- Unassigned --</option>
+                {staff.map(member => (
+                  <option key={member.id} value={member.id}>
+                    {member.fullName || member.email}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Price Estimate</label>
             <div className="relative">
@@ -123,7 +145,7 @@ const JobFormModal = ({ isOpen, onClose, onSave, clients }) => {
             <label className="block text-sm font-medium text-slate-700 mb-1">Internal Notes</label>
             <textarea
               className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
-              rows="3"
+              rows="2"
               placeholder="Gate code, pets, special instructions..."
               value={formData.notes}
               onChange={(e) => setFormData({...formData, notes: e.target.value})}

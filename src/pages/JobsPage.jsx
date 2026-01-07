@@ -1,18 +1,21 @@
 import React, { useState } from 'react';
-import { Plus, Search, Filter } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import { useJobs } from '../hooks/useJobs';
-import { useClients } from '../hooks/useClients'; // Required for dropdown & joins
+import { useClients } from '../hooks/useClients';
+import { useStaff } from '../hooks/useStaff'; // ✨ NEW
 import JobListMobile from '../components/jobs/JobListMobile';
 import JobTableDesktop from '../components/jobs/JobTableDesktop';
 import JobFormModal from '../components/jobs/JobFormModal';
 
 const JobsPage = () => {
   const { jobs, loading: jobsLoading, error: jobsError, addJob } = useJobs();
-  const { clients, loading: clientsLoading } = useClients(); // Fetch clients to populate UI
+  const { clients, loading: clientsLoading } = useClients(); 
+  const { staff, loading: staffLoading } = useStaff(); // Fetch staff
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const loading = jobsLoading || clientsLoading;
+  const loading = jobsLoading || clientsLoading || staffLoading;
 
   // Simple filtering
   const filteredJobs = jobs.filter(job => {
@@ -63,8 +66,8 @@ const JobsPage = () => {
         </div>
       ) : (
         <>
-          <JobListMobile jobs={filteredJobs} clients={clients} />
-          <JobTableDesktop jobs={filteredJobs} clients={clients} />
+          <JobListMobile jobs={filteredJobs} clients={clients} staff={staff} />
+          <JobTableDesktop jobs={filteredJobs} clients={clients} staff={staff} />
         </>
       )}
 
@@ -72,8 +75,9 @@ const JobsPage = () => {
       <JobFormModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
-        onSave={addJob}
+        onSave={addJob} 
         clients={clients} 
+        staff={staff}
       />
     </div>
   );
