@@ -10,6 +10,7 @@
 - **organizations/{orgId}**: { name, settings }
 - **users/{userId}**: { email, orgId, role, fullName }
 - **invites/{inviteId}**: { email, orgId, role }
+- **jobs/{jobId}**: { assignedTo: [userId], status, serviceType, ... }
 
 ## Rules for AI
 1. ALL code must be provided as COMPLETE FILES.

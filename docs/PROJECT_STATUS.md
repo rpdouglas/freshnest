@@ -10,14 +10,16 @@
 * **Client Management:** `useClients` hook, Mobile Cards, Desktop Table.
 * **Job Management:** `useJobs` hook, Relational Data, Scheduling.
 * **Schedule View:** Mobile-First Agenda UI with Date Range filtering.
-* **Staff Management:** * User Invites (Admin sends email).
-    * Onboarding (Auto-linking to Org upon signup).
-    * Security Rules (Profile-based access control).
+* **Staff Management:** User Invites, Onboarding, Security Rules.
+* **Job Assignment:**
+    * `useStaff` hook for fetching assignable users.
+    * `assignedTo` array in Jobs schema.
+    * UI: Dropdown in Modal, Avatar display in Lists.
 * **DevOps:** Automated Build Versioning & Git Hash injection.
 
 ## 🚧 In Progress / Next Up
-* [ ] **Job Assignment:** Assigning specific jobs to specific staff members.
 * [ ] **Worker View:** A restricted view for staff to see only *their* jobs.
+* [ ] **Job Status Workflow:** Allow staff to mark jobs as "Started" / "Completed".
 
 ## 🗄️ Database Schema (Firestore)
 
@@ -37,10 +39,9 @@
 ### `jobs/{jobId}`
 * `orgId`, `clientId` (Ref), `scheduledDate` (Timestamp)
 * `status`, `serviceType`, `price`
-* `assignedTo` (Array of userIds - Coming Soon)
+* `assignedTo` (Array of userIds)
 
 ## 📂 Key Files Created
-* `src/hooks/useSettings.js`
-* `src/pages/SettingsPage.jsx`
-* `src/features/auth/LoginPage.jsx` (Onboarding Logic)
-* `firestore.rules` (Profile-Based Security)
+* `src/hooks/useStaff.js`
+* `src/components/jobs/JobFormModal.jsx` (Updated)
+* `src/components/jobs/JobTableDesktop.jsx` (Updated)
