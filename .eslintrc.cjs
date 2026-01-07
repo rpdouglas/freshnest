@@ -15,6 +15,7 @@ module.exports = {
     __APP_VERSION__: 'readonly',
     __COMMIT_HASH__: 'readonly',
     __BUILD_DATE__: 'readonly',
+    __BUILD_NUMBER__: 'readonly', // Added this line
   },
   rules: {
     'react-refresh/only-export-components': [
