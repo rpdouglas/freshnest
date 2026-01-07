@@ -45,7 +45,7 @@ const Sidebar = () => {
         ))}
       </nav>
 
-      <div className="p-4 border-t border-slate-700">
+      <div className="p-4 border-t border-slate-700 space-y-4">
         <button 
           onClick={handleSignOut}
           className="flex items-center gap-3 px-4 py-2 text-slate-300 hover:text-white w-full hover:bg-slate-700 rounded-lg transition-colors"
@@ -53,6 +53,12 @@ const Sidebar = () => {
           <LogOut size={20} />
           <span>Sign Out</span>
         </button>
+
+        {/* Version Footer */}
+        <div className="px-4 text-[10px] text-slate-600 font-mono">
+          <p>v{__APP_VERSION__} [{__COMMIT_HASH__}]</p>
+          <p>{__BUILD_DATE__}</p>
+        </div>
       </div>
     </aside>
   );
