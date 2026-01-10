@@ -38,4 +38,4 @@ ui-debug.log
 .env.local
 
 # SECURITY: Admin SDK Keys
-scripts/service-account.json
+scripts/service-account.jsonscripts/service-account-*.json

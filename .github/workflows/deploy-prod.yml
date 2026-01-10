@@ -20,19 +20,20 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      # ✨ NEW STEP: Inject the .env file from Secrets
-      - name: Create .env file
-        run: echo "${{ secrets.ENV_FILE_PROD }}" > .env
+      # 1. Inject Secrets
+      - name: Create .env and Key Files
+        run: |
+          echo "${{ secrets.ENV_FILE_PROD }}" > .env
+          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_PROD }}' > service-account.json
 
+      # 2. Build App
       - name: Build
         run: npm run build
         env:
           VITE_APP_ENV: 'production'
 
-      - name: Deploy to Firebase Hosting (PROD)
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: '${{ secrets.GITHUB_TOKEN }}'
-          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_PROD }}'
-          channelId: live
-          projectId: fresh-nest-prod
+      # 3. Full Deployment (Hosting + Firestore)
+      - name: Deploy to Firebase
+        run: npx firebase deploy --project fresh-nest-prod --non-interactive
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: 'service-account.json'

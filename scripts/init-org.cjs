@@ -1,21 +1,31 @@
-/**
- * scripts/init-org.js
- * USAGE: 
- * 1. Ensure service-account.json is in this folder (scripts/).
- * 2. Run: node scripts/init-org.cjs
- */
-
 const admin = require('firebase-admin');
-// Ensure this file exists! You downloaded it from Firebase Console -> Project Settings -> Service Accounts
-const serviceAccount = require('./service-account.json'); 
+const fs = require('fs');
+const path = require('path');
+
+// --- ARGS HANDLING ---
+// Usage: node scripts/init-org.cjs [env]
+// Example: node scripts/init-org.cjs uat
+const env = process.argv[2] || 'dev';
+const keyFilename = env === 'dev' ? 'service-account.json' : `service-account-${env}.json`;
+const keyPath = path.join(__dirname, keyFilename);
 
 // --- CONFIGURATION ---
-const TARGET_EMAIL = "FN_TEST_CLEANER@gmail.com"; // <--- The account you want to give a "Home" to
-const ORG_NAME = "Cleaner Test Org";              // <--- The name of their new Organization
+const TARGET_EMAIL = "rpdouglas@gmail.com"; 
+const ORG_NAME = "Fresh Nest (HQ)";
 // ---------------------
 
-// Initialize the Admin SDK
-// Check if already initialized to avoid hot-reload errors (though rare in scripts)
+if (!fs.existsSync(keyPath)) {
+  console.error(`❌ ERROR: Could not find key file: ${keyFilename}`);
+  console.error(`   Please download it from Firebase Console -> Project Settings -> Service Accounts`);
+  console.error(`   and save it to the 'scripts/' folder.`);
+  process.exit(1);
+}
+
+const serviceAccount = require(keyPath);
+
+console.log(`🌍 Environment: ${env.toUpperCase()}`);
+console.log(`🔑 Using Key: ${keyFilename}`);
+
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount)
@@ -29,48 +39,53 @@ async function bootstrap() {
   try {
     console.log(`🚀 Starting bootstrap for: ${TARGET_EMAIL}`);
 
-    // 1. Find the user
+    // 1. Ensure Auth User Exists
     let user;
     try {
       user = await auth.getUserByEmail(TARGET_EMAIL);
-      console.log(`✅ Found User: ${user.uid}`);
+      console.log(`✅ Found Existing Auth User: ${user.uid}`);
     } catch (e) {
-      console.error(`❌ User ${TARGET_EMAIL} not found in Auth. Did you sign up in the browser first?`);
-      process.exit(1);
+      console.log(`👤 User not found in Auth. Creating new user...`);
+      user = await auth.createUser({
+        email: TARGET_EMAIL,
+        password: 'password123', // Default password for new envs
+        emailVerified: true
+      });
+      console.log(`✅ Created New Auth User: ${user.uid}`);
     }
 
     // 2. Create the Organization
     const orgRef = await db.collection('organizations').add({
       name: ORG_NAME,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      plan: 'basic', // Default plan for new orgs
+      plan: 'enterprise',
       settings: {
         currency: 'USD',
-        geoFenceRadius: 200
+        geoFenceRadius: 500
       }
     });
     console.log(`✅ Created Organization: ${orgRef.id} (${ORG_NAME})`);
 
-    // 3. Update the User Profile (Firestore)
-    // We create a public profile for this user so we can find them easily later
+    // 3. Create/Update User Profile
     await db.collection('users').doc(user.uid).set({
       email: user.email,
       orgId: orgRef.id,
-      role: 'admin', // First user is always admin
-      fullName: 'Test User',
+      role: 'admin',
+      fullName: 'Rob Douglas',
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
-    console.log(`✅ Created User Profile in Firestore`);
+    console.log(`✅ Created/Updated Firestore Profile`);
 
-    // 4. Set Custom Claims (The "Magic" Token)
-    // This allows the frontend to know their role without querying the DB
+    // 4. Set Custom Claims (Legacy support, though we use Profile now)
     await auth.setCustomUserClaims(user.uid, {
       orgId: orgRef.id,
       role: 'admin'
     });
-    console.log(`✅ Claims set on Auth Token!`);
+    console.log(`✅ Claims set!`);
 
-    console.log("\n🎉 SUCCESS! You MUST Sign Out and Sign In again on the app to refresh your token.");
+    console.log("\n🎉 SUCCESS! You can now log in to " + env.toUpperCase());
+    console.log("👉 Login: " + TARGET_EMAIL);
+    console.log("👉 Pass:  password123 (if newly created) or your existing pass");
 
   } catch (error) {
     console.error("❌ Error during bootstrap:", error);
