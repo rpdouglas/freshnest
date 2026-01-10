@@ -6,6 +6,7 @@ import LoginPage from './features/auth/LoginPage';
 import ClientsPage from './pages/ClientsPage';
 import JobsPage from './pages/JobsPage';
 import SchedulePage from './pages/SchedulePage';
+import SettingsPage from './pages/SettingsPage'; // ✨ Imported
 import DebugClaims from './components/debug/DebugClaims';
 
 // Placeholder Pages
@@ -39,6 +40,7 @@ function App() {
           <Route path="jobs" element={<JobsPage />} />
           <Route path="schedule" element={<SchedulePage />} />
           <Route path="clients" element={<ClientsPage />} />
+          <Route path="settings" element={<SettingsPage />} /> {/* ✨ Added Route */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

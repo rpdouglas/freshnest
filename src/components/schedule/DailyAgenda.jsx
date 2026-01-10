@@ -2,8 +2,7 @@ import React from 'react';
 import { Clock, MapPin, DollarSign, User, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
 
-const DailyAgenda = ({ jobs, clients, loading, selectedDate }) => {
-  // Helper to join client data
+const DailyAgenda = ({ jobs, clients, loading, selectedDate, userRole }) => {
   const getClient = (clientId) => clients.find(c => c.id === clientId) || {};
 
   if (loading) {
@@ -19,7 +18,13 @@ const DailyAgenda = ({ jobs, clients, loading, selectedDate }) => {
     return (
       <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
         <div className="bg-slate-50 p-4 rounded-full mb-4">
-          <CalendarIcon className="text-slate-300" size={32} />
+          {/* Simple SVG icon inline for simplicity */}
+          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+          </svg>
         </div>
         <h3 className="text-lg font-bold text-slate-700">No jobs scheduled</h3>
         <p className="text-slate-500 text-sm mt-1">
@@ -69,6 +74,14 @@ const DailyAgenda = ({ jobs, clients, loading, selectedDate }) => {
                   </div>
                 )}
 
+                {/* RBAC: Hide Price from Staff */}
+                {userRole !== 'staff' && job.price > 0 && (
+                  <div className="flex items-center gap-2 text-sm text-slate-500">
+                    <DollarSign size={14} className="text-brand-400" />
+                    <span>${job.price}</span>
+                  </div>
+                )}
+
                 {job.notes && (
                   <div className="flex items-start gap-2 text-xs text-amber-600 bg-amber-50 p-2 rounded-lg mt-2">
                     <AlertCircle size={12} className="mt-0.5 shrink-0" />
@@ -83,26 +96,5 @@ const DailyAgenda = ({ jobs, clients, loading, selectedDate }) => {
     </div>
   );
 };
-
-// Simple Icon component for the empty state
-const CalendarIcon = ({ className, size }) => (
-  <svg 
-    xmlns="http://www.w3.org/2000/svg" 
-    width={size} 
-    height={size} 
-    viewBox="0 0 24 24" 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2" 
-    strokeLinecap="round" 
-    strokeLinejoin="round" 
-    className={className}
-  >
-    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-    <line x1="16" y1="2" x2="16" y2="6"></line>
-    <line x1="8" y1="2" x2="8" y2="6"></line>
-    <line x1="3" y1="10" x2="21" y2="10"></line>
-  </svg>
-);
 
 export default DailyAgenda;

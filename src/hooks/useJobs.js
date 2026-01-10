@@ -9,6 +9,7 @@ export const useJobs = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [currentOrgId, setCurrentOrgId] = useState(null);
+  const [userRole, setUserRole] = useState(null);
 
   useEffect(() => {
     const user = auth.currentUser;
@@ -19,10 +20,21 @@ export const useJobs = () => {
 
     const fetchOrgAndSubscribe = async () => {
       try {
+        // 1. Fetch User Profile to get OrgId AND Role
         const userDocRef = doc(db, 'users', user.uid);
         const userDoc = await getDoc(userDocRef);
-        const orgId = userDoc.exists() ? userDoc.data().orgId : null;
+        
+        if (!userDoc.exists()) {
+          setLoading(false);
+          return;
+        }
+
+        const userData = userDoc.data();
+        const orgId = userData.orgId;
+        const role = userData.role;
+
         setCurrentOrgId(orgId);
+        setUserRole(role);
 
         if (!orgId) {
           setError("Organization ID missing.");
@@ -30,11 +42,18 @@ export const useJobs = () => {
           return;
         }
 
-        const q = query(
-          collection(db, 'jobs'),
+        // 2. Construct Query based on Role
+        let constraints = [
           where('orgId', '==', orgId),
           orderBy('scheduledDate', 'asc')
-        );
+        ];
+
+        // RBAC: If staff, ONLY show jobs assigned to them
+        if (role === 'staff') {
+          constraints.push(where('assignedTo', 'array-contains', user.uid));
+        }
+
+        const q = query(collection(db, 'jobs'), ...constraints);
 
         return onSnapshot(q, (snapshot) => {
           const jobData = snapshot.docs.map(doc => ({
@@ -63,9 +82,6 @@ export const useJobs = () => {
     if (!currentOrgId) throw new Error("No Organization ID found.");
 
     const timestampDate = new Date(jobData.scheduledDate);
-
-    // Prepare Assignment Array
-    // Even though UI is single select, we store as array for future proofing
     const assignedTo = jobData.assignedStaffId ? [jobData.assignedStaffId] : [];
 
     await addDoc(collection(db, 'jobs'), {
@@ -73,7 +89,7 @@ export const useJobs = () => {
       serviceType: jobData.serviceType,
       price: Number(jobData.price),
       notes: jobData.notes,
-      assignedTo: assignedTo, // ✨ NEW FIELD
+      assignedTo: assignedTo,
       status: 'scheduled',
       scheduledDate: Timestamp.fromDate(timestampDate),
       orgId: currentOrgId, 
@@ -82,5 +98,5 @@ export const useJobs = () => {
     });
   };
 
-  return { jobs, loading, error, addJob };
+  return { jobs, loading, error, addJob, role: userRole };
 };

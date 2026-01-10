@@ -2,31 +2,33 @@ import React, { useState } from 'react';
 import { Plus, Search } from 'lucide-react';
 import { useJobs } from '../hooks/useJobs';
 import { useClients } from '../hooks/useClients';
-import { useStaff } from '../hooks/useStaff'; // ✨ NEW
+import { useStaff } from '../hooks/useStaff';
 import JobListMobile from '../components/jobs/JobListMobile';
 import JobTableDesktop from '../components/jobs/JobTableDesktop';
 import JobFormModal from '../components/jobs/JobFormModal';
 
 const JobsPage = () => {
-  const { jobs, loading: jobsLoading, error: jobsError, addJob } = useJobs();
+  // Destructure 'role' from hook
+  const { jobs, loading: jobsLoading, error: jobsError, addJob, role: userRole } = useJobs();
   const { clients, loading: clientsLoading } = useClients(); 
-  const { staff, loading: staffLoading } = useStaff(); // Fetch staff
+  const { staff, loading: staffLoading } = useStaff();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
   const loading = jobsLoading || clientsLoading || staffLoading;
 
-  // Simple filtering
   const filteredJobs = jobs.filter(job => {
-    // Find client name for search
     const clientName = clients.find(c => c.id === job.clientId)?.name?.toLowerCase() || '';
     return clientName.includes(searchTerm.toLowerCase());
   });
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header - Hide 'New Job' button for Staff if desired (Optional, keeping visible for now or hide?) 
+          Usually staff don't create jobs, but sticking to prompt reqs: Staff View Restrictions.
+          Let's hide the Add button if staff for better UX.
+      */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Job Management</h1>
@@ -44,14 +46,17 @@ const JobsPage = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            className="bg-brand-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-brand-700 flex items-center gap-2 shadow-sm whitespace-nowrap"
-          >
-            <Plus size={20} />
-            <span className="hidden md:inline">New Job</span>
-            <span className="md:hidden">New</span>
-          </button>
+          {/* Only Admin can add jobs */}
+          {userRole === 'admin' && (
+            <button 
+              onClick={() => setIsModalOpen(true)}
+              className="bg-brand-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-brand-700 flex items-center gap-2 shadow-sm whitespace-nowrap"
+            >
+              <Plus size={20} />
+              <span className="hidden md:inline">New Job</span>
+              <span className="md:hidden">New</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -66,12 +71,11 @@ const JobsPage = () => {
         </div>
       ) : (
         <>
-          <JobListMobile jobs={filteredJobs} clients={clients} staff={staff} />
-          <JobTableDesktop jobs={filteredJobs} clients={clients} staff={staff} />
+          <JobListMobile jobs={filteredJobs} clients={clients} staff={staff} userRole={userRole} />
+          <JobTableDesktop jobs={filteredJobs} clients={clients} staff={staff} userRole={userRole} />
         </>
       )}
 
-      {/* Modals */}
       <JobFormModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 

@@ -1,6 +1,6 @@
 # FRESH NEST: CODEBASE DUMP
-**Date:** Wed Jan  7 16:42:45 EST 2026
-**Description:** Complete codebase context excluding modules and secrets.
+**Date:** Fri Jan  9 18:22:32 EST 2026
+**Description:** Complete codebase context.
 
 ## FILE: package.json
 ```json
@@ -11,7 +11,6 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "prebuild": "node scripts/increment-build.cjs",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
@@ -53,22 +52,25 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { execSync } from 'child_process';
-import pkg from './package.json';
-import buildMeta from './build-meta.json'; // Import the counter
 
-// Get Git Hash
-let commitHash = 'dev';
+// Get the current git commit hash
+let commitHash = '';
 try {
   commitHash = execSync('git rev-parse --short HEAD').toString().trim();
-} catch (e) {}
+} catch (e) {
+  commitHash = 'dev';
+}
 
+// Get version from package.json
+import pkg from './package.json';
+
+// https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
     __COMMIT_HASH__: JSON.stringify(commitHash),
     __BUILD_DATE__: JSON.stringify(new Date().toISOString().split('T')[0]),
-    __BUILD_NUMBER__: JSON.stringify(buildMeta.buildNumber), // Inject the number
   }
 })
 
@@ -100,18 +102,6 @@ export default {
     },
   },
   plugins: [],
-}
-
-```
----
-
-## FILE: postcss.config.js
-```js
-export default {
-  plugins: {
-    tailwindcss: {},
-    autoprefixer: {},
-  },
 }
 
 ```
@@ -154,71 +144,6 @@ export default {
   }
 }
 
-```
----
-
-## FILE: index.html
-```html
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>fresh-nest</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
-</html>
-
-```
----
-
-## FILE: .gitignore
-```gitignore
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-pnpm-debug.log*
-lerna-debug.log*
-
-# Dependencies
-node_modules
-dist
-dist-ssr
-*.local
-
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs
-*.njsproj
-*.sln
-*.sw?
-
-# Firebase
-.firebase/
-firebase-debug.log
-firestore-debug.log
-ui-debug.log
-
-# SECURITY: Environment Variables & Keys
-# NEVER COMMIT THESE FILES
-.env
-.env.development
-.env.uat
-.env.production
-.env.local
-
-# SECURITY: Admin SDK Keys
-scripts/service-account.json
 ```
 ---
 
@@ -322,6 +247,12 @@ function App() {
 
 export default App;
 
+```
+---
+
+## FILE: src/assets/react.svg
+```svg
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="iconify iconify--logos" width="35.93" height="32" preserveAspectRatio="xMidYMid meet" viewBox="0 0 256 228"><path fill="#00D8FF" d="M210.483 73.824a171.49 171.49 0 0 0-8.24-2.597c.465-1.9.893-3.777 1.273-5.621c6.238-30.281 2.16-54.676-11.769-62.708c-13.355-7.7-35.196.329-57.254 19.526a171.23 171.23 0 0 0-6.375 5.848a155.866 155.866 0 0 0-4.241-3.917C100.759 3.829 77.587-4.822 63.673 3.233C50.33 10.957 46.379 33.89 51.995 62.588a170.974 170.974 0 0 0 1.892 8.48c-3.28.932-6.445 1.924-9.474 2.98C17.309 83.498 0 98.307 0 113.668c0 15.865 18.582 31.778 46.812 41.427a145.52 145.52 0 0 0 6.921 2.165a167.467 167.467 0 0 0-2.01 9.138c-5.354 28.2-1.173 50.591 12.134 58.266c13.744 7.926 36.812-.22 59.273-19.855a145.567 145.567 0 0 0 5.342-4.923a168.064 168.064 0 0 0 6.92 6.314c21.758 18.722 43.246 26.282 56.54 18.586c13.731-7.949 18.194-32.003 12.4-61.268a145.016 145.016 0 0 0-1.535-6.842c1.62-.48 3.21-.974 4.76-1.488c29.348-9.723 48.443-25.443 48.443-41.52c0-15.417-17.868-30.326-45.517-39.844Zm-6.365 70.984c-1.4.463-2.836.91-4.3 1.345c-3.24-10.257-7.612-21.163-12.963-32.432c5.106-11 9.31-21.767 12.459-31.957c2.619.758 5.16 1.557 7.61 2.4c23.69 8.156 38.14 20.213 38.14 29.504c0 9.896-15.606 22.743-40.946 31.14Zm-10.514 20.834c2.562 12.94 2.927 24.64 1.23 33.787c-1.524 8.219-4.59 13.698-8.382 15.893c-8.067 4.67-25.32-1.4-43.927-17.412a156.726 156.726 0 0 1-6.437-5.87c7.214-7.889 14.423-17.06 21.459-27.246c12.376-1.098 24.068-2.894 34.671-5.345a134.17 134.17 0 0 1 1.386 6.193ZM87.276 214.515c-7.882 2.783-14.16 2.863-17.955.675c-8.075-4.657-11.432-22.636-6.853-46.752a156.923 156.923 0 0 1 1.869-8.499c10.486 2.32 22.093 3.988 34.498 4.994c7.084 9.967 14.501 19.128 21.976 27.15a134.668 134.668 0 0 1-4.877 4.492c-9.933 8.682-19.886 14.842-28.658 17.94ZM50.35 144.747c-12.483-4.267-22.792-9.812-29.858-15.863c-6.35-5.437-9.555-10.836-9.555-15.216c0-9.322 13.897-21.212 37.076-29.293c2.813-.98 5.757-1.905 8.812-2.773c3.204 10.42 7.406 21.315 12.477 32.332c-5.137 11.18-9.399 22.249-12.634 32.792a134.718 134.718 0 0 1-6.318-1.979Zm12.378-84.26c-4.811-24.587-1.616-43.134 6.425-47.789c8.564-4.958 27.502 2.111 47.463 19.835a144.318 144.318 0 0 1 3.841 3.545c-7.438 7.987-14.787 17.08-21.808 26.988c-12.04 1.116-23.565 2.908-34.161 5.309a160.342 160.342 0 0 1-1.76-7.887Zm110.427 27.268a347.8 347.8 0 0 0-7.785-12.803c8.168 1.033 15.994 2.404 23.343 4.08c-2.206 7.072-4.956 14.465-8.193 22.045a381.151 381.151 0 0 0-7.365-13.322Zm-45.032-43.861c5.044 5.465 10.096 11.566 15.065 18.186a322.04 322.04 0 0 0-30.257-.006c4.974-6.559 10.069-12.652 15.192-18.18ZM82.802 87.83a323.167 323.167 0 0 0-7.227 13.238c-3.184-7.553-5.909-14.98-8.134-22.152c7.304-1.634 15.093-2.97 23.209-3.984a321.524 321.524 0 0 0-7.848 12.897Zm8.081 65.352c-8.385-.936-16.291-2.203-23.593-3.793c2.26-7.3 5.045-14.885 8.298-22.6a321.187 321.187 0 0 0 7.257 13.246c2.594 4.48 5.28 8.868 8.038 13.147Zm37.542 31.03c-5.184-5.592-10.354-11.779-15.403-18.433c4.902.192 9.899.29 14.978.29c5.218 0 10.376-.117 15.453-.343c-4.985 6.774-10.018 12.97-15.028 18.486Zm52.198-57.817c3.422 7.8 6.306 15.345 8.596 22.52c-7.422 1.694-15.436 3.058-23.88 4.071a382.417 382.417 0 0 0 7.859-13.026a347.403 347.403 0 0 0 7.425-13.565Zm-16.898 8.101a358.557 358.557 0 0 1-12.281 19.815a329.4 329.4 0 0 1-23.444.823c-7.967 0-15.716-.248-23.178-.732a310.202 310.202 0 0 1-12.513-19.846h.001a307.41 307.41 0 0 1-10.923-20.627a310.278 310.278 0 0 1 10.89-20.637l-.001.001a307.318 307.318 0 0 1 12.413-19.761c7.613-.576 15.42-.876 23.31-.876H128c7.926 0 15.743.303 23.354.883a329.357 329.357 0 0 1 12.335 19.695a358.489 358.489 0 0 1 11.036 20.54a329.472 329.472 0 0 1-11 20.722Zm22.56-122.124c8.572 4.944 11.906 24.881 6.52 51.026c-.344 1.668-.73 3.367-1.15 5.09c-10.622-2.452-22.155-4.275-34.23-5.408c-7.034-10.017-14.323-19.124-21.64-27.008a160.789 160.789 0 0 1 5.888-5.4c18.9-16.447 36.564-22.941 44.612-18.3ZM128 90.808c12.625 0 22.86 10.235 22.86 22.86s-10.235 22.86-22.86 22.86s-22.86-10.235-22.86-22.86s10.235-22.86 22.86-22.86Z"></path></svg>
 ```
 ---
 
@@ -625,12 +556,13 @@ export default DebugClaims;
 ## FILE: src/components/jobs/JobFormModal.jsx
 ```jsx
 import React, { useState } from 'react';
-import { X, Save, Loader, Calendar, DollarSign } from 'lucide-react';
+import { X, Save, Loader, Calendar, DollarSign, User } from 'lucide-react';
 
-const JobFormModal = ({ isOpen, onClose, onSave, clients }) => {
+const JobFormModal = ({ isOpen, onClose, onSave, clients, staff }) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     clientId: '',
+    assignedStaffId: '', // Single select for UI
     scheduledDate: '',
     serviceType: 'standard',
     price: '',
@@ -652,6 +584,7 @@ const JobFormModal = ({ isOpen, onClose, onSave, clients }) => {
       // Reset form
       setFormData({
         clientId: '',
+        assignedStaffId: '',
         scheduledDate: '',
         serviceType: 'standard',
         price: '',
@@ -681,7 +614,7 @@ const JobFormModal = ({ isOpen, onClose, onSave, clients }) => {
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           
-          {/* Client Selector (The Relational Link) */}
+          {/* Client Selector */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Select Client *</label>
             <select
@@ -729,6 +662,26 @@ const JobFormModal = ({ isOpen, onClose, onSave, clients }) => {
             </div>
           </div>
 
+          {/* STAFF ASSIGNMENT (New) */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Assign Staff</label>
+            <div className="relative">
+              <User className="absolute left-3 top-2.5 text-slate-400" size={18} />
+              <select
+                className="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none bg-white"
+                value={formData.assignedStaffId}
+                onChange={(e) => setFormData({...formData, assignedStaffId: e.target.value})}
+              >
+                <option value="">-- Unassigned --</option>
+                {staff.map(member => (
+                  <option key={member.id} value={member.id}>
+                    {member.fullName || member.email}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Price Estimate</label>
             <div className="relative">
@@ -749,7 +702,7 @@ const JobFormModal = ({ isOpen, onClose, onSave, clients }) => {
             <label className="block text-sm font-medium text-slate-700 mb-1">Internal Notes</label>
             <textarea
               className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
-              rows="3"
+              rows="2"
               placeholder="Gate code, pets, special instructions..."
               value={formData.notes}
               onChange={(e) => setFormData({...formData, notes: e.target.value})}
@@ -787,13 +740,18 @@ export default JobFormModal;
 ## FILE: src/components/jobs/JobListMobile.jsx
 ```jsx
 import React from 'react';
-import { Calendar, Clock, DollarSign, MapPin } from 'lucide-react';
+import { Calendar, Clock, DollarSign, MapPin, User } from 'lucide-react';
 import { format } from 'date-fns';
 
-const JobListMobile = ({ jobs, clients }) => {
-  // Helper to find client name
+const JobListMobile = ({ jobs, clients, staff }) => {
   const getClientName = (id) => clients.find(c => c.id === id)?.name || 'Unknown Client';
   const getClientAddress = (id) => clients.find(c => c.id === id)?.address;
+  
+  const getAssignedStaffName = (staffIds) => {
+    if (!staffIds || staffIds.length === 0) return 'Unassigned';
+    const member = staff.find(s => s.id === staffIds[0]);
+    return member ? (member.fullName || member.email) : 'Unknown';
+  };
 
   if (jobs.length === 0) {
     return (
@@ -805,52 +763,64 @@ const JobListMobile = ({ jobs, clients }) => {
 
   return (
     <div className="space-y-4 md:hidden">
-      {jobs.map((job) => (
-        <div key={job.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-          <div className="flex justify-between items-start mb-2">
-            <div>
-              <h3 className="font-bold text-slate-800 text-lg">{getClientName(job.clientId)}</h3>
-              <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 capitalize mt-1">
-                {job.serviceType}
-              </span>
+      {jobs.map((job) => {
+        const assignedName = getAssignedStaffName(job.assignedTo);
+        const isUnassigned = !job.assignedTo || job.assignedTo.length === 0;
+
+        return (
+          <div key={job.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+            <div className="flex justify-between items-start mb-2">
+              <div>
+                <h3 className="font-bold text-slate-800 text-lg">{getClientName(job.clientId)}</h3>
+                <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 capitalize mt-1">
+                  {job.serviceType}
+                </span>
+              </div>
+              <div className="text-right">
+                <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                  job.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                }`}>
+                  {job.status}
+                </span>
+              </div>
             </div>
-            <div className="text-right">
-              <span className={`text-xs font-bold px-2 py-1 rounded-full ${
-                job.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-              }`}>
-                {job.status}
-              </span>
+            
+            <div className="space-y-2 text-sm text-slate-600 mt-3">
+              <div className="flex items-center gap-2">
+                <Calendar size={16} className="text-brand-500 shrink-0" />
+                <span className="font-medium text-slate-900">
+                  {job.scheduledDate ? format(job.scheduledDate, 'MMM d, yyyy') : 'No Date'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Clock size={16} className="text-brand-500 shrink-0" />
+                <span>
+                  {job.scheduledDate ? format(job.scheduledDate, 'h:mm a') : 'TBD'}
+                </span>
+              </div>
+              
+              {/* STAFF ASSIGNMENT ROW */}
+              <div className={`flex items-center gap-2 ${isUnassigned ? 'text-slate-400 italic' : 'text-slate-700 font-medium'}`}>
+                <User size={16} className={isUnassigned ? "text-slate-300" : "text-brand-500"} />
+                <span>{assignedName}</span>
+              </div>
+
+              {getClientAddress(job.clientId) && (
+                 <div className="flex items-start gap-2">
+                   <MapPin size={16} className="text-brand-500 shrink-0 mt-0.5" />
+                   <span className="truncate">{getClientAddress(job.clientId)}</span>
+                 </div>
+              )}
+               {job.price > 0 && (
+                 <div className="flex items-center gap-2 text-slate-500">
+                   <DollarSign size={16} className="text-slate-400 shrink-0" />
+                   <span>${job.price}</span>
+                 </div>
+              )}
             </div>
           </div>
-          
-          <div className="space-y-2 text-sm text-slate-600 mt-3">
-            <div className="flex items-center gap-2">
-              <Calendar size={16} className="text-brand-500 shrink-0" />
-              <span className="font-medium text-slate-900">
-                {job.scheduledDate ? format(job.scheduledDate, 'MMM d, yyyy') : 'No Date'}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Clock size={16} className="text-brand-500 shrink-0" />
-              <span>
-                {job.scheduledDate ? format(job.scheduledDate, 'h:mm a') : 'TBD'}
-              </span>
-            </div>
-            {getClientAddress(job.clientId) && (
-               <div className="flex items-start gap-2">
-                 <MapPin size={16} className="text-brand-500 shrink-0 mt-0.5" />
-                 <span className="truncate">{getClientAddress(job.clientId)}</span>
-               </div>
-            )}
-             {job.price > 0 && (
-               <div className="flex items-center gap-2 text-slate-500">
-                 <DollarSign size={16} className="text-slate-400 shrink-0" />
-                 <span>${job.price}</span>
-               </div>
-            )}
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 };
@@ -863,11 +833,17 @@ export default JobListMobile;
 ## FILE: src/components/jobs/JobTableDesktop.jsx
 ```jsx
 import React from 'react';
-import { MoreHorizontal, Calendar, Clock, MapPin } from 'lucide-react';
+import { MoreHorizontal, Calendar, Clock, MapPin, User } from 'lucide-react';
 import { format } from 'date-fns';
 
-const JobTableDesktop = ({ jobs, clients }) => {
+const JobTableDesktop = ({ jobs, clients, staff }) => {
   const getClient = (id) => clients.find(c => c.id === id) || {};
+  
+  const getAssignedStaffName = (staffIds) => {
+    if (!staffIds || staffIds.length === 0) return 'Unassigned';
+    const member = staff.find(s => s.id === staffIds[0]);
+    return member ? (member.fullName || member.email) : 'Unknown';
+  };
 
   if (jobs.length === 0) {
     return (
@@ -884,6 +860,7 @@ const JobTableDesktop = ({ jobs, clients }) => {
           <tr className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold">
             <th className="px-6 py-4">Scheduled Date</th>
             <th className="px-6 py-4">Client</th>
+            <th className="px-6 py-4">Assigned Staff</th>
             <th className="px-6 py-4">Service</th>
             <th className="px-6 py-4">Status</th>
             <th className="px-6 py-4 text-right">Actions</th>
@@ -892,6 +869,9 @@ const JobTableDesktop = ({ jobs, clients }) => {
         <tbody className="divide-y divide-gray-100">
           {jobs.map((job) => {
             const client = getClient(job.clientId);
+            const assignedName = getAssignedStaffName(job.assignedTo);
+            const isUnassigned = !job.assignedTo || job.assignedTo.length === 0;
+
             return (
               <tr key={job.id} className="hover:bg-gray-50 transition-colors">
                 <td className="px-6 py-4">
@@ -909,6 +889,12 @@ const JobTableDesktop = ({ jobs, clients }) => {
                   <div className="flex items-center gap-1 text-xs text-slate-400 mt-0.5">
                     <MapPin size={12} />
                     <span className="truncate max-w-[150px]">{client.address || 'No address'}</span>
+                  </div>
+                </td>
+                <td className="px-6 py-4">
+                  <div className={`flex items-center gap-2 text-sm ${isUnassigned ? 'text-slate-400 italic' : 'text-slate-700'}`}>
+                    <User size={14} />
+                    {assignedName}
                   </div>
                 </td>
                 <td className="px-6 py-4">
@@ -1126,7 +1112,7 @@ const Sidebar = () => {
 
         {/* Version Footer */}
         <div className="px-4 text-[10px] text-slate-600 font-mono">
-          <p>v{__APP_VERSION__} (#{__BUILD_NUMBER__})</p>
+          <p>v{__APP_VERSION__} [{__COMMIT_HASH__}]</p>
           <p>{__BUILD_DATE__}</p>
         </div>
       </div>
@@ -1548,14 +1534,7 @@ export const useClients = () => {
 ```js
 import { useState, useEffect } from 'react';
 import { 
-  collection, 
-  query, 
-  where, 
-  onSnapshot, 
-  addDoc, 
-  serverTimestamp,
-  orderBy,
-  Timestamp 
+  collection, query, where, onSnapshot, addDoc, serverTimestamp, orderBy, Timestamp, doc, getDoc 
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 
@@ -1563,6 +1542,7 @@ export const useJobs = () => {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [currentOrgId, setCurrentOrgId] = useState(null);
 
   useEffect(() => {
     const user = auth.currentUser;
@@ -1571,64 +1551,68 @@ export const useJobs = () => {
       return;
     }
 
-    user.getIdTokenResult().then((idTokenResult) => {
-      const orgId = idTokenResult.claims.orgId;
+    const fetchOrgAndSubscribe = async () => {
+      try {
+        const userDocRef = doc(db, 'users', user.uid);
+        const userDoc = await getDoc(userDocRef);
+        const orgId = userDoc.exists() ? userDoc.data().orgId : null;
+        setCurrentOrgId(orgId);
 
-      if (!orgId) {
-        setError("Organization ID missing.");
+        if (!orgId) {
+          setError("Organization ID missing.");
+          setLoading(false);
+          return;
+        }
+
+        const q = query(
+          collection(db, 'jobs'),
+          where('orgId', '==', orgId),
+          orderBy('scheduledDate', 'asc')
+        );
+
+        return onSnapshot(q, (snapshot) => {
+          const jobData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            scheduledDate: doc.data().scheduledDate?.toDate()
+          }));
+          setJobs(jobData);
+          setLoading(false);
+        }, (err) => {
+          console.error("Error fetching jobs:", err);
+          setError("Failed to load jobs.");
+          setLoading(false);
+        });
+      } catch (err) {
+        console.error(err);
         setLoading(false);
-        return;
       }
+    };
 
-      // SECURITY: Filter by orgId
-      // Note: This requires a composite index (orgId + scheduledDate)
-      const q = query(
-        collection(db, 'jobs'),
-        where('orgId', '==', orgId),
-        orderBy('scheduledDate', 'asc')
-      );
-
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const jobData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          // Convert Firestore Timestamp to JS Date for easier UI handling
-          scheduledDate: doc.data().scheduledDate?.toDate()
-        }));
-        setJobs(jobData);
-        setLoading(false);
-      }, (err) => {
-        console.error("Error fetching jobs:", err);
-        setError("Failed to load jobs. (Check console for Index link)");
-        setLoading(false);
-      });
-
-      return () => unsubscribe();
-    });
+    const unsubscribePromise = fetchOrgAndSubscribe();
+    return () => { unsubscribePromise.then(unsub => unsub && unsub()); };
   }, []);
 
   const addJob = async (jobData) => {
-    const user = auth.currentUser;
-    if (!user) throw new Error("Not authenticated");
+    if (!currentOrgId) throw new Error("No Organization ID found.");
 
-    const idTokenResult = await user.getIdTokenResult();
-    const orgId = idTokenResult.claims.orgId;
-
-    if (!orgId) throw new Error("No Organization ID found.");
-
-    // Convert string date (from input) to Firestore Timestamp
     const timestampDate = new Date(jobData.scheduledDate);
+
+    // Prepare Assignment Array
+    // Even though UI is single select, we store as array for future proofing
+    const assignedTo = jobData.assignedStaffId ? [jobData.assignedStaffId] : [];
 
     await addDoc(collection(db, 'jobs'), {
       clientId: jobData.clientId,
       serviceType: jobData.serviceType,
       price: Number(jobData.price),
       notes: jobData.notes,
-      status: 'scheduled', // Default status
+      assignedTo: assignedTo, // ✨ NEW FIELD
+      status: 'scheduled',
       scheduledDate: Timestamp.fromDate(timestampDate),
-      orgId, 
+      orgId: currentOrgId, 
       createdAt: serverTimestamp(),
-      createdBy: user.uid
+      createdBy: auth.currentUser.uid
     });
   };
 
@@ -1701,6 +1685,83 @@ export const useSchedule = (startDate, endDate) => {
   }, [startDate, endDate]); // Refetch when the date range changes
 
   return { jobs, loading, error };
+};
+
+```
+---
+
+## FILE: src/hooks/useStaff.js
+```js
+import { useState, useEffect } from 'react';
+import { 
+  collection, query, where, onSnapshot, doc, getDoc 
+} from 'firebase/firestore';
+import { auth, db } from '../lib/firebase';
+
+export const useStaff = () => {
+  const [staff, setStaff] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    const fetchOrgAndSubscribe = async () => {
+      try {
+        // 1. Get Org ID from User Profile
+        const userDocRef = doc(db, 'users', user.uid);
+        const userDoc = await getDoc(userDocRef);
+        
+        if (!userDoc.exists()) {
+          setLoading(false);
+          return;
+        }
+
+        const orgId = userDoc.data().orgId;
+
+        if (!orgId) {
+          setError("No Organization found.");
+          setLoading(false);
+          return;
+        }
+
+        // 2. Fetch all users in this Org
+        const q = query(
+          collection(db, 'users'),
+          where('orgId', '==', orgId)
+        );
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+          const staffData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+          setStaff(staffData);
+          setLoading(false);
+        }, (err) => {
+          console.error("Error fetching staff:", err);
+          setError("Failed to load staff list.");
+          setLoading(false);
+        });
+
+        return unsubscribe;
+
+      } catch (err) {
+        console.error(err);
+        setError("Error initializing staff list.");
+        setLoading(false);
+      }
+    };
+
+    const unsubscribePromise = fetchOrgAndSubscribe();
+    return () => { unsubscribePromise.then(unsub => unsub && unsub()); };
+  }, []);
+
+  return { staff, loading, error };
 };
 
 ```
@@ -1850,20 +1911,23 @@ export default ClientsPage;
 ## FILE: src/pages/JobsPage.jsx
 ```jsx
 import React, { useState } from 'react';
-import { Plus, Search, Filter } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import { useJobs } from '../hooks/useJobs';
-import { useClients } from '../hooks/useClients'; // Required for dropdown & joins
+import { useClients } from '../hooks/useClients';
+import { useStaff } from '../hooks/useStaff'; // ✨ NEW
 import JobListMobile from '../components/jobs/JobListMobile';
 import JobTableDesktop from '../components/jobs/JobTableDesktop';
 import JobFormModal from '../components/jobs/JobFormModal';
 
 const JobsPage = () => {
   const { jobs, loading: jobsLoading, error: jobsError, addJob } = useJobs();
-  const { clients, loading: clientsLoading } = useClients(); // Fetch clients to populate UI
+  const { clients, loading: clientsLoading } = useClients(); 
+  const { staff, loading: staffLoading } = useStaff(); // Fetch staff
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const loading = jobsLoading || clientsLoading;
+  const loading = jobsLoading || clientsLoading || staffLoading;
 
   // Simple filtering
   const filteredJobs = jobs.filter(job => {
@@ -1914,8 +1978,8 @@ const JobsPage = () => {
         </div>
       ) : (
         <>
-          <JobListMobile jobs={filteredJobs} clients={clients} />
-          <JobTableDesktop jobs={filteredJobs} clients={clients} />
+          <JobListMobile jobs={filteredJobs} clients={clients} staff={staff} />
+          <JobTableDesktop jobs={filteredJobs} clients={clients} staff={staff} />
         </>
       )}
 
@@ -1923,8 +1987,9 @@ const JobsPage = () => {
       <JobFormModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
-        onSave={addJob}
+        onSave={addJob} 
         clients={clients} 
+        staff={staff}
       />
     </div>
   );
@@ -2009,6 +2074,7 @@ export default SchedulePage;
 - **organizations/{orgId}**: { name, settings }
 - **users/{userId}**: { email, orgId, role, fullName }
 - **invites/{inviteId}**: { email, orgId, role }
+- **jobs/{jobId}**: { assignedTo: [userId], status, serviceType, ... }
 
 ## Rules for AI
 1. ALL code must be provided as COMPLETE FILES.
@@ -2022,54 +2088,64 @@ export default SchedulePage;
 ```
 ---
 
+## FILE: docs/DEVOPS_MANUAL.md
+```md
+# ☁️ DevOps & Infrastructure Manual
+
+## 1. CI/CD Architecture
+We use **GitHub Actions** for all deployments.
+* **Workflows:** Located in `.github/workflows/`
+* **Secrets:** Managed in GitHub Repo Settings -> Secrets -> Actions.
+
+## 2. GitHub Secrets (Required)
+If setting up a new repo, these secrets must be present:
+
+| Secret Name | Content |
+| :--- | :--- |
+| `FIREBASE_SERVICE_ACCOUNT_DEV` | JSON key for Dev Project |
+| `FIREBASE_SERVICE_ACCOUNT_UAT` | JSON key for UAT Project |
+| `FIREBASE_SERVICE_ACCOUNT_PROD` | JSON key for Prod Project |
+| `ENV_FILE_DEV` | Content of local `.env.development` |
+| `ENV_FILE_UAT` | Content of local `.env.uat` |
+| `ENV_FILE_PROD` | Content of local `.env.production` |
+
+## 3. Versioning
+* **SemVer:** Manually managed in `package.json` (e.g., `0.1.0`).
+* **Build Number:** Auto-incremented via `scripts/increment-build.cjs` on every cloud build.
+* **Git Hash:** Injected into the app footer for debugging.
+
+## 4. Troubleshooting
+**"Invalid API Key" in Production?**
+* Check that `ENV_FILE_PROD` in GitHub Secrets is not empty.
+* Check that the variable names in the secret start with `VITE_`.
+* Re-run the workflow in the GitHub Actions tab.
+
+```
+---
+
 ## FILE: docs/PROJECT_STATUS.md
 ```md
 # 📌 Project Status: Fresh Nest
 
-**Current Phase:** Phase 1 Complete / Starting Phase 2 (Operations)
+**Current Phase:** Phase 1 Complete / Infrastructure Mature
 **Last Updated:** $(date +%Y-%m-%d)
 
 ## ✅ Completed Features
-* **Project Setup:** Vite + React + Tailwind CSS configured.
-* **Authentication:** Firebase Login/Signup with Email & Password.
-* **Architecture:** Client-Side Multi-Tenancy (OrgId stored in User Profile).
-* **Client Management:** `useClients` hook, Mobile Cards, Desktop Table.
-* **Job Management:** `useJobs` hook, Relational Data, Scheduling.
-* **Schedule View:** Mobile-First Agenda UI with Date Range filtering.
-* **Staff Management:** * User Invites (Admin sends email).
-    * Onboarding (Auto-linking to Org upon signup).
-    * Security Rules (Profile-based access control).
-* **DevOps:** Automated Build Versioning & Git Hash injection.
+* **Core:** Project Setup, Auth, Multi-Tenancy (Profile-based).
+* **Clients:** CRUD, Filtering, Mobile/Desktop Views.
+* **Jobs:** Scheduling, Relational Data, Assignment (`useStaff`).
+* **DevOps (NEW):** * 3-Environment CI/CD (Dev/UAT/Prod).
+    * Automated Build Versioning.
+    * Secret Injection via GitHub Actions.
 
 ## 🚧 In Progress / Next Up
-* [ ] **Job Assignment:** Assigning specific jobs to specific staff members.
-* [ ] **Worker View:** A restricted view for staff to see only *their* jobs.
+* [ ] **Worker View:** Restricted dashboard for staff.
+* [ ] **Job Workflow:** Status transitions (Start/Finish).
 
-## 🗄️ Database Schema (Firestore)
-
-### `organizations/{orgId}`
-* `name`, `plan`, `settings`
-
-### `users/{userId}`
-* `email`, `fullName`, `orgId` (Link to Org), `role` ('admin'|'staff')
-* `createdAt`
-
-### `invites/{inviteId}`
-* `email`, `orgId`, `role`, `status`
-
-### `clients/{clientId}`
-* `orgId`, `name`, `email`, `phone`, `address`
-
-### `jobs/{jobId}`
-* `orgId`, `clientId` (Ref), `scheduledDate` (Timestamp)
-* `status`, `serviceType`, `price`
-* `assignedTo` (Array of userIds - Coming Soon)
-
-## 📂 Key Files Created
-* `src/hooks/useSettings.js`
-* `src/pages/SettingsPage.jsx`
-* `src/features/auth/LoginPage.jsx` (Onboarding Logic)
-* `firestore.rules` (Profile-Based Security)
+## 🗄️ Database Schema
+* `organizations/{orgId}`
+* `users/{userId}`: { role: 'admin'|'staff', orgId, ... }
+* `jobs/{jobId}`: { assignedTo: [userId], status, ... }
 
 ```
 ---
@@ -2114,6 +2190,53 @@ Use this prompt **after** the AI has presented the 3 Architectural Options. This
         * **Description:** Bullet points of changes.
 
 *Please generate the installation script, test checklist, and git docs now.*
+
+```
+---
+
+## FILE: docs/PROMPT_FEATURE_COMPLETION.md
+```md
+# ✅ Feature Completion & Release Protocol
+
+**Instructions:**
+1.  When you have finished testing a feature in DEV and are ready to merge.
+2.  Copy the **Prompt Template** below.
+3.  Fill in the `[ ... ]` brackets.
+4.  Paste it into the AI Chat.
+
+---
+
+### **Prompt Template**
+
+**Action:** Close Feature & Prepare Release
+**Feature Name:** [INSERT FEATURE NAME, e.g., Job Assignment]
+**Current Branch:** [INSERT BRANCH NAME, e.g., feature/job-assignment]
+
+**Context:**
+I have successfully implemented and tested this feature in the DEV environment. It is ready to be merged into `main` and documented.
+
+**Your Task:**
+Please generate a single "Close-Out Script" (`scripts/close_feature.sh`) that performs the following actions:
+
+1.  **Documentation Updates:**
+    * Update `docs/PROJECT_STATUS.md`: Move the feature from "In Progress" to "Completed".
+    * Update `docs/CONTEXT_DUMP.md`: If the schema or architecture changed, update the definitions to match the new reality.
+    * *Note:* Use `cat << 'EOF'` to overwrite these files with the updated content.
+
+2.  **Git Workflow:**
+    * Stage and Commit any remaining changes.
+    * Switch to `main`.
+    * Pull the latest `main`.
+    * Merge the feature branch.
+    * Push `main` to origin.
+    * Delete the local feature branch.
+
+3.  **Deployment (UAT):**
+    * Run the build script (to increment the version number).
+    * Deploy the `main` branch to the **UAT** environment (`firebase deploy --only hosting:uat,firestore:rules`).
+
+**Output Requirement:**
+Provide the complete, executable bash script. Do not execute it yourself; just provide the code.
 
 ```
 ---
@@ -2200,67 +2323,157 @@ Before writing any code, please propose **3 Distinct Approaches** to implementin
 
 ## FILE: docs/SOP_SOURCE_CONTROL.md
 ```md
-# 🛡️ Source Control & Development Protocol
+# 🛡️ Source Control & CI/CD Protocol
 
-**Version:** 1.0
-**Last Updated:** 2026-01-05
+## 1. The Environment Pipeline
 
-## 1. The Golden Rules
-1.  **NEVER commit directly to `main`.**
-    * The `main` branch is "Production Ready." If it breaks, the app is broken.
-2.  **NEVER commit API Keys or Secrets.**
-    * Ensure `.env` files and `service-account.json` are always in `.gitignore`.
-3.  **One Feature = One Branch.**
-    * Do not mix "Fixing the CSS" with "Building the Database" in the same branch.
+| Environment | URL | Trigger Branch | Deployed By |
+| :--- | :--- | :--- | :--- |
+| **DEV** | `fresh-nest-dev` | `dev` | **Auto** (Push to dev) |
+| **UAT** | `fresh-nest-uat` | `release/*` | **Script** (`release_to_uat.sh`) |
+| **PROD** | `fresh-nest-prod` | `main` | **Script** (`promote_to_prod.sh`) |
 
-## 2. Branching Strategy
+## 2. Daily Workflow
+1.  **Start:** `git checkout main` -> `git pull` -> `./scripts/start-feature.sh`
+2.  **Work:** Commit often to `feature/...`
+3.  **Test Cloud:** Run `./scripts/merge_to_dev.sh` to deploy to Dev.
+4.  **Finish:** Run `./scripts/close_feature.sh` (or merge PR) to close.
 
-| Branch Prefix | Usage | Example |
-| :--- | :--- | :--- |
-| `main` | Production code only. Locked. | `main` |
-| `feature/...` | New capabilities. | `feature/client-list` |
-| `fix/...` | Bug repairs. | `fix/login-error` |
-| `chore/...` | Maintenance (deps, docs). | `chore/update-readme` |
+## 3. Releases
+* **To UAT:** Run `./scripts/release_to_uat.sh`
+* **To Prod:** Run `./scripts/promote_to_prod.sh` (Must be on release branch)
 
-## 3. The Workflow Cycle
+## 4. Emergency Fixes (Hotfix)
+1.  Branch from `main`: `git checkout -b fix/critical-bug main`
+2.  Fix and Commit.
+3.  Merge to `main` and `dev`.
 
-### Step 1: Sync & Start
-Always pull the latest changes before starting.
-```bash
+```
+---
+
+## FILE: scripts/close_feature.sh
+```sh
+#!/bin/bash
+
+# ====================================================
+# FRESH NEST: FEATURE CLOSE-OUT & RELEASE PROTOCOL
+# Feature: Job Assignment
+# ====================================================
+
+echo "🏁 Initiating Close-Out for: Job Assignment..."
+
+# 1. Update Documentation
+echo "📝 Updating Project Documentation..."
+
+# Update PROJECT_STATUS.md
+cat << 'INNER_EOF' > docs/PROJECT_STATUS.md
+# 📌 Project Status: Fresh Nest
+
+**Current Phase:** Phase 1 Complete / Starting Phase 2 (Operations)
+**Last Updated:** $(date +%Y-%m-%d)
+
+## ✅ Completed Features
+* **Project Setup:** Vite + React + Tailwind CSS configured.
+* **Authentication:** Firebase Login/Signup with Email & Password.
+* **Architecture:** Client-Side Multi-Tenancy (OrgId stored in User Profile).
+* **Client Management:** `useClients` hook, Mobile Cards, Desktop Table.
+* **Job Management:** `useJobs` hook, Relational Data, Scheduling.
+* **Schedule View:** Mobile-First Agenda UI with Date Range filtering.
+* **Staff Management:** User Invites, Onboarding, Security Rules.
+* **Job Assignment:**
+    * `useStaff` hook for fetching assignable users.
+    * `assignedTo` array in Jobs schema.
+    * UI: Dropdown in Modal, Avatar display in Lists.
+* **DevOps:** Automated Build Versioning & Git Hash injection.
+
+## 🚧 In Progress / Next Up
+* [ ] **Worker View:** A restricted view for staff to see only *their* jobs.
+* [ ] **Job Status Workflow:** Allow staff to mark jobs as "Started" / "Completed".
+
+## 🗄️ Database Schema (Firestore)
+
+### `organizations/{orgId}`
+* `name`, `plan`, `settings`
+
+### `users/{userId}`
+* `email`, `fullName`, `orgId` (Link to Org), `role` ('admin'|'staff')
+* `createdAt`
+
+### `invites/{inviteId}`
+* `email`, `orgId`, `role`, `status`
+
+### `clients/{clientId}`
+* `orgId`, `name`, `email`, `phone`, `address`
+
+### `jobs/{jobId}`
+* `orgId`, `clientId` (Ref), `scheduledDate` (Timestamp)
+* `status`, `serviceType`, `price`
+* `assignedTo` (Array of userIds)
+
+## �� Key Files Created
+* `src/hooks/useStaff.js`
+* `src/components/jobs/JobFormModal.jsx` (Updated)
+* `src/components/jobs/JobTableDesktop.jsx` (Updated)
+INNER_EOF
+
+# Update CONTEXT_DUMP.md (Schema Update)
+cat << 'INNER_EOF' > docs/CONTEXT_DUMP.md
+# Fresh Nest: Context Dump
+**Stack:** React + Vite + Firebase (Auth, Firestore) + Tailwind CSS
+**Architecture:** Multi-Tenant SaaS.
+**Current State:**
+- Auth is implemented (Login/Signup).
+- **CRITICAL:** `orgId` is stored in the **Firestore User Profile** (`users/{uid}`), NOT in Custom Claims.
+- "fresh-nest-dev" Firestore is active.
+
+## Schema (Implemented)
+- **organizations/{orgId}**: { name, settings }
+- **users/{userId}**: { email, orgId, role, fullName }
+- **invites/{inviteId}**: { email, orgId, role }
+- **jobs/{jobId}**: { assignedTo: [userId], status, serviceType, ... }
+
+## Rules for AI
+1. ALL code must be provided as COMPLETE FILES.
+2. Use `lucide-react` for icons.
+3. Tailwind Colors: `bg-brand-500` (Primary), `bg-slate-800` (Sidebar).
+4. **Security & Data Access:**
+   - **NEVER** attempt to read `request.auth.token.orgId`. It does not exist.
+   - **ALWAYS** fetch the user's Firestore profile to get their `orgId`.
+   - All Firestore queries MUST filter by `.where("orgId", "==", currentOrgId)`.
+INNER_EOF
+
+# 2. Git Workflow
+echo "🌿 Processing Git Workflow..."
+
+# Stage and Commit
+git add .
+git commit -m "feat: completed job assignment module"
+
+# Switch to Main and Merge
+echo "🔄 Switching to main..."
 git checkout main
 git pull origin main
-git checkout -b feature/your-feature-name
-```
 
-### Step 2: Develop & Commit
-Commit often locally. Use descriptive messages.
-```bash
-git add .
-git commit -m "feat: implemented client table view"
-```
+echo "🔀 Merging feature branch..."
+git merge feature/job-assignment
 
-### Step 3: Push & Merge
-1.  Push your branch to GitHub.
-    ```bash
-    git push origin feature/your-feature-name
-    ```
-2.  Go to GitHub and open a **Pull Request (PR)**.
-3.  Review the code (Self-Review).
-4.  Merge into `main`.
+echo "⬆️ Pushing to origin..."
+git push origin main
 
-## 4. Commit Message Convention
-Follow this format to keep the history readable:
-* **`feat:`** New features (e.g., `feat: added login page`)
-* **`fix:`** Bug fixes (e.g., `fix: resolved css crash`)
-* **`docs:`** Documentation only (e.g., `docs: added sop`)
-* **`style:`** Formatting, missing semi-colons, etc.
-* **`refactor:`** Refactoring code without changing logic.
+# Delete Local Branch
+echo "🗑️ Cleaning up local branch..."
+git branch -d feature/job-assignment
 
-## 5. Emergency Recovery
-If you accidentally commit to `main` or commit a secret:
-1.  **STOP.** Do not push.
-2.  Reset the commit (keep changes): `git reset --soft HEAD~1`
-3.  Fix the issue (remove the secret or switch branches).
+# 3. Deployment (UAT)
+echo "🚀 Deploying to UAT Environment..."
+
+# Build (Increments Version)
+npm run build
+
+# Deploy
+npx firebase deploy --only hosting:uat,firestore:rules
+
+echo "✅ SUCCESS! Feature Closed & Deployed to UAT."
 
 ```
 ---
@@ -2272,19 +2485,15 @@ If you accidentally commit to `main` or commit a secret:
 # ==========================================
 # 🚀 FRESH NEST: DEEP CONTEXT GENERATOR
 # ==========================================
-# Generates a single markdown file containing the full source code
-# of the application for AI analysis.
 
 OUTPUT_FILE="docs/FULL_CODEBASE_CONTEXT.md"
 
-# 1. Initialize the file
 echo "🔄 Generating Context Dump..."
 echo "# FRESH NEST: CODEBASE DUMP" > "$OUTPUT_FILE"
 echo "**Date:** $(date)" >> "$OUTPUT_FILE"
-echo "**Description:** Complete codebase context excluding modules and secrets." >> "$OUTPUT_FILE"
+echo "**Description:** Complete codebase context." >> "$OUTPUT_FILE"
 echo "" >> "$OUTPUT_FILE"
 
-# 2. Helper Function to write file content safely
 ingest_file() {
     local filepath="$1"
     
@@ -2310,55 +2519,26 @@ ingest_file() {
     fi
 }
 
-# 3. ROOT CONFIGURATION FILES (Explicit Allow-List)
-# We only pick specific files from root to avoid scanning node_modules
-echo "⚙️ Ingesting Root Configs..."
+# Root Configs
 ingest_file "package.json"
 ingest_file "vite.config.js"
 ingest_file "tailwind.config.js"
-ingest_file "postcss.config.js"
 ingest_file "firebase.json"
 ingest_file ".firebaserc"
-ingest_file "index.html"
-ingest_file ".gitignore"
 
-# 4. SOURCE CODE (Recursive)
-echo "💻 Ingesting src/ directory..."
-# Find all code files, exclude standard noise
-find src -type f \
-    -not -path "*/.*" \
-    \( -name "*.js" -o -name "*.jsx" -o -name "*.css" -o -name "*.json" \) \
-    | sort | while read file; do ingest_file "$file"; done
+# Source Code
+find src -type f -not -path "*/.*" | sort | while read file; do ingest_file "$file"; done
 
-# 5. DOCUMENTATION (Recursive)
-echo "📄 Ingesting docs/ directory..."
+# Documentation
 find docs -type f -name "*.md" -not -name "FULL_CODEBASE_CONTEXT.md" | sort | while read file; do ingest_file "$file"; done
 
-# 6. SCRIPTS (Recursive)
-echo "Vg Ingesting scripts/ directory..."
+# Scripts
 find scripts -type f \( -name "*.js" -o -name "*.cjs" -o -name "*.sh" \) | sort | while read file; do ingest_file "$file"; done
 
-echo "✅ SUCCESS! Context generated at: $OUTPUT_FILE"
-echo "👉 Copy the contents of $OUTPUT_FILE and paste it into your AI chat."
-```
----
+# CI/CD Workflows
+find .github/workflows -type f -name "*.yml" | sort | while read file; do ingest_file "$file"; done
 
-## FILE: scripts/increment-build.cjs
-```cjs
-const fs = require('fs');
-const path = require('path');
-
-const metaPath = path.resolve(__dirname, '../build-meta.json');
-
-try {
-  const meta = require(metaPath);
-  meta.buildNumber += 1;
-  fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2));
-  console.log(`🚀 Build number bumped to: ${meta.buildNumber}`);
-} catch (error) {
-  console.error('Error incrementing build number:', error);
-  process.exit(1);
-}
+echo "✅ Context Generated at: $OUTPUT_FILE"
 
 ```
 ---
@@ -2539,239 +2719,539 @@ bootstrap();
 
 # ====================================================
 # FRESH NEST: FEATURE INSTALLER
-# Feature: Schedule View (Calendar Module)
-# Approach: Mobile-First Agenda (Horizontal Strip + List)
+# Feature: Job Assignment (Staff Allocation)
+# Approach: Simple Dropdown + Array Storage
 # ====================================================
 
-echo "🚀 Installing Schedule View Feature..."
+echo "🚀 Installing Job Assignment Feature..."
 
-# 1. Create Directories
-mkdir -p src/components/schedule
-mkdir -p src/hooks
-
-# 2. Create the Specialized Hook (Logic Layer)
-# This hook fetches jobs specifically for a date range to handle the Calendar logic
-echo "📝 Writing src/hooks/useSchedule.js..."
-cat << 'EOF' > src/hooks/useSchedule.js
+# 1. Create the Staff Hook
+# We need a dedicated way to fetch 'assignable' users (Admin + Staff)
+echo "📝 Writing src/hooks/useStaff.js..."
+cat << 'EOF' > src/hooks/useStaff.js
 import { useState, useEffect } from 'react';
 import { 
-  collection, 
-  query, 
-  where, 
-  onSnapshot, 
-  orderBy,
-  Timestamp 
+  collection, query, where, onSnapshot, doc, getDoc 
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 
-export const useSchedule = (startDate, endDate) => {
-  const [jobs, setJobs] = useState([]);
+export const useStaff = () => {
+  const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     const user = auth.currentUser;
-    if (!user || !startDate || !endDate) {
+    if (!user) {
       setLoading(false);
       return;
     }
 
-    user.getIdTokenResult().then((idTokenResult) => {
-      const orgId = idTokenResult.claims.orgId;
+    const fetchOrgAndSubscribe = async () => {
+      try {
+        // 1. Get Org ID from User Profile
+        const userDocRef = doc(db, 'users', user.uid);
+        const userDoc = await getDoc(userDocRef);
+        
+        if (!userDoc.exists()) {
+          setLoading(false);
+          return;
+        }
 
-      if (!orgId) {
-        setError("Organization ID missing.");
+        const orgId = userDoc.data().orgId;
+
+        if (!orgId) {
+          setError("No Organization found.");
+          setLoading(false);
+          return;
+        }
+
+        // 2. Fetch all users in this Org
+        const q = query(
+          collection(db, 'users'),
+          where('orgId', '==', orgId)
+        );
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+          const staffData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+          setStaff(staffData);
+          setLoading(false);
+        }, (err) => {
+          console.error("Error fetching staff:", err);
+          setError("Failed to load staff list.");
+          setLoading(false);
+        });
+
+        return unsubscribe;
+
+      } catch (err) {
+        console.error(err);
+        setError("Error initializing staff list.");
         setLoading(false);
-        return;
       }
+    };
 
-      // SECURITY: Filter by orgId AND Date Range
-      // Note: This relies on the composite index (orgId + scheduledDate) we already created.
-      const q = query(
-        collection(db, 'jobs'),
-        where('orgId', '==', orgId),
-        where('scheduledDate', '>=', Timestamp.fromDate(startDate)),
-        where('scheduledDate', '<=', Timestamp.fromDate(endDate)),
-        orderBy('scheduledDate', 'asc')
-      );
+    const unsubscribePromise = fetchOrgAndSubscribe();
+    return () => { unsubscribePromise.then(unsub => unsub && unsub()); };
+  }, []);
 
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const jobData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          scheduledDate: doc.data().scheduledDate?.toDate()
-        }));
-        setJobs(jobData);
-        setLoading(false);
-      }, (err) => {
-        console.error("Error fetching schedule:", err);
-        setError("Failed to load schedule.");
-        setLoading(false);
-      });
-
-      return () => unsubscribe();
-    });
-  }, [startDate, endDate]); // Refetch when the date range changes
-
-  return { jobs, loading, error };
+  return { staff, loading, error };
 };
 EOF
 
-# 3. Create Components (UI Layer)
+# 2. Update useJobs to handle 'assignedTo'
+echo "📝 Updating src/hooks/useJobs.js..."
+cat << 'EOF' > src/hooks/useJobs.js
+import { useState, useEffect } from 'react';
+import { 
+  collection, query, where, onSnapshot, addDoc, serverTimestamp, orderBy, Timestamp, doc, getDoc 
+} from 'firebase/firestore';
+import { auth, db } from '../lib/firebase';
 
-echo "📝 Writing src/components/schedule/DateStrip.jsx..."
-cat << 'EOF' > src/components/schedule/DateStrip.jsx
-import React from 'react';
-import { format, isSameDay, addDays, startOfWeek } from 'date-fns';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+export const useJobs = () => {
+  const [jobs, setJobs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [currentOrgId, setCurrentOrgId] = useState(null);
 
-const DateStrip = ({ selectedDate, onSelectDate }) => {
-  // Always show the week surrounding the selected date
-  // Start week on Monday (default US is Sunday, but operations usually prefer Mon)
-  const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
-  
-  const days = Array.from({ length: 7 }).map((_, i) => addDays(weekStart, i));
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
-  const handlePrevWeek = () => onSelectDate(addDays(selectedDate, -7));
-  const handleNextWeek = () => onSelectDate(addDays(selectedDate, 7));
+    const fetchOrgAndSubscribe = async () => {
+      try {
+        const userDocRef = doc(db, 'users', user.uid);
+        const userDoc = await getDoc(userDocRef);
+        const orgId = userDoc.exists() ? userDoc.data().orgId : null;
+        setCurrentOrgId(orgId);
+
+        if (!orgId) {
+          setError("Organization ID missing.");
+          setLoading(false);
+          return;
+        }
+
+        const q = query(
+          collection(db, 'jobs'),
+          where('orgId', '==', orgId),
+          orderBy('scheduledDate', 'asc')
+        );
+
+        return onSnapshot(q, (snapshot) => {
+          const jobData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            scheduledDate: doc.data().scheduledDate?.toDate()
+          }));
+          setJobs(jobData);
+          setLoading(false);
+        }, (err) => {
+          console.error("Error fetching jobs:", err);
+          setError("Failed to load jobs.");
+          setLoading(false);
+        });
+      } catch (err) {
+        console.error(err);
+        setLoading(false);
+      }
+    };
+
+    const unsubscribePromise = fetchOrgAndSubscribe();
+    return () => { unsubscribePromise.then(unsub => unsub && unsub()); };
+  }, []);
+
+  const addJob = async (jobData) => {
+    if (!currentOrgId) throw new Error("No Organization ID found.");
+
+    const timestampDate = new Date(jobData.scheduledDate);
+
+    // Prepare Assignment Array
+    // Even though UI is single select, we store as array for future proofing
+    const assignedTo = jobData.assignedStaffId ? [jobData.assignedStaffId] : [];
+
+    await addDoc(collection(db, 'jobs'), {
+      clientId: jobData.clientId,
+      serviceType: jobData.serviceType,
+      price: Number(jobData.price),
+      notes: jobData.notes,
+      assignedTo: assignedTo, // ✨ NEW FIELD
+      status: 'scheduled',
+      scheduledDate: Timestamp.fromDate(timestampDate),
+      orgId: currentOrgId, 
+      createdAt: serverTimestamp(),
+      createdBy: auth.currentUser.uid
+    });
+  };
+
+  return { jobs, loading, error, addJob };
+};
+EOF
+
+# 3. Update UI Components
+
+echo "📝 Updating src/components/jobs/JobFormModal.jsx..."
+cat << 'EOF' > src/components/jobs/JobFormModal.jsx
+import React, { useState } from 'react';
+import { X, Save, Loader, Calendar, DollarSign, User } from 'lucide-react';
+
+const JobFormModal = ({ isOpen, onClose, onSave, clients, staff }) => {
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    clientId: '',
+    assignedStaffId: '', // Single select for UI
+    scheduledDate: '',
+    serviceType: 'standard',
+    price: '',
+    notes: ''
+  });
+
+  if (!isOpen) return null;
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.clientId) {
+      alert("Please select a client.");
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      await onSave(formData);
+      // Reset form
+      setFormData({
+        clientId: '',
+        assignedStaffId: '',
+        scheduledDate: '',
+        serviceType: 'standard',
+        price: '',
+        notes: ''
+      });
+      onClose();
+    } catch (error) {
+      console.error(error);
+      alert("Failed to create job.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <div className="bg-white border-b border-gray-200 shadow-sm">
-      {/* Week Navigation Header */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100">
-        <button 
-          onClick={handlePrevWeek}
-          className="p-1 hover:bg-gray-100 rounded-full text-slate-500"
-        >
-          <ChevronLeft size={20} />
-        </button>
-        <h2 className="font-bold text-slate-800">
-          {format(selectedDate, 'MMMM yyyy')}
-        </h2>
-        <button 
-          onClick={handleNextWeek}
-          className="p-1 hover:bg-gray-100 rounded-full text-slate-500"
-        >
-          <ChevronRight size={20} />
-        </button>
-      </div>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden">
+        
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+          <h3 className="font-bold text-lg text-slate-800">Schedule New Job</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X size={24} />
+          </button>
+        </div>
 
-      {/* Horizontal Scrollable Days */}
-      <div className="flex justify-between md:justify-center md:gap-8 px-2 py-3 overflow-x-auto no-scrollbar">
-        {days.map((day) => {
-          const isSelected = isSameDay(day, selectedDate);
-          const isToday = isSameDay(day, new Date());
-
-          return (
-            <button
-              key={day.toString()}
-              onClick={() => onSelectDate(day)}
-              className={`flex flex-col items-center justify-center min-w-[3rem] py-2 rounded-xl transition-all ${
-                isSelected 
-                  ? 'bg-brand-600 text-white shadow-md transform scale-105' 
-                  : 'hover:bg-gray-50 text-slate-600'
-              }`}
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          
+          {/* Client Selector */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Select Client *</label>
+            <select
+              required
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none bg-white"
+              value={formData.clientId}
+              onChange={(e) => setFormData({...formData, clientId: e.target.value})}
             >
-              <span className={`text-xs font-medium uppercase mb-1 ${isSelected ? 'text-brand-100' : 'text-slate-400'}`}>
-                {format(day, 'EEE')}
-              </span>
-              <span className={`text-lg font-bold ${isSelected ? 'text-white' : isToday ? 'text-brand-600' : 'text-slate-800'}`}>
-                {format(day, 'd')}
-              </span>
-              {isToday && !isSelected && (
-                <div className="w-1 h-1 bg-brand-500 rounded-full mt-1"></div>
-              )}
+              <option value="">-- Choose a Client --</option>
+              {clients.map(client => (
+                <option key={client.id} value={client.id}>
+                  {client.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Date & Time *</label>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-2.5 text-slate-400" size={18} />
+                <input
+                  type="datetime-local"
+                  required
+                  className="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                  value={formData.scheduledDate}
+                  onChange={(e) => setFormData({...formData, scheduledDate: e.target.value})}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Service Type</label>
+              <select
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none bg-white"
+                value={formData.serviceType}
+                onChange={(e) => setFormData({...formData, serviceType: e.target.value})}
+              >
+                <option value="standard">Standard Clean</option>
+                <option value="deep">Deep Clean</option>
+                <option value="move-in-out">Move In/Out</option>
+                <option value="commercial">Commercial</option>
+              </select>
+            </div>
+          </div>
+
+          {/* STAFF ASSIGNMENT (New) */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Assign Staff</label>
+            <div className="relative">
+              <User className="absolute left-3 top-2.5 text-slate-400" size={18} />
+              <select
+                className="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none bg-white"
+                value={formData.assignedStaffId}
+                onChange={(e) => setFormData({...formData, assignedStaffId: e.target.value})}
+              >
+                <option value="">-- Unassigned --</option>
+                {staff.map(member => (
+                  <option key={member.id} value={member.id}>
+                    {member.fullName || member.email}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Price Estimate</label>
+            <div className="relative">
+              <DollarSign className="absolute left-3 top-2.5 text-slate-400" size={18} />
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="0.00"
+                className="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                value={formData.price}
+                onChange={(e) => setFormData({...formData, price: e.target.value})}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Internal Notes</label>
+            <textarea
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
+              rows="2"
+              placeholder="Gate code, pets, special instructions..."
+              value={formData.notes}
+              onChange={(e) => setFormData({...formData, notes: e.target.value})}
+            ></textarea>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium"
+            >
+              Cancel
             </button>
-          );
-        })}
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-4 py-2 bg-brand-600 text-white rounded-lg font-medium hover:bg-brand-700 flex items-center gap-2 disabled:opacity-50"
+            >
+              {loading ? <Loader className="animate-spin" size={18} /> : <Save size={18} />}
+              Schedule Job
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
 };
 
-export default DateStrip;
+export default JobFormModal;
 EOF
 
-echo "📝 Writing src/components/schedule/DailyAgenda.jsx..."
-cat << 'EOF' > src/components/schedule/DailyAgenda.jsx
+echo "📝 Updating src/components/jobs/JobTableDesktop.jsx..."
+cat << 'EOF' > src/components/jobs/JobTableDesktop.jsx
 import React from 'react';
-import { Clock, MapPin, DollarSign, User, AlertCircle } from 'lucide-react';
+import { MoreHorizontal, Calendar, Clock, MapPin, User } from 'lucide-react';
 import { format } from 'date-fns';
 
-const DailyAgenda = ({ jobs, clients, loading, selectedDate }) => {
-  // Helper to join client data
-  const getClient = (clientId) => clients.find(c => c.id === clientId) || {};
-
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600 mb-4"></div>
-        <p className="text-slate-400 text-sm">Loading schedule...</p>
-      </div>
-    );
-  }
+const JobTableDesktop = ({ jobs, clients, staff }) => {
+  const getClient = (id) => clients.find(c => c.id === id) || {};
+  
+  const getAssignedStaffName = (staffIds) => {
+    if (!staffIds || staffIds.length === 0) return 'Unassigned';
+    const member = staff.find(s => s.id === staffIds[0]);
+    return member ? (member.fullName || member.email) : 'Unknown';
+  };
 
   if (jobs.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-        <div className="bg-slate-50 p-4 rounded-full mb-4">
-          <CalendarIcon className="text-slate-300" size={32} />
-        </div>
-        <h3 className="text-lg font-bold text-slate-700">No jobs scheduled</h3>
-        <p className="text-slate-500 text-sm mt-1">
-          You have no jobs for {format(selectedDate, 'MMMM do')}.
-        </p>
+      <div className="hidden md:block bg-white p-12 text-center rounded-xl border border-gray-200">
+        <p className="text-gray-500">No upcoming jobs.</p>
       </div>
     );
   }
 
   return (
-    <div className="p-4 space-y-4 max-w-2xl mx-auto">
-      {jobs.map((job) => {
-        const client = getClient(job.clientId);
-        return (
-          <div key={job.id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex">
-            {/* Time Strip */}
-            <div className="w-16 bg-slate-50 flex flex-col items-center justify-center border-r border-gray-100 p-2">
-              <span className="text-sm font-bold text-slate-700">
-                {job.scheduledDate ? format(job.scheduledDate, 'h:mm') : '--'}
-              </span>
-              <span className="text-xs text-slate-400 uppercase">
-                {job.scheduledDate ? format(job.scheduledDate, 'a') : '--'}
-              </span>
-            </div>
+    <div className="hidden md:block bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <table className="w-full text-left border-collapse">
+        <thead>
+          <tr className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold">
+            <th className="px-6 py-4">Scheduled Date</th>
+            <th className="px-6 py-4">Client</th>
+            <th className="px-6 py-4">Assigned Staff</th>
+            <th className="px-6 py-4">Service</th>
+            <th className="px-6 py-4">Status</th>
+            <th className="px-6 py-4 text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {jobs.map((job) => {
+            const client = getClient(job.clientId);
+            const assignedName = getAssignedStaffName(job.assignedTo);
+            const isUnassigned = !job.assignedTo || job.assignedTo.length === 0;
 
-            {/* Content */}
-            <div className="flex-1 p-4">
-              <div className="flex justify-between items-start mb-1">
-                <h4 className="font-bold text-slate-800">{client.name || 'Unknown Client'}</h4>
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                  job.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-brand-50 text-brand-700'
+            return (
+              <tr key={job.id} className="hover:bg-gray-50 transition-colors">
+                <td className="px-6 py-4">
+                  <div className="flex items-center gap-2 font-medium text-slate-900">
+                    <Calendar size={16} className="text-brand-500" />
+                    {job.scheduledDate ? format(job.scheduledDate, 'MMM d, yyyy') : 'TBD'}
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-slate-500 mt-1 pl-6">
+                    <Clock size={12} />
+                    {job.scheduledDate ? format(job.scheduledDate, 'h:mm a') : ''}
+                  </div>
+                </td>
+                <td className="px-6 py-4">
+                  <div className="font-medium text-slate-900">{client.name || 'Unknown'}</div>
+                  <div className="flex items-center gap-1 text-xs text-slate-400 mt-0.5">
+                    <MapPin size={12} />
+                    <span className="truncate max-w-[150px]">{client.address || 'No address'}</span>
+                  </div>
+                </td>
+                <td className="px-6 py-4">
+                  <div className={`flex items-center gap-2 text-sm ${isUnassigned ? 'text-slate-400 italic' : 'text-slate-700'}`}>
+                    <User size={14} />
+                    {assignedName}
+                  </div>
+                </td>
+                <td className="px-6 py-4">
+                  <span className="capitalize text-sm text-slate-700">{job.serviceType}</span>
+                  {job.price > 0 && <div className="text-xs text-slate-400">${job.price}</div>}
+                </td>
+                <td className="px-6 py-4">
+                  <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                    job.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                  }`}>
+                    {job.status.toUpperCase()}
+                  </span>
+                </td>
+                <td className="px-6 py-4 text-right">
+                  <button className="text-slate-400 hover:text-brand-600 p-2">
+                    <MoreHorizontal size={20} />
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+export default JobTableDesktop;
+EOF
+
+echo "📝 Updating src/components/jobs/JobListMobile.jsx..."
+cat << 'EOF' > src/components/jobs/JobListMobile.jsx
+import React from 'react';
+import { Calendar, Clock, DollarSign, MapPin, User } from 'lucide-react';
+import { format } from 'date-fns';
+
+const JobListMobile = ({ jobs, clients, staff }) => {
+  const getClientName = (id) => clients.find(c => c.id === id)?.name || 'Unknown Client';
+  const getClientAddress = (id) => clients.find(c => c.id === id)?.address;
+  
+  const getAssignedStaffName = (staffIds) => {
+    if (!staffIds || staffIds.length === 0) return 'Unassigned';
+    const member = staff.find(s => s.id === staffIds[0]);
+    return member ? (member.fullName || member.email) : 'Unknown';
+  };
+
+  if (jobs.length === 0) {
+    return (
+      <div className="text-center py-10 bg-white rounded-xl border border-gray-100">
+        <p className="text-gray-500">No upcoming jobs.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4 md:hidden">
+      {jobs.map((job) => {
+        const assignedName = getAssignedStaffName(job.assignedTo);
+        const isUnassigned = !job.assignedTo || job.assignedTo.length === 0;
+
+        return (
+          <div key={job.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+            <div className="flex justify-between items-start mb-2">
+              <div>
+                <h3 className="font-bold text-slate-800 text-lg">{getClientName(job.clientId)}</h3>
+                <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 capitalize mt-1">
+                  {job.serviceType}
+                </span>
+              </div>
+              <div className="text-right">
+                <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                  job.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
                 }`}>
                   {job.status}
                 </span>
               </div>
-              
-              <div className="space-y-1.5 mt-2">
-                <div className="flex items-center gap-2 text-sm text-slate-600">
-                  <User size={14} className="text-brand-400" />
-                  <span className="capitalize">{job.serviceType} Clean</span>
-                </div>
-                
-                {client.address && (
-                  <div className="flex items-start gap-2 text-sm text-slate-600">
-                    <MapPin size={14} className="text-brand-400 mt-0.5 shrink-0" />
-                    <span className="truncate">{client.address}</span>
-                  </div>
-                )}
-
-                {job.notes && (
-                  <div className="flex items-start gap-2 text-xs text-amber-600 bg-amber-50 p-2 rounded-lg mt-2">
-                    <AlertCircle size={12} className="mt-0.5 shrink-0" />
-                    <span>{job.notes}</span>
-                  </div>
-                )}
+            </div>
+            
+            <div className="space-y-2 text-sm text-slate-600 mt-3">
+              <div className="flex items-center gap-2">
+                <Calendar size={16} className="text-brand-500 shrink-0" />
+                <span className="font-medium text-slate-900">
+                  {job.scheduledDate ? format(job.scheduledDate, 'MMM d, yyyy') : 'No Date'}
+                </span>
               </div>
+              <div className="flex items-center gap-2">
+                <Clock size={16} className="text-brand-500 shrink-0" />
+                <span>
+                  {job.scheduledDate ? format(job.scheduledDate, 'h:mm a') : 'TBD'}
+                </span>
+              </div>
+              
+              {/* STAFF ASSIGNMENT ROW */}
+              <div className={`flex items-center gap-2 ${isUnassigned ? 'text-slate-400 italic' : 'text-slate-700 font-medium'}`}>
+                <User size={16} className={isUnassigned ? "text-slate-300" : "text-brand-500"} />
+                <span>{assignedName}</span>
+              </div>
+
+              {getClientAddress(job.clientId) && (
+                 <div className="flex items-start gap-2">
+                   <MapPin size={16} className="text-brand-500 shrink-0 mt-0.5" />
+                   <span className="truncate">{getClientAddress(job.clientId)}</span>
+                 </div>
+              )}
+               {job.price > 0 && (
+                 <div className="flex items-center gap-2 text-slate-500">
+                   <DollarSign size={16} className="text-slate-400 shrink-0" />
+                   <span>${job.price}</span>
+                 </div>
+              )}
             </div>
           </div>
         );
@@ -2780,144 +3260,373 @@ const DailyAgenda = ({ jobs, clients, loading, selectedDate }) => {
   );
 };
 
-// Simple Icon component for the empty state
-const CalendarIcon = ({ className, size }) => (
-  <svg 
-    xmlns="http://www.w3.org/2000/svg" 
-    width={size} 
-    height={size} 
-    viewBox="0 0 24 24" 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2" 
-    strokeLinecap="round" 
-    strokeLinejoin="round" 
-    className={className}
-  >
-    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-    <line x1="16" y1="2" x2="16" y2="6"></line>
-    <line x1="8" y1="2" x2="8" y2="6"></line>
-    <line x1="3" y1="10" x2="21" y2="10"></line>
-  </svg>
-);
-
-export default DailyAgenda;
+export default JobListMobile;
 EOF
 
-# 4. Create the Page Container
-echo "📝 Writing src/pages/SchedulePage.jsx..."
-cat << 'EOF' > src/pages/SchedulePage.jsx
+# 4. Orchestrate in JobsPage
+echo "📝 Updating src/pages/JobsPage.jsx..."
+cat << 'EOF' > src/pages/JobsPage.jsx
 import React, { useState } from 'react';
-import { startOfWeek, endOfWeek, isSameDay } from 'date-fns';
-import { useSchedule } from '../hooks/useSchedule';
+import { Plus, Search } from 'lucide-react';
+import { useJobs } from '../hooks/useJobs';
 import { useClients } from '../hooks/useClients';
-import DateStrip from '../components/schedule/DateStrip';
-import DailyAgenda from '../components/schedule/DailyAgenda';
+import { useStaff } from '../hooks/useStaff'; // ✨ NEW
+import JobListMobile from '../components/jobs/JobListMobile';
+import JobTableDesktop from '../components/jobs/JobTableDesktop';
+import JobFormModal from '../components/jobs/JobFormModal';
 
-const SchedulePage = () => {
-  const [selectedDate, setSelectedDate] = useState(new Date());
+const JobsPage = () => {
+  const { jobs, loading: jobsLoading, error: jobsError, addJob } = useJobs();
+  const { clients, loading: clientsLoading } = useClients(); 
+  const { staff, loading: staffLoading } = useStaff(); // Fetch staff
 
-  // Calculate the Start and End of the current week for the query
-  // We fetch a whole week's worth of data so switching days is instant
-  const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 }); // Monday
-  const weekEnd = endOfWeek(selectedDate, { weekStartsOn: 1 });     // Sunday
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
 
-  // Custom hooks
-  const { jobs, loading: scheduleLoading, error } = useSchedule(weekStart, weekEnd);
-  const { clients, loading: clientsLoading } = useClients();
+  const loading = jobsLoading || clientsLoading || staffLoading;
 
-  // Filter the fetched week's jobs to show only the selected day
-  const todaysJobs = jobs.filter(job => 
-    job.scheduledDate && isSameDay(job.scheduledDate, selectedDate)
-  );
+  // Simple filtering
+  const filteredJobs = jobs.filter(job => {
+    // Find client name for search
+    const clientName = clients.find(c => c.id === job.clientId)?.name?.toLowerCase() || '';
+    return clientName.includes(searchTerm.toLowerCase());
+  });
 
   return (
-    <div className="bg-gray-50 min-h-full pb-20">
-      {/* 1. Date Navigation */}
-      <div className="sticky top-0 z-10">
-        <DateStrip 
-          selectedDate={selectedDate} 
-          onSelectDate={setSelectedDate} 
-        />
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Job Management</h1>
+          <p className="text-slate-500 text-sm">Schedule and track cleaning appointments</p>
+        </div>
+        
+        <div className="flex gap-3">
+          <div className="relative flex-1 md:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+            <input 
+              type="text"
+              placeholder="Search by client..."
+              className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="bg-brand-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-brand-700 flex items-center gap-2 shadow-sm whitespace-nowrap"
+          >
+            <Plus size={20} />
+            <span className="hidden md:inline">New Job</span>
+            <span className="md:hidden">New</span>
+          </button>
+        </div>
       </div>
 
-      {/* 2. Main Agenda View */}
-      <main>
-        {error && (
-          <div className="p-4 m-4 bg-red-50 text-red-600 rounded-lg text-sm text-center">
-            {error}
-          </div>
-        )}
+      {/* Content */}
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div>
+        </div>
+      ) : jobsError ? (
+        <div className="bg-red-50 text-red-600 p-4 rounded-lg border border-red-100">
+          Error: {jobsError}
+        </div>
+      ) : (
+        <>
+          <JobListMobile jobs={filteredJobs} clients={clients} staff={staff} />
+          <JobTableDesktop jobs={filteredJobs} clients={clients} staff={staff} />
+        </>
+      )}
 
-        <DailyAgenda 
-          jobs={todaysJobs} 
-          clients={clients} 
-          loading={scheduleLoading || clientsLoading} 
-          selectedDate={selectedDate}
-        />
-      </main>
+      {/* Modals */}
+      <JobFormModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        onSave={addJob} 
+        clients={clients} 
+        staff={staff}
+      />
     </div>
   );
 };
 
-export default SchedulePage;
+export default JobsPage;
 EOF
 
-# 5. Update Routing
-echo "📝 Updating App.jsx route..."
-cat << 'EOF' > src/App.jsx
-import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import AppLayout from './components/layout/AppLayout';
-import AuthGuard from './components/layout/AuthGuard';
-import LoginPage from './features/auth/LoginPage';
-import ClientsPage from './pages/ClientsPage';
-import JobsPage from './pages/JobsPage';
-import SchedulePage from './pages/SchedulePage';
-import DebugClaims from './components/debug/DebugClaims';
+echo "✅ SUCCESS! Job Assignment Feature installed."
+```
+---
 
-// Placeholder Pages
-const Dashboard = () => (
-  <div>
-    <h2 className="text-2xl font-bold mb-4">Dashboard</h2>
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-        <h3 className="text-gray-500 text-sm font-medium">Jobs Today</h3>
-        <p className="text-2xl font-bold text-slate-800">0</p>
-      </div>
-    </div>
-    <DebugClaims />
-  </div>
-);
+## FILE: scripts/merge_to_dev.sh
+```sh
+#!/bin/bash
+# Merges current feature into 'dev' and pushes to GitHub to trigger CI
 
-function App() {
-  return (
-    <BrowserRouter>
-      <Routes>
-        {/* Public Route */}
-        <Route path="/login" element={<LoginPage />} />
+current_branch=$(git branch --show-current)
 
-        {/* Protected Routes */}
-        <Route path="/" element={
-          <AuthGuard>
-            <AppLayout />
-          </AuthGuard>
-        }>
-          <Route index element={<Dashboard />} />
-          <Route path="jobs" element={<JobsPage />} />
-          <Route path="schedule" element={<SchedulePage />} />
-          <Route path="clients" element={<ClientsPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
-  );
-}
+if [ "$current_branch" == "dev" ] || [ "$current_branch" == "main" ]; then
+  echo "❌ You are on $current_branch. Please checkout a feature branch first."
+  exit 1
+fi
 
-export default App;
+echo "🚀 Merging $current_branch into dev..."
+
+# 1. Switch to dev and pull latest
+git checkout dev
+git pull origin dev
+
+# 2. Merge Feature
+git merge "$current_branch"
+
+# 3. Push to GitHub (TRIGGERS GITHUB ACTION for DEV)
+git push origin dev
+
+# 4. Return to feature branch
+git checkout "$current_branch"
+
+echo "✅ Merged and Pushed! GitHub Action is now deploying to Fresh-Nest-Dev."
+echo "👉 Check status here: https://github.com/rpdouglas/fresh-nest/actions"
+
+```
+---
+
+## FILE: scripts/promote_to_prod.sh
+```sh
+#!/bin/bash
+
+# ====================================================
+# FRESH NEST: PROD PROMOTER
+# Goal: Merge the active Release branch into Main
+# ====================================================
+
+current_branch=$(git branch --show-current)
+
+# Ensure we are on a release branch
+if [[ "$current_branch" != release/* ]]; then
+  echo "❌ You must be on a 'release/...' branch to promote to Prod."
+  echo "   Current: $current_branch"
+  exit 1
+fi
+
+echo "🚀 Promoting $current_branch to Production..."
+
+# 1. Switch to Main and Sync
+git checkout main
+git pull origin main
+
+# 2. Merge the Release
+git merge "$current_branch"
+
+# 3. Push to Main (Triggers PROD Action)
+git push origin main
+
+echo "✅ Promoted to Prod!"
+echo "👉 GitHub Action is now deploying to Fresh-Nest-Prod."
+
+```
+---
+
+## FILE: scripts/release_to_uat.sh
+```sh
+#!/bin/bash
+
+# ====================================================
+# FRESH NEST: RELEASE MANAGER
+# Goal: Cut a release branch from DEV and push to UAT
+# ====================================================
+
+# 1. Sync Dev
+echo "🔄 Syncing Dev..."
+git checkout dev
+git pull origin dev
+
+# 2. Generate Version Name (Time-based for now)
+# In the future, we can use semantic versioning (v0.1.1, etc)
+version="v0.1.0-rc-$(date +%s)"
+branch_name="release/$version"
+
+echo "🌿 Creating Release Branch: $branch_name"
+git checkout -b "$branch_name"
+
+# 3. Push to GitHub (Triggers UAT Action)
+echo "🚀 Pushing to UAT..."
+git push origin "$branch_name"
+
+echo "✅ Release Pushed!"
+echo "👉 GitHub Action is now deploying to Fresh-Nest-UAT."
+echo "👉 When UAT is verified, merge this PR into 'main' to deploy to PROD."
+
+```
+---
+
+## FILE: scripts/setup-cicd.sh
+```sh
+#!/bin/bash
+
+# ====================================================
+# FRESH NEST: CI/CD PIPELINE INSTALLER
+# Sets up GitHub Actions for Dev, UAT, and Prod
+# ====================================================
+
+echo "🚀 Setting up GitHub Actions Workflows..."
+
+# 1. Create the Workflows Directory
+mkdir -p .github/workflows
+
+# 2. Create DEV Pipeline
+echo "📝 Writing .github/workflows/deploy-dev.yml..."
+cat << 'EOF' > .github/workflows/deploy-dev.yml
+name: Deploy to DEV
+
+on:
+  push:
+    branches:
+      - dev
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_APP_ENV: 'development'
+
+      - name: Deploy to Firebase Hosting (DEV)
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_DEV }}'
+          channelId: live
+          projectId: fresh-nest-dev
 EOF
 
-echo "✅ SUCCESS! Schedule View installed."
+# 3. Create UAT Pipeline (Release Branches)
+echo "📝 Writing .github/workflows/deploy-uat.yml..."
+cat << 'EOF' > .github/workflows/deploy-uat.yml
+name: Deploy to UAT
+
+on:
+  push:
+    branches:
+      - 'release/**'
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_APP_ENV: 'uat'
+
+      - name: Deploy to Firebase Hosting (UAT)
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_UAT }}'
+          channelId: live
+          projectId: fresh-nest-uat
+EOF
+
+# 4. Create PROD Pipeline (Main Branch)
+echo "📝 Writing .github/workflows/deploy-prod.yml..."
+cat << 'EOF' > .github/workflows/deploy-prod.yml
+name: Deploy to PROD
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_APP_ENV: 'production'
+
+      - name: Deploy to Firebase Hosting (PROD)
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_PROD }}'
+          channelId: live
+          projectId: fresh-nest-prod
+EOF
+
+# 5. Create Local Helper Script
+echo "📝 Writing scripts/merge_to_dev.sh..."
+cat << 'EOF' > scripts/merge_to_dev.sh
+#!/bin/bash
+# Merges current feature into 'dev' and pushes to GitHub to trigger CI
+
+current_branch=$(git branch --show-current)
+
+if [ "$current_branch" == "dev" ] || [ "$current_branch" == "main" ]; then
+  echo "❌ You are on $current_branch. Please checkout a feature branch first."
+  exit 1
+fi
+
+echo "🚀 Merging $current_branch into dev..."
+
+# 1. Switch to dev and pull latest
+git checkout dev
+git pull origin dev
+
+# 2. Merge Feature
+git merge "$current_branch"
+
+# 3. Push to GitHub (TRIGGERS GITHUB ACTION for DEV)
+git push origin dev
+
+# 4. Return to feature branch
+git checkout "$current_branch"
+
+echo "✅ Merged and Pushed! GitHub Action is now deploying to Fresh-Nest-Dev."
+echo "👉 Check status here: https://github.com/rpdouglas/freshnest/actions"
+EOF
+
+chmod +x scripts/merge_to_dev.sh
+
+echo "✅ SUCCESS! CI/CD Pipelines Installed."
+echo "👉 Run: git add . && git commit -m 'chore: setup github actions' && git push origin main"
 ```
 ---
 
@@ -2956,6 +3665,291 @@ git checkout -b "$branch_name"
 
 echo ""
 echo "✅ Ready to code! You are now on branch: $branch_name"
+
+```
+---
+
+## FILE: scripts/update_docs.sh
+```sh
+#!/bin/bash
+
+echo "📚 Updating Documentation Suite..."
+
+# 1. Update Context Generator to include Workflows
+# We want the AI to be able to see your CI/CD pipelines in future sessions.
+echo "⚙️ Updating scripts/generate-context.sh..."
+cat << 'INNER_EOF' > scripts/generate-context.sh
+#!/bin/bash
+
+OUTPUT_FILE="docs/FULL_CODEBASE_CONTEXT.md"
+
+echo "🔄 Generating Context Dump..."
+echo "# FRESH NEST: CODEBASE DUMP" > "\$OUTPUT_FILE"
+echo "**Date:** \$(date)" >> "\$OUTPUT_FILE"
+echo "**Description:** Complete codebase context." >> "\$OUTPUT_FILE"
+echo "" >> "\$OUTPUT_FILE"
+
+ingest_file() {
+    local filepath="\$1"
+    if [[ "\$filepath" == *".env"* ]] || [[ "\$filepath" == *"service-account"* ]] || [[ "\$filepath" == *".DS_Store"* ]]; then return; fi
+    if [ -f "\$filepath" ]; then
+        echo "Processing: \$filepath"
+        echo "## FILE: \$filepath" >> "\$OUTPUT_FILE"
+        echo "\`\`\`\${filepath##*.}" >> "\$OUTPUT_FILE"
+        cat "\$filepath" >> "\$OUTPUT_FILE"
+        echo "" >> "\$OUTPUT_FILE"
+        echo "\`\`\`" >> "\$OUTPUT_FILE"
+        echo "---" >> "\$OUTPUT_FILE"
+        echo "" >> "\$OUTPUT_FILE"
+    fi
+}
+
+# Root Configs
+ingest_file "package.json"
+ingest_file "vite.config.js"
+ingest_file "tailwind.config.js"
+ingest_file "firebase.json"
+ingest_file ".firebaserc"
+
+# Source Code
+find src -type f -not -path "*/.*" | sort | while read file; do ingest_file "\$file"; done
+
+# Documentation
+find docs -type f -name "*.md" -not -name "FULL_CODEBASE_CONTEXT.md" | sort | while read file; do ingest_file "\$file"; done
+
+# Scripts
+find scripts -type f \( -name "*.js" -o -name "*.cjs" -o -name "*.sh" \) | sort | while read file; do ingest_file "\$file"; done
+
+# CI/CD Workflows (NEW)
+find .github/workflows -type f -name "*.yml" | sort | while read file; do ingest_file "\$file"; done
+
+echo "✅ Context Generated at: \$OUTPUT_FILE"
+INNER_EOF
+chmod +x scripts/generate-context.sh
+
+# 2. Update Project Status
+echo "📝 Updating docs/PROJECT_STATUS.md..."
+cat << 'INNER_EOF' > docs/PROJECT_STATUS.md
+# 📌 Project Status: Fresh Nest
+
+**Current Phase:** Phase 1 Complete / Infrastructure Mature
+**Last Updated:** $(date +%Y-%m-%d)
+
+## ✅ Completed Features
+* **Core:** Project Setup, Auth, Multi-Tenancy (Profile-based).
+* **Clients:** CRUD, Filtering, Mobile/Desktop Views.
+* **Jobs:** Scheduling, Relational Data, Assignment (`useStaff`).
+* **DevOps (NEW):** * 3-Environment CI/CD (Dev/UAT/Prod).
+    * Automated Build Versioning.
+    * Secret Injection via GitHub Actions.
+
+## 🚧 In Progress / Next Up
+* [ ] **Worker View:** Restricted dashboard for staff.
+* [ ] **Job Workflow:** Status transitions (Start/Finish).
+
+## 🗄️ Database Schema
+* `organizations/{orgId}`
+* `users/{userId}`: { role: 'admin'|'staff', orgId, ... }
+* `jobs/{jobId}`: { assignedTo: [userId], status, ... }
+INNER_EOF
+
+# 3. Update SOP (Source Control)
+echo "📝 Updating docs/SOP_SOURCE_CONTROL.md..."
+cat << 'INNER_EOF' > docs/SOP_SOURCE_CONTROL.md
+# 🛡️ Source Control & CI/CD Protocol
+
+## 1. The Environment Pipeline
+
+| Environment | URL | Trigger Branch | Deployed By |
+| :--- | :--- | :--- | :--- |
+| **DEV** | `fresh-nest-dev` | `dev` | **Auto** (Push to dev) |
+| **UAT** | `fresh-nest-uat` | `release/*` | **Script** (`release_to_uat.sh`) |
+| **PROD** | `fresh-nest-prod` | `main` | **Script** (`promote_to_prod.sh`) |
+
+## 2. Daily Workflow
+1.  **Start:** `git checkout main` -> `git pull` -> `./scripts/start-feature.sh`
+2.  **Work:** Commit often to `feature/...`
+3.  **Test Cloud:** Run `./scripts/merge_to_dev.sh` to deploy to Dev.
+4.  **Finish:** Run `./scripts/close_feature.sh` (or merge PR) to close.
+
+## 3. Releases
+* **To UAT:** Run `./scripts/release_to_uat.sh`
+* **To Prod:** Run `./scripts/promote_to_prod.sh` (Must be on release branch)
+
+## 4. Emergency Fixes (Hotfix)
+1.  Branch from `main`: `git checkout -b fix/critical-bug main`
+2.  Fix and Commit.
+3.  Merge to `main` and `dev`.
+INNER_EOF
+
+# 4. Create DevOps Manual (NEW)
+echo "📝 Creating docs/DEVOPS_MANUAL.md..."
+cat << 'INNER_EOF' > docs/DEVOPS_MANUAL.md
+# ☁️ DevOps & Infrastructure Manual
+
+## 1. CI/CD Architecture
+We use **GitHub Actions** for all deployments.
+* **Workflows:** Located in `.github/workflows/`
+* **Secrets:** Managed in GitHub Repo Settings -> Secrets -> Actions.
+
+## 2. GitHub Secrets (Required)
+If setting up a new repo, these secrets must be present:
+
+| Secret Name | Content |
+| :--- | :--- |
+| `FIREBASE_SERVICE_ACCOUNT_DEV` | JSON key for Dev Project |
+| `FIREBASE_SERVICE_ACCOUNT_UAT` | JSON key for UAT Project |
+| `FIREBASE_SERVICE_ACCOUNT_PROD` | JSON key for Prod Project |
+| `ENV_FILE_DEV` | Content of local `.env.development` |
+| `ENV_FILE_UAT` | Content of local `.env.uat` |
+| `ENV_FILE_PROD` | Content of local `.env.production` |
+
+## 3. Versioning
+* **SemVer:** Manually managed in `package.json` (e.g., `0.1.0`).
+* **Build Number:** Auto-incremented via `scripts/increment-build.cjs` on every cloud build.
+* **Git Hash:** Injected into the app footer for debugging.
+
+## 4. Troubleshooting
+**"Invalid API Key" in Production?**
+* Check that `ENV_FILE_PROD` in GitHub Secrets is not empty.
+* Check that the variable names in the secret start with `VITE_`.
+* Re-run the workflow in the GitHub Actions tab.
+INNER_EOF
+
+echo "✅ Documentation Updated Successfully."
+echo "👉 You should commit these changes now."
+
+```
+---
+
+## FILE: .github/workflows/deploy-dev.yml
+```yml
+name: Deploy to DEV
+
+on:
+  push:
+    branches:
+      - dev
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      # ✨ NEW STEP: Inject the .env file from Secrets
+      - name: Create .env file
+        run: echo "${{ secrets.ENV_FILE_DEV }}" > .env
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_APP_ENV: 'development'
+
+      - name: Deploy to Firebase Hosting (DEV)
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_DEV }}'
+          channelId: live
+          projectId: fresh-nest-dev
+
+```
+---
+
+## FILE: .github/workflows/deploy-prod.yml
+```yml
+name: Deploy to PROD
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      # ✨ NEW STEP: Inject the .env file from Secrets
+      - name: Create .env file
+        run: echo "${{ secrets.ENV_FILE_PROD }}" > .env
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_APP_ENV: 'production'
+
+      - name: Deploy to Firebase Hosting (PROD)
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_PROD }}'
+          channelId: live
+          projectId: fresh-nest-prod
+
+```
+---
+
+## FILE: .github/workflows/deploy-uat.yml
+```yml
+name: Deploy to UAT
+
+on:
+  push:
+    branches:
+      - 'release/**'
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      # ✨ NEW STEP: Inject the .env file from Secrets
+      - name: Create .env file
+        run: echo "${{ secrets.ENV_FILE_UAT }}" > .env
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_APP_ENV: 'uat'
+
+      - name: Deploy to Firebase Hosting (UAT)
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_UAT }}'
+          channelId: live
+          projectId: fresh-nest-uat
 
 ```
 ---

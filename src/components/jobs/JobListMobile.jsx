@@ -2,7 +2,7 @@ import React from 'react';
 import { Calendar, Clock, DollarSign, MapPin, User } from 'lucide-react';
 import { format } from 'date-fns';
 
-const JobListMobile = ({ jobs, clients, staff }) => {
+const JobListMobile = ({ jobs, clients, staff, userRole }) => {
   const getClientName = (id) => clients.find(c => c.id === id)?.name || 'Unknown Client';
   const getClientAddress = (id) => clients.find(c => c.id === id)?.address;
   
@@ -14,8 +14,9 @@ const JobListMobile = ({ jobs, clients, staff }) => {
 
   if (jobs.length === 0) {
     return (
-      <div className="text-center py-10 bg-white rounded-xl border border-gray-100">
-        <p className="text-gray-500">No upcoming jobs.</p>
+      // ✨ FIX: Added 'md:hidden' so this only shows on mobile
+      <div className="md:hidden text-center py-10 bg-white rounded-xl border border-gray-100">
+        <p className="text-gray-500">No jobs found.</p>
       </div>
     );
   }
@@ -58,7 +59,6 @@ const JobListMobile = ({ jobs, clients, staff }) => {
                 </span>
               </div>
               
-              {/* STAFF ASSIGNMENT ROW */}
               <div className={`flex items-center gap-2 ${isUnassigned ? 'text-slate-400 italic' : 'text-slate-700 font-medium'}`}>
                 <User size={16} className={isUnassigned ? "text-slate-300" : "text-brand-500"} />
                 <span>{assignedName}</span>
@@ -70,7 +70,9 @@ const JobListMobile = ({ jobs, clients, staff }) => {
                    <span className="truncate">{getClientAddress(job.clientId)}</span>
                  </div>
               )}
-               {job.price > 0 && (
+              
+              {/* RBAC: Hide Price if Staff */}
+              {userRole !== 'staff' && job.price > 0 && (
                  <div className="flex items-center gap-2 text-slate-500">
                    <DollarSign size={16} className="text-slate-400 shrink-0" />
                    <span>${job.price}</span>

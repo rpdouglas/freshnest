@@ -7,13 +7,14 @@
 * **Core:** Project Setup, Auth, Multi-Tenancy (Profile-based).
 * **Clients:** CRUD, Filtering, Mobile/Desktop Views.
 * **Jobs:** Scheduling, Relational Data, Assignment (`useStaff`).
-* **DevOps (NEW):** * 3-Environment CI/CD (Dev/UAT/Prod).
-    * Automated Build Versioning.
-    * Secret Injection via GitHub Actions.
+* **Worker View:** * RBAC Hooks (`useJobs` filters by role).
+    * UI Restrictions (Hidden Prices, Hidden Buttons).
+    * Secure Mobile/Desktop Views.
+* **DevOps:** 3-Environment CI/CD (Dev/UAT/Prod).
 
 ## 🚧 In Progress / Next Up
-* [ ] **Worker View:** Restricted dashboard for staff.
-* [ ] **Job Workflow:** Status transitions (Start/Finish).
+* [ ] **Job Workflow:** Allow staff to mark jobs as "Started" / "Completed".
+* [ ] **Job Edit/Delete:** Full CRUD for Admins.
 
 ## 🗄️ Database Schema
 * `organizations/{orgId}`

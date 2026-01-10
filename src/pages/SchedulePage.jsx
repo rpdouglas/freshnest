@@ -8,23 +8,19 @@ import DailyAgenda from '../components/schedule/DailyAgenda';
 const SchedulePage = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
 
-  // Calculate the Start and End of the current week for the query
-  // We fetch a whole week's worth of data so switching days is instant
-  const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 }); // Monday
-  const weekEnd = endOfWeek(selectedDate, { weekStartsOn: 1 });     // Sunday
+  const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 }); 
+  const weekEnd = endOfWeek(selectedDate, { weekStartsOn: 1 });     
 
-  // Custom hooks
-  const { jobs, loading: scheduleLoading, error } = useSchedule(weekStart, weekEnd);
+  // Destructure role here
+  const { jobs, loading: scheduleLoading, error, role: userRole } = useSchedule(weekStart, weekEnd);
   const { clients, loading: clientsLoading } = useClients();
 
-  // Filter the fetched week's jobs to show only the selected day
   const todaysJobs = jobs.filter(job => 
     job.scheduledDate && isSameDay(job.scheduledDate, selectedDate)
   );
 
   return (
     <div className="bg-gray-50 min-h-full pb-20">
-      {/* 1. Date Navigation */}
       <div className="sticky top-0 z-10">
         <DateStrip 
           selectedDate={selectedDate} 
@@ -32,7 +28,6 @@ const SchedulePage = () => {
         />
       </div>
 
-      {/* 2. Main Agenda View */}
       <main>
         {error && (
           <div className="p-4 m-4 bg-red-50 text-red-600 rounded-lg text-sm text-center">
@@ -45,6 +40,7 @@ const SchedulePage = () => {
           clients={clients} 
           loading={scheduleLoading || clientsLoading} 
           selectedDate={selectedDate}
+          userRole={userRole} 
         />
       </main>
     </div>
