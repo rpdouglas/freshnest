@@ -3,8 +3,7 @@
 **Architecture:** Multi-Tenant SaaS.
 **Current State:**
 - Auth is implemented (Login/Signup).
-- **CRITICAL:** `orgId` is stored in the **Firestore User Profile** (`users/{uid}`), NOT in Custom Claims.
-- "fresh-nest-dev" Firestore is active.
+- **CRITICAL:** `orgId` is stored in the **Firestore User Profile** (`users/{uid}`).
 
 ## Schema (Implemented)
 - **organizations/{orgId}**: { name, settings }
@@ -12,11 +11,13 @@
 - **invites/{inviteId}**: { email, orgId, role }
 - **jobs/{jobId}**: { assignedTo: [userId], status, serviceType, ... }
 
-## Rules for AI
-1. ALL code must be provided as COMPLETE FILES.
-2. Use `lucide-react` for icons.
-3. Tailwind Colors: `bg-brand-500` (Primary), `bg-slate-800` (Sidebar).
-4. **Security & Data Access:**
-   - **NEVER** attempt to read `request.auth.token.orgId`. It does not exist.
-   - **ALWAYS** fetch the user's Firestore profile to get their `orgId`.
+## Rules for AI (STRICT)
+1. **NO PLACEHOLDERS:** Provide COMPLETE FILES only.
+2. **Icons:** Use `lucide-react`.
+3. **Tailwind:** Mobile-first (`block md:flex`).
+4. **Security & Data Access (CRITICAL):**
+   - **NEVER use `request.auth.token.orgId` (Custom Claims) in React Code.** It is stale.
+   - **ALWAYS** fetch `users/{uid}` from Firestore to get the current `orgId`.
    - All Firestore queries MUST filter by `.where("orgId", "==", currentOrgId)`.
+   - All writes MUST include `orgId`.
+5. **Date Handling:** Use `date-fns`.

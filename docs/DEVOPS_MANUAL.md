@@ -1,29 +1,45 @@
 # ☁️ DevOps & Infrastructure Manual
 
 ## 1. CI/CD Architecture
-We use **GitHub Actions** for all deployments.
-* **Workflows:** Located in `.github/workflows/`
-* **Secrets:** Managed in GitHub Repo Settings -> Secrets -> Actions.
+We use **GitHub Actions** for "Full Stack" deployments.
+* **Workflows:** `.github/workflows/`
+* **What Deploys:** Hosting + Firestore Security Rules + Firestore Indexes.
+* **Triggers:**
+  * `dev` branch -> **Dev** Environment
+  * `release/*` branch -> **UAT** Environment
+  * `main` branch -> **Production** Environment
 
-## 2. GitHub Secrets (Required)
-If setting up a new repo, these secrets must be present:
+## 2. Environment Management
+We use "Environment-Aware" scripts. You must pass the target environment (`dev`, `uat`, `prod`) as an argument.
 
+### A. Initialization (New Env)
+Sets up the Admin User and Organization.
+\`\`\`bash
+node scripts/init-org.cjs uat
+\`\`\`
+
+### B. Seeding Staff Users
+Creates a test staff account linked to the Admin's Org.
+\`\`\`bash
+node scripts/create_staff_user.cjs uat
+\`\`\`
+
+## 3. GitHub Secrets (Required)
 | Secret Name | Content |
 | :--- | :--- |
-| `FIREBASE_SERVICE_ACCOUNT_DEV` | JSON key for Dev Project |
-| `FIREBASE_SERVICE_ACCOUNT_UAT` | JSON key for UAT Project |
-| `FIREBASE_SERVICE_ACCOUNT_PROD` | JSON key for Prod Project |
-| `ENV_FILE_DEV` | Content of local `.env.development` |
-| `ENV_FILE_UAT` | Content of local `.env.uat` |
-| `ENV_FILE_PROD` | Content of local `.env.production` |
-
-## 3. Versioning
-* **SemVer:** Manually managed in `package.json` (e.g., `0.1.0`).
-* **Build Number:** Auto-incremented via `scripts/increment-build.cjs` on every cloud build.
-* **Git Hash:** Injected into the app footer for debugging.
+| `FIREBASE_SERVICE_ACCOUNT_DEV` | JSON key for Dev |
+| `FIREBASE_SERVICE_ACCOUNT_UAT` | JSON key for UAT |
+| `FIREBASE_SERVICE_ACCOUNT_PROD` | JSON key for Prod |
+| `ENV_FILE_DEV` | `.env.development` content |
+| `ENV_FILE_UAT` | `.env.uat` content |
+| `ENV_FILE_PROD` | `.env.production` content |
 
 ## 4. Troubleshooting
-**"Invalid API Key" in Production?**
-* Check that `ENV_FILE_PROD` in GitHub Secrets is not empty.
-* Check that the variable names in the secret start with `VITE_`.
-* Re-run the workflow in the GitHub Actions tab.
+**"Missing Permissions" in CI/CD?**
+* Go to Google Cloud IAM.
+* Find the Service Account (e.g., `github-actions@...`).
+* Grant it the **"Editor"** role (or specifically Firestore Admin + Service Usage Admin).
+
+**"Staff User Not Seeing Data"?**
+* Ensure you aren't using `auth.token.orgId`.
+* Check Firestore `users/{uid}` to ensure `orgId` matches the data.

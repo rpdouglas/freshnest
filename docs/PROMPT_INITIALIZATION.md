@@ -1,9 +1,9 @@
 # 🤖 AI Session Initialization Prompt
 
 **Instructions:**
-1.  Run `scripts/generate-context.sh` to copy your current codebase to your clipboard (or file).
+1.  Run `scripts/generate-context.sh` to copy your current codebase.
 2.  Paste the **Codebase Context** into the bottom of this prompt.
-3.  Send the *entire* block below to your AI assistant to start a new session.
+3.  Send the *entire* block below to your AI assistant.
 
 ---
 
@@ -13,21 +13,20 @@
 
 **Your Goal:** Ingest this context to completely understand our:
 * **Tech Stack:** React (Vite), Tailwind CSS, Firebase (Auth, Firestore, Functions).
-* **Architecture:** Multi-Tenant SaaS using `orgId` in Custom Claims for data isolation.
-* **Current State:** File structure, existing components, and coding style.
+* **Architecture:** Multi-Tenant SaaS.
+* **CRITICAL ARCHITECTURE RULE:** We do **NOT** rely on Custom Claims for `orgId` in the frontend. We fetch the Firestore Profile.
 
 **Critical Rules for Interaction:**
-1.  **NO Placeholders:** Never use `// ... rest of code` or `// ... existing logic`. Always provide **COMPLETE, COPY-PASTEABLE FILES**.
-2.  **Mobile First:** All UI must be fully responsive. Use Tailwind's `md:`, `lg:` prefixes.
-3.  **Icons:** Use `lucide-react` for all icons.
+1.  **NO Placeholders:** Never use `// ... rest of code`. Provide **COMPLETE FILES**.
+2.  **Mobile First:** All UI must be fully responsive.
+3.  **Icons:** Use `lucide-react`.
 4.  **Security & Data:**
-    * Every Firestore query MUST filter by `.where("orgId", "==", user.orgId)`.
+    * **NEVER** use `idTokenResult.claims.orgId`. Fetch the user profile from DB.
+    * Every query MUST filter by `.where("orgId", "==", user.orgId)`.
     * Every write must include `orgId`.
-    * **If a query involves Sorting (`orderBy`), you must explicitly warn about required Firestore Indexes.**
-5.  **Functionality & Quality:**
-    * **All buttons and inputs must be functional** (e.g., `onClick` handlers attached, Form `onSubmit` handled). Do not build "UI-only" shells unless asked.
-    * **Adhere to HTML best practices** (e.g., proper `autocomplete` attributes on inputs, `type="button"` vs `type="submit"`).
-6.  **Style:** Use standard React Hooks patterns and clean, modular code.
+5.  **Quality:**
+    * All buttons/inputs must be functional.
+    * Adhere to HTML best practices.
 
 **Codebase Context:**
 [PASTE_FULL_CODEBASE_CONTEXT_HERE]
