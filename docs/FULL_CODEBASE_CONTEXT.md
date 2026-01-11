@@ -1,5 +1,5 @@
 # FRESH NEST: CODEBASE DUMP
-**Date:** Fri Jan  9 18:22:32 EST 2026
+**Date:** Sun Jan 11 17:19:46 EST 2026
 **Description:** Complete codebase context.
 
 ## FILE: package.json
@@ -205,6 +205,7 @@ import LoginPage from './features/auth/LoginPage';
 import ClientsPage from './pages/ClientsPage';
 import JobsPage from './pages/JobsPage';
 import SchedulePage from './pages/SchedulePage';
+import SettingsPage from './pages/SettingsPage'; // ✨ Imported
 import DebugClaims from './components/debug/DebugClaims';
 
 // Placeholder Pages
@@ -238,6 +239,7 @@ function App() {
           <Route path="jobs" element={<JobsPage />} />
           <Route path="schedule" element={<SchedulePage />} />
           <Route path="clients" element={<ClientsPage />} />
+          <Route path="settings" element={<SettingsPage />} /> {/* ✨ Added Route */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
@@ -743,7 +745,7 @@ import React from 'react';
 import { Calendar, Clock, DollarSign, MapPin, User } from 'lucide-react';
 import { format } from 'date-fns';
 
-const JobListMobile = ({ jobs, clients, staff }) => {
+const JobListMobile = ({ jobs, clients, staff, userRole }) => {
   const getClientName = (id) => clients.find(c => c.id === id)?.name || 'Unknown Client';
   const getClientAddress = (id) => clients.find(c => c.id === id)?.address;
   
@@ -755,8 +757,9 @@ const JobListMobile = ({ jobs, clients, staff }) => {
 
   if (jobs.length === 0) {
     return (
-      <div className="text-center py-10 bg-white rounded-xl border border-gray-100">
-        <p className="text-gray-500">No upcoming jobs.</p>
+      // ✨ FIX: Added 'md:hidden' so this only shows on mobile
+      <div className="md:hidden text-center py-10 bg-white rounded-xl border border-gray-100">
+        <p className="text-gray-500">No jobs found.</p>
       </div>
     );
   }
@@ -799,7 +802,6 @@ const JobListMobile = ({ jobs, clients, staff }) => {
                 </span>
               </div>
               
-              {/* STAFF ASSIGNMENT ROW */}
               <div className={`flex items-center gap-2 ${isUnassigned ? 'text-slate-400 italic' : 'text-slate-700 font-medium'}`}>
                 <User size={16} className={isUnassigned ? "text-slate-300" : "text-brand-500"} />
                 <span>{assignedName}</span>
@@ -811,7 +813,9 @@ const JobListMobile = ({ jobs, clients, staff }) => {
                    <span className="truncate">{getClientAddress(job.clientId)}</span>
                  </div>
               )}
-               {job.price > 0 && (
+              
+              {/* RBAC: Hide Price if Staff */}
+              {userRole !== 'staff' && job.price > 0 && (
                  <div className="flex items-center gap-2 text-slate-500">
                    <DollarSign size={16} className="text-slate-400 shrink-0" />
                    <span>${job.price}</span>
@@ -832,11 +836,14 @@ export default JobListMobile;
 
 ## FILE: src/components/jobs/JobTableDesktop.jsx
 ```jsx
-import React from 'react';
-import { MoreHorizontal, Calendar, Clock, MapPin, User } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { MoreHorizontal, Calendar, Clock, MapPin, User, Edit, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 
-const JobTableDesktop = ({ jobs, clients, staff }) => {
+const JobTableDesktop = ({ jobs, clients, staff, userRole }) => {
+  const [activeMenuJobId, setActiveMenuJobId] = useState(null);
+  const menuRef = useRef(null);
+
   const getClient = (id) => clients.find(c => c.id === id) || {};
   
   const getAssignedStaffName = (staffIds) => {
@@ -845,16 +852,39 @@ const JobTableDesktop = ({ jobs, clients, staff }) => {
     return member ? (member.fullName || member.email) : 'Unknown';
   };
 
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setActiveMenuJobId(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleAction = (action, job) => {
+    setActiveMenuJobId(null); // Close menu
+    if (action === 'edit') {
+      alert(`Edit Job functionality coming in next module!\nJob ID: ${job.id}`);
+    } else if (action === 'delete') {
+      if(confirm("Are you sure you want to delete this job? (Logic coming soon)")) {
+        console.log("Delete job", job.id);
+      }
+    }
+  };
+
   if (jobs.length === 0) {
     return (
       <div className="hidden md:block bg-white p-12 text-center rounded-xl border border-gray-200">
-        <p className="text-gray-500">No upcoming jobs.</p>
+        <p className="text-gray-500">No jobs found.</p>
       </div>
     );
   }
 
   return (
-    <div className="hidden md:block bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+    // Changed overflow-hidden to overflow-visible so the dropdown isn't clipped
+    <div className="hidden md:block bg-white rounded-xl shadow-sm border border-gray-200 overflow-visible min-h-[300px]">
       <table className="w-full text-left border-collapse">
         <thead>
           <tr className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold">
@@ -871,9 +901,10 @@ const JobTableDesktop = ({ jobs, clients, staff }) => {
             const client = getClient(job.clientId);
             const assignedName = getAssignedStaffName(job.assignedTo);
             const isUnassigned = !job.assignedTo || job.assignedTo.length === 0;
+            const isMenuOpen = activeMenuJobId === job.id;
 
             return (
-              <tr key={job.id} className="hover:bg-gray-50 transition-colors">
+              <tr key={job.id} className="hover:bg-gray-50 transition-colors relative">
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-2 font-medium text-slate-900">
                     <Calendar size={16} className="text-brand-500" />
@@ -899,7 +930,10 @@ const JobTableDesktop = ({ jobs, clients, staff }) => {
                 </td>
                 <td className="px-6 py-4">
                   <span className="capitalize text-sm text-slate-700">{job.serviceType}</span>
-                  {job.price > 0 && <div className="text-xs text-slate-400">${job.price}</div>}
+                  {/* RBAC: Hide Price if Staff */}
+                  {userRole !== 'staff' && job.price > 0 && (
+                    <div className="text-xs text-slate-400">${job.price}</div>
+                  )}
                 </td>
                 <td className="px-6 py-4">
                   <span className={`text-xs font-bold px-2 py-1 rounded-full ${
@@ -908,10 +942,42 @@ const JobTableDesktop = ({ jobs, clients, staff }) => {
                     {job.status.toUpperCase()}
                   </span>
                 </td>
-                <td className="px-6 py-4 text-right">
-                  <button className="text-slate-400 hover:text-brand-600 p-2">
+                
+                {/* ACTION COLUMN */}
+                <td className="px-6 py-4 text-right relative">
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveMenuJobId(isMenuOpen ? null : job.id);
+                    }}
+                    className={`p-2 rounded-full transition-colors ${isMenuOpen ? 'bg-brand-50 text-brand-600' : 'text-slate-400 hover:text-brand-600 hover:bg-gray-100'}`}
+                  >
                     <MoreHorizontal size={20} />
                   </button>
+
+                  {/* Dropdown Menu */}
+                  {isMenuOpen && (
+                    <div 
+                      ref={menuRef}
+                      className="absolute right-8 top-8 w-40 bg-white rounded-lg shadow-xl border border-gray-100 z-50 overflow-hidden text-left animate-in fade-in zoom-in duration-200"
+                    >
+                      <button 
+                        onClick={() => handleAction('edit', job)}
+                        className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
+                      >
+                        <Edit size={16} className="text-slate-400" /> Edit Job
+                      </button>
+                      
+                      {userRole === 'admin' && (
+                        <button 
+                          onClick={() => handleAction('delete', job)}
+                          className="w-full px-4 py-3 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors border-t border-gray-50"
+                        >
+                          <Trash2 size={16} /> Delete
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </td>
               </tr>
             );
@@ -1131,8 +1197,7 @@ import React from 'react';
 import { Clock, MapPin, DollarSign, User, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
 
-const DailyAgenda = ({ jobs, clients, loading, selectedDate }) => {
-  // Helper to join client data
+const DailyAgenda = ({ jobs, clients, loading, selectedDate, userRole }) => {
   const getClient = (clientId) => clients.find(c => c.id === clientId) || {};
 
   if (loading) {
@@ -1148,7 +1213,13 @@ const DailyAgenda = ({ jobs, clients, loading, selectedDate }) => {
     return (
       <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
         <div className="bg-slate-50 p-4 rounded-full mb-4">
-          <CalendarIcon className="text-slate-300" size={32} />
+          {/* Simple SVG icon inline for simplicity */}
+          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+          </svg>
         </div>
         <h3 className="text-lg font-bold text-slate-700">No jobs scheduled</h3>
         <p className="text-slate-500 text-sm mt-1">
@@ -1198,6 +1269,14 @@ const DailyAgenda = ({ jobs, clients, loading, selectedDate }) => {
                   </div>
                 )}
 
+                {/* RBAC: Hide Price from Staff */}
+                {userRole !== 'staff' && job.price > 0 && (
+                  <div className="flex items-center gap-2 text-sm text-slate-500">
+                    <DollarSign size={14} className="text-brand-400" />
+                    <span>${job.price}</span>
+                  </div>
+                )}
+
                 {job.notes && (
                   <div className="flex items-start gap-2 text-xs text-amber-600 bg-amber-50 p-2 rounded-lg mt-2">
                     <AlertCircle size={12} className="mt-0.5 shrink-0" />
@@ -1212,27 +1291,6 @@ const DailyAgenda = ({ jobs, clients, loading, selectedDate }) => {
     </div>
   );
 };
-
-// Simple Icon component for the empty state
-const CalendarIcon = ({ className, size }) => (
-  <svg 
-    xmlns="http://www.w3.org/2000/svg" 
-    width={size} 
-    height={size} 
-    viewBox="0 0 24 24" 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2" 
-    strokeLinecap="round" 
-    strokeLinejoin="round" 
-    className={className}
-  >
-    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-    <line x1="16" y1="2" x2="16" y2="6"></line>
-    <line x1="8" y1="2" x2="8" y2="6"></line>
-    <line x1="3" y1="10" x2="21" y2="10"></line>
-  </svg>
-);
 
 export default DailyAgenda;
 
@@ -1543,6 +1601,7 @@ export const useJobs = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [currentOrgId, setCurrentOrgId] = useState(null);
+  const [userRole, setUserRole] = useState(null);
 
   useEffect(() => {
     const user = auth.currentUser;
@@ -1553,10 +1612,21 @@ export const useJobs = () => {
 
     const fetchOrgAndSubscribe = async () => {
       try {
+        // 1. Fetch User Profile to get OrgId AND Role
         const userDocRef = doc(db, 'users', user.uid);
         const userDoc = await getDoc(userDocRef);
-        const orgId = userDoc.exists() ? userDoc.data().orgId : null;
+        
+        if (!userDoc.exists()) {
+          setLoading(false);
+          return;
+        }
+
+        const userData = userDoc.data();
+        const orgId = userData.orgId;
+        const role = userData.role;
+
         setCurrentOrgId(orgId);
+        setUserRole(role);
 
         if (!orgId) {
           setError("Organization ID missing.");
@@ -1564,11 +1634,18 @@ export const useJobs = () => {
           return;
         }
 
-        const q = query(
-          collection(db, 'jobs'),
+        // 2. Construct Query based on Role
+        let constraints = [
           where('orgId', '==', orgId),
           orderBy('scheduledDate', 'asc')
-        );
+        ];
+
+        // RBAC: If staff, ONLY show jobs assigned to them
+        if (role === 'staff') {
+          constraints.push(where('assignedTo', 'array-contains', user.uid));
+        }
+
+        const q = query(collection(db, 'jobs'), ...constraints);
 
         return onSnapshot(q, (snapshot) => {
           const jobData = snapshot.docs.map(doc => ({
@@ -1597,9 +1674,6 @@ export const useJobs = () => {
     if (!currentOrgId) throw new Error("No Organization ID found.");
 
     const timestampDate = new Date(jobData.scheduledDate);
-
-    // Prepare Assignment Array
-    // Even though UI is single select, we store as array for future proofing
     const assignedTo = jobData.assignedStaffId ? [jobData.assignedStaffId] : [];
 
     await addDoc(collection(db, 'jobs'), {
@@ -1607,7 +1681,7 @@ export const useJobs = () => {
       serviceType: jobData.serviceType,
       price: Number(jobData.price),
       notes: jobData.notes,
-      assignedTo: assignedTo, // ✨ NEW FIELD
+      assignedTo: assignedTo,
       status: 'scheduled',
       scheduledDate: Timestamp.fromDate(timestampDate),
       orgId: currentOrgId, 
@@ -1616,7 +1690,7 @@ export const useJobs = () => {
     });
   };
 
-  return { jobs, loading, error, addJob };
+  return { jobs, loading, error, addJob, role: userRole };
 };
 
 ```
@@ -1626,12 +1700,7 @@ export const useJobs = () => {
 ```js
 import { useState, useEffect } from 'react';
 import { 
-  collection, 
-  query, 
-  where, 
-  onSnapshot, 
-  orderBy,
-  Timestamp 
+  collection, query, where, onSnapshot, orderBy, Timestamp, doc, getDoc 
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 
@@ -1639,6 +1708,7 @@ export const useSchedule = (startDate, endDate) => {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [userRole, setUserRole] = useState(null);
 
   useEffect(() => {
     const user = auth.currentUser;
@@ -1647,44 +1717,68 @@ export const useSchedule = (startDate, endDate) => {
       return;
     }
 
-    user.getIdTokenResult().then((idTokenResult) => {
-      const orgId = idTokenResult.claims.orgId;
+    const fetchOrgAndSubscribe = async () => {
+      try {
+        const userDocRef = doc(db, 'users', user.uid);
+        const userDoc = await getDoc(userDocRef);
+        
+        if (!userDoc.exists()) {
+          setLoading(false);
+          return;
+        }
 
-      if (!orgId) {
-        setError("Organization ID missing.");
+        const userData = userDoc.data();
+        const orgId = userData.orgId;
+        const role = userData.role;
+        setUserRole(role);
+
+        if (!orgId) {
+          setError("Organization ID missing.");
+          setLoading(false);
+          return;
+        }
+
+        // Base Constraints
+        let constraints = [
+          where('orgId', '==', orgId),
+          where('scheduledDate', '>=', Timestamp.fromDate(startDate)),
+          where('scheduledDate', '<=', Timestamp.fromDate(endDate)),
+          orderBy('scheduledDate', 'asc')
+        ];
+
+        // RBAC: Staff Filter
+        if (role === 'staff') {
+          constraints.push(where('assignedTo', 'array-contains', user.uid));
+        }
+
+        const q = query(collection(db, 'jobs'), ...constraints);
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+          const jobData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            scheduledDate: doc.data().scheduledDate?.toDate()
+          }));
+          setJobs(jobData);
+          setLoading(false);
+        }, (err) => {
+          console.error("Error fetching schedule:", err);
+          setError("Failed to load schedule.");
+          setLoading(false);
+        });
+
+        return unsubscribe;
+      } catch (err) {
+        console.error(err);
         setLoading(false);
-        return;
       }
+    };
 
-      // SECURITY: Filter by orgId AND Date Range
-      // Note: This relies on the composite index (orgId + scheduledDate) we already created.
-      const q = query(
-        collection(db, 'jobs'),
-        where('orgId', '==', orgId),
-        where('scheduledDate', '>=', Timestamp.fromDate(startDate)),
-        where('scheduledDate', '<=', Timestamp.fromDate(endDate)),
-        orderBy('scheduledDate', 'asc')
-      );
+    const unsubscribePromise = fetchOrgAndSubscribe();
+    return () => { unsubscribePromise.then(unsub => unsub && unsub()); };
+  }, [startDate, endDate]); 
 
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const jobData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          scheduledDate: doc.data().scheduledDate?.toDate()
-        }));
-        setJobs(jobData);
-        setLoading(false);
-      }, (err) => {
-        console.error("Error fetching schedule:", err);
-        setError("Failed to load schedule.");
-        setLoading(false);
-      });
-
-      return () => unsubscribe();
-    });
-  }, [startDate, endDate]); // Refetch when the date range changes
-
-  return { jobs, loading, error };
+  return { jobs, loading, error, role: userRole };
 };
 
 ```
@@ -1914,31 +2008,33 @@ import React, { useState } from 'react';
 import { Plus, Search } from 'lucide-react';
 import { useJobs } from '../hooks/useJobs';
 import { useClients } from '../hooks/useClients';
-import { useStaff } from '../hooks/useStaff'; // ✨ NEW
+import { useStaff } from '../hooks/useStaff';
 import JobListMobile from '../components/jobs/JobListMobile';
 import JobTableDesktop from '../components/jobs/JobTableDesktop';
 import JobFormModal from '../components/jobs/JobFormModal';
 
 const JobsPage = () => {
-  const { jobs, loading: jobsLoading, error: jobsError, addJob } = useJobs();
+  // Destructure 'role' from hook
+  const { jobs, loading: jobsLoading, error: jobsError, addJob, role: userRole } = useJobs();
   const { clients, loading: clientsLoading } = useClients(); 
-  const { staff, loading: staffLoading } = useStaff(); // Fetch staff
+  const { staff, loading: staffLoading } = useStaff();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
   const loading = jobsLoading || clientsLoading || staffLoading;
 
-  // Simple filtering
   const filteredJobs = jobs.filter(job => {
-    // Find client name for search
     const clientName = clients.find(c => c.id === job.clientId)?.name?.toLowerCase() || '';
     return clientName.includes(searchTerm.toLowerCase());
   });
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header - Hide 'New Job' button for Staff if desired (Optional, keeping visible for now or hide?) 
+          Usually staff don't create jobs, but sticking to prompt reqs: Staff View Restrictions.
+          Let's hide the Add button if staff for better UX.
+      */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Job Management</h1>
@@ -1956,14 +2052,17 @@ const JobsPage = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            className="bg-brand-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-brand-700 flex items-center gap-2 shadow-sm whitespace-nowrap"
-          >
-            <Plus size={20} />
-            <span className="hidden md:inline">New Job</span>
-            <span className="md:hidden">New</span>
-          </button>
+          {/* Only Admin can add jobs */}
+          {userRole === 'admin' && (
+            <button 
+              onClick={() => setIsModalOpen(true)}
+              className="bg-brand-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-brand-700 flex items-center gap-2 shadow-sm whitespace-nowrap"
+            >
+              <Plus size={20} />
+              <span className="hidden md:inline">New Job</span>
+              <span className="md:hidden">New</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -1978,12 +2077,11 @@ const JobsPage = () => {
         </div>
       ) : (
         <>
-          <JobListMobile jobs={filteredJobs} clients={clients} staff={staff} />
-          <JobTableDesktop jobs={filteredJobs} clients={clients} staff={staff} />
+          <JobListMobile jobs={filteredJobs} clients={clients} staff={staff} userRole={userRole} />
+          <JobTableDesktop jobs={filteredJobs} clients={clients} staff={staff} userRole={userRole} />
         </>
       )}
 
-      {/* Modals */}
       <JobFormModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
@@ -2012,23 +2110,19 @@ import DailyAgenda from '../components/schedule/DailyAgenda';
 const SchedulePage = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
 
-  // Calculate the Start and End of the current week for the query
-  // We fetch a whole week's worth of data so switching days is instant
-  const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 }); // Monday
-  const weekEnd = endOfWeek(selectedDate, { weekStartsOn: 1 });     // Sunday
+  const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 }); 
+  const weekEnd = endOfWeek(selectedDate, { weekStartsOn: 1 });     
 
-  // Custom hooks
-  const { jobs, loading: scheduleLoading, error } = useSchedule(weekStart, weekEnd);
+  // Destructure role here
+  const { jobs, loading: scheduleLoading, error, role: userRole } = useSchedule(weekStart, weekEnd);
   const { clients, loading: clientsLoading } = useClients();
 
-  // Filter the fetched week's jobs to show only the selected day
   const todaysJobs = jobs.filter(job => 
     job.scheduledDate && isSameDay(job.scheduledDate, selectedDate)
   );
 
   return (
     <div className="bg-gray-50 min-h-full pb-20">
-      {/* 1. Date Navigation */}
       <div className="sticky top-0 z-10">
         <DateStrip 
           selectedDate={selectedDate} 
@@ -2036,7 +2130,6 @@ const SchedulePage = () => {
         />
       </div>
 
-      {/* 2. Main Agenda View */}
       <main>
         {error && (
           <div className="p-4 m-4 bg-red-50 text-red-600 rounded-lg text-sm text-center">
@@ -2049,6 +2142,7 @@ const SchedulePage = () => {
           clients={clients} 
           loading={scheduleLoading || clientsLoading} 
           selectedDate={selectedDate}
+          userRole={userRole} 
         />
       </main>
     </div>
@@ -2056,6 +2150,139 @@ const SchedulePage = () => {
 };
 
 export default SchedulePage;
+
+```
+---
+
+## FILE: src/pages/SettingsPage.jsx
+```jsx
+import React, { useState } from 'react';
+import { Mail, User, Shield, Plus, Loader } from 'lucide-react';
+import { useStaff } from '../hooks/useStaff';
+import { auth, db } from '../lib/firebase';
+import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
+
+const SettingsPage = () => {
+  const { staff, loading: staffLoading } = useStaff();
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState('staff');
+  const [inviteLoading, setInviteLoading] = useState(false);
+
+  const handleInvite = async (e) => {
+    e.preventDefault();
+    setInviteLoading(true);
+    try {
+      const user = auth.currentUser;
+      // Get Org ID
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      const orgId = userDoc.data().orgId;
+
+      // Create Invite Doc
+      await addDoc(collection(db, 'invites'), {
+        email: inviteEmail,
+        role: inviteRole,
+        orgId,
+        status: 'pending',
+        invitedBy: user.uid,
+        createdAt: serverTimestamp()
+      });
+
+      alert(`Invite sent to ${inviteEmail}`);
+      setInviteEmail('');
+    } catch (error) {
+      console.error(error);
+      alert("Failed to send invite.");
+    } finally {
+      setInviteLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
+        <p className="text-slate-500 text-sm">Manage your team and organization</p>
+      </div>
+
+      {/* Staff List Card */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+          <h3 className="font-bold text-slate-800 flex items-center gap-2">
+            <User size={20} className="text-brand-500" />
+            Team Members
+          </h3>
+        </div>
+        
+        <div className="divide-y divide-gray-100">
+          {staffLoading ? (
+            <div className="p-6 text-center text-slate-400">Loading staff...</div>
+          ) : staff.map((member) => (
+            <div key={member.id} className="p-4 flex items-center justify-between hover:bg-gray-50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-brand-100 rounded-full flex items-center justify-center text-brand-600 font-bold">
+                  {member.email[0].toUpperCase()}
+                </div>
+                <div>
+                  <p className="font-medium text-slate-900">{member.fullName || 'Unnamed User'}</p>
+                  <p className="text-xs text-slate-500">{member.email}</p>
+                </div>
+              </div>
+              <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${
+                member.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+              }`}>
+                {member.role}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Invite Form Card */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
+          <h3 className="font-bold text-slate-800 flex items-center gap-2">
+            <Mail size={20} className="text-brand-500" />
+            Invite New Member
+          </h3>
+        </div>
+        <form onSubmit={handleInvite} className="p-6 flex flex-col md:flex-row gap-4 items-end">
+          <div className="flex-1 w-full">
+            <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
+            <input 
+              type="email" 
+              required
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
+              placeholder="colleague@freshnest.com"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+            />
+          </div>
+          <div className="w-full md:w-48">
+            <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
+            <select 
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none bg-white"
+              value={inviteRole}
+              onChange={(e) => setInviteRole(e.target.value)}
+            >
+              <option value="staff">Staff</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <button 
+            type="submit" 
+            disabled={inviteLoading}
+            className="w-full md:w-auto px-6 py-2 bg-brand-600 text-white rounded-lg font-medium hover:bg-brand-700 disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {inviteLoading ? <Loader className="animate-spin" size={18} /> : <Plus size={18} />}
+            Send Invite
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default SettingsPage;
 
 ```
 ---
@@ -2134,13 +2361,14 @@ If setting up a new repo, these secrets must be present:
 * **Core:** Project Setup, Auth, Multi-Tenancy (Profile-based).
 * **Clients:** CRUD, Filtering, Mobile/Desktop Views.
 * **Jobs:** Scheduling, Relational Data, Assignment (`useStaff`).
-* **DevOps (NEW):** * 3-Environment CI/CD (Dev/UAT/Prod).
-    * Automated Build Versioning.
-    * Secret Injection via GitHub Actions.
+* **Worker View:** * RBAC Hooks (`useJobs` filters by role).
+    * UI Restrictions (Hidden Prices, Hidden Buttons).
+    * Secure Mobile/Desktop Views.
+* **DevOps:** 3-Environment CI/CD (Dev/UAT/Prod).
 
 ## 🚧 In Progress / Next Up
-* [ ] **Worker View:** Restricted dashboard for staff.
-* [ ] **Job Workflow:** Status transitions (Start/Finish).
+* [ ] **Job Workflow:** Allow staff to mark jobs as "Started" / "Completed".
+* [ ] **Job Edit/Delete:** Full CRUD for Admins.
 
 ## 🗄️ Database Schema
 * `organizations/{orgId}`
@@ -2356,124 +2584,435 @@ Before writing any code, please propose **3 Distinct Approaches** to implementin
 #!/bin/bash
 
 # ====================================================
-# FRESH NEST: FEATURE CLOSE-OUT & RELEASE PROTOCOL
-# Feature: Job Assignment
+# FRESH NEST: FEATURE CLOSE-OUT (CI/CD Version)
+# Feature: Worker View (RBAC)
 # ====================================================
 
-echo "🏁 Initiating Close-Out for: Job Assignment..."
+echo "🏁 Initiating Close-Out for: Worker View..."
 
 # 1. Update Documentation
 echo "📝 Updating Project Documentation..."
 
-# Update PROJECT_STATUS.md
 cat << 'INNER_EOF' > docs/PROJECT_STATUS.md
 # 📌 Project Status: Fresh Nest
 
-**Current Phase:** Phase 1 Complete / Starting Phase 2 (Operations)
+**Current Phase:** Phase 1 Complete / Infrastructure Mature
 **Last Updated:** $(date +%Y-%m-%d)
 
 ## ✅ Completed Features
-* **Project Setup:** Vite + React + Tailwind CSS configured.
-* **Authentication:** Firebase Login/Signup with Email & Password.
-* **Architecture:** Client-Side Multi-Tenancy (OrgId stored in User Profile).
-* **Client Management:** `useClients` hook, Mobile Cards, Desktop Table.
-* **Job Management:** `useJobs` hook, Relational Data, Scheduling.
-* **Schedule View:** Mobile-First Agenda UI with Date Range filtering.
-* **Staff Management:** User Invites, Onboarding, Security Rules.
-* **Job Assignment:**
-    * `useStaff` hook for fetching assignable users.
-    * `assignedTo` array in Jobs schema.
-    * UI: Dropdown in Modal, Avatar display in Lists.
-* **DevOps:** Automated Build Versioning & Git Hash injection.
+* **Core:** Project Setup, Auth, Multi-Tenancy (Profile-based).
+* **Clients:** CRUD, Filtering, Mobile/Desktop Views.
+* **Jobs:** Scheduling, Relational Data, Assignment (`useStaff`).
+* **Worker View:** * RBAC Hooks (`useJobs` filters by role).
+    * UI Restrictions (Hidden Prices, Hidden Buttons).
+    * Secure Mobile/Desktop Views.
+* **DevOps:** 3-Environment CI/CD (Dev/UAT/Prod).
 
 ## 🚧 In Progress / Next Up
-* [ ] **Worker View:** A restricted view for staff to see only *their* jobs.
-* [ ] **Job Status Workflow:** Allow staff to mark jobs as "Started" / "Completed".
+* [ ] **Job Workflow:** Allow staff to mark jobs as "Started" / "Completed".
+* [ ] **Job Edit/Delete:** Full CRUD for Admins.
 
-## 🗄️ Database Schema (Firestore)
-
-### `organizations/{orgId}`
-* `name`, `plan`, `settings`
-
-### `users/{userId}`
-* `email`, `fullName`, `orgId` (Link to Org), `role` ('admin'|'staff')
-* `createdAt`
-
-### `invites/{inviteId}`
-* `email`, `orgId`, `role`, `status`
-
-### `clients/{clientId}`
-* `orgId`, `name`, `email`, `phone`, `address`
-
-### `jobs/{jobId}`
-* `orgId`, `clientId` (Ref), `scheduledDate` (Timestamp)
-* `status`, `serviceType`, `price`
-* `assignedTo` (Array of userIds)
-
-## �� Key Files Created
-* `src/hooks/useStaff.js`
-* `src/components/jobs/JobFormModal.jsx` (Updated)
-* `src/components/jobs/JobTableDesktop.jsx` (Updated)
+## 🗄️ Database Schema
+* `organizations/{orgId}`
+* `users/{userId}`: { role: 'admin'|'staff', orgId, ... }
+* `jobs/{jobId}`: { assignedTo: [userId], status, ... }
 INNER_EOF
 
-# Update CONTEXT_DUMP.md (Schema Update)
-cat << 'INNER_EOF' > docs/CONTEXT_DUMP.md
-# Fresh Nest: Context Dump
-**Stack:** React + Vite + Firebase (Auth, Firestore) + Tailwind CSS
-**Architecture:** Multi-Tenant SaaS.
-**Current State:**
-- Auth is implemented (Login/Signup).
-- **CRITICAL:** `orgId` is stored in the **Firestore User Profile** (`users/{uid}`), NOT in Custom Claims.
-- "fresh-nest-dev" Firestore is active.
-
-## Schema (Implemented)
-- **organizations/{orgId}**: { name, settings }
-- **users/{userId}**: { email, orgId, role, fullName }
-- **invites/{inviteId}**: { email, orgId, role }
-- **jobs/{jobId}**: { assignedTo: [userId], status, serviceType, ... }
-
-## Rules for AI
-1. ALL code must be provided as COMPLETE FILES.
-2. Use `lucide-react` for icons.
-3. Tailwind Colors: `bg-brand-500` (Primary), `bg-slate-800` (Sidebar).
-4. **Security & Data Access:**
-   - **NEVER** attempt to read `request.auth.token.orgId`. It does not exist.
-   - **ALWAYS** fetch the user's Firestore profile to get their `orgId`.
-   - All Firestore queries MUST filter by `.where("orgId", "==", currentOrgId)`.
-INNER_EOF
-
-# 2. Git Workflow
-echo "🌿 Processing Git Workflow..."
-
-# Stage and Commit
+# 2. Commit Final Changes
+echo "🌿 Committing Documentation..."
 git add .
-git commit -m "feat: completed job assignment module"
+git commit -m "feat: completed worker view and updated docs"
 
-# Switch to Main and Merge
-echo "🔄 Switching to main..."
-git checkout main
-git pull origin main
+# 3. Cut Release (Triggers UAT)
+# We use a timestamped version for the release branch
+VERSION="v0.2.0-rbac-$(date +%s)"
+echo "🚀 Cutting Release Branch: release/$VERSION"
 
-echo "🔀 Merging feature branch..."
-git merge feature/job-assignment
+git checkout -b "release/$VERSION"
+git push origin "release/$VERSION"
 
-echo "⬆️ Pushing to origin..."
-git push origin main
+echo "✅ Release Pushed to GitHub!"
+echo "👉 Action: 'Deploy to UAT' should be running now."
 
-# Delete Local Branch
-echo "🗑️ Cleaning up local branch..."
-git branch -d feature/job-assignment
+# 4. Merge to Dev & Cleanup
+echo "🔄 Syncing Dev Branch..."
+git checkout dev
+git pull origin dev
+git merge "feature/worker-view"
+git push origin dev
 
-# 3. Deployment (UAT)
-echo "🚀 Deploying to UAT Environment..."
+# 5. Delete Local Feature Branch
+# We stay on 'dev' now.
+echo "🗑️  Deleting local feature branch..."
+git branch -d feature/worker-view
 
-# Build (Increments Version)
-npm run build
+echo "�� SUCCESS! Feature Closed."
+echo "   - UAT is deploying (release/$VERSION)"
+echo "   - Dev is up to date"
+echo "   - You are now on 'dev' branch"
 
-# Deploy
-npx firebase deploy --only hosting:uat,firestore:rules
+```
+---
 
-echo "✅ SUCCESS! Feature Closed & Deployed to UAT."
+## FILE: scripts/create_staff_user.cjs
+```cjs
+const admin = require('firebase-admin');
+const serviceAccount = require('./service-account.json');
+
+// --- CONFIGURATION ---
+const ADMIN_EMAIL = "rpdouglas@gmail.com"; // Your main account
+const STAFF_EMAIL = "staff@freshnest.com"; // The test account
+const STAFF_PASSWORD = "password123";
+// ---------------------
+
+if (!admin.apps.length) {
+  admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+}
+const db = admin.firestore();
+const auth = admin.auth();
+
+async function createStaff() {
+  try {
+    console.log(`🔍 Finding Admin Org...`);
+    const adminUser = await auth.getUserByEmail(ADMIN_EMAIL);
+    const adminProfile = await db.collection('users').doc(adminUser.uid).get();
+    const orgId = adminProfile.data().orgId;
+    console.log(`✅ Found Org ID: ${orgId}`);
+
+    console.log(`👤 Creating Staff User: ${STAFF_EMAIL}...`);
+    let staffUser;
+    try {
+      staffUser = await auth.getUserByEmail(STAFF_EMAIL);
+      console.log(`   User already exists (UID: ${staffUser.uid})`);
+    } catch {
+      staffUser = await auth.createUser({ email: STAFF_EMAIL, password: STAFF_PASSWORD });
+      console.log(`   Created new Auth User (UID: ${staffUser.uid})`);
+    }
+
+    console.log(`📝 Writing Staff Profile to Firestore...`);
+    await db.collection('users').doc(staffUser.uid).set({
+      email: STAFF_EMAIL,
+      fullName: "Test Staffer",
+      role: "staff", // <--- THE KEY PART
+      orgId: orgId,
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    console.log(`\n🎉 SUCCESS!`);
+    console.log(`Login with: ${STAFF_EMAIL} / ${STAFF_PASSWORD}`);
+
+  } catch (error) {
+    console.error("❌ Error:", error.message);
+  }
+}
+
+createStaff();
+
+```
+---
+
+## FILE: scripts/debug_orgs.cjs
+```cjs
+const admin = require('firebase-admin');
+const serviceAccount = require('./service-account.json'); // Uses DEV key
+
+const ADMIN_EMAIL = "rpdouglas@gmail.com";
+const STAFF_EMAIL = "staff@freshnest.com";
+
+if (!admin.apps.length) {
+  admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+}
+const db = admin.firestore();
+const auth = admin.auth();
+
+async function debug() {
+  console.log("🔍 Comparing Org IDs...");
+
+  // 1. Check Admin
+  try {
+    const adminAuth = await auth.getUserByEmail(ADMIN_EMAIL);
+    const adminDoc = await db.collection('users').doc(adminAuth.uid).get();
+    
+    if (!adminDoc.exists) {
+      console.log(`❌ Admin Profile MISSING in Firestore!`);
+    } else {
+      console.log(`✅ Admin (${ADMIN_EMAIL}):`);
+      console.log(`   - UID: ${adminAuth.uid}`);
+      console.log(`   - OrgID: ${adminDoc.data().orgId}`);
+      console.log(`   - Role:  ${adminDoc.data().role}`);
+    }
+  } catch (e) { console.error("Error fetching Admin:", e.message); }
+
+  console.log("------------------------------------------------");
+
+  // 2. Check Staff
+  try {
+    const staffAuth = await auth.getUserByEmail(STAFF_EMAIL);
+    const staffDoc = await db.collection('users').doc(staffAuth.uid).get();
+
+    if (!staffDoc.exists) {
+      console.log(`❌ Staff Profile MISSING in Firestore!`);
+    } else {
+      console.log(`✅ Staff (${STAFF_EMAIL}):`);
+      console.log(`   - UID: ${staffAuth.uid}`);
+      console.log(`   - OrgID: ${staffDoc.data().orgId}`);
+      console.log(`   - Role:  ${staffDoc.data().role}`);
+    }
+  } catch (e) { console.error("Error fetching Staff:", e.message); }
+}
+
+debug();
+
+```
+---
+
+## FILE: scripts/fix_settings.sh
+```sh
+#!/bin/bash
+
+echo "🔧 Fixing Settings Page Redirect..."
+
+# 1. Create the Settings Page Component
+# This restores the UI to view Staff and send Invites
+echo "📝 Creating src/pages/SettingsPage.jsx..."
+cat << 'EOF' > src/pages/SettingsPage.jsx
+import React, { useState } from 'react';
+import { Mail, User, Shield, Plus, Loader } from 'lucide-react';
+import { useStaff } from '../hooks/useStaff';
+import { auth, db } from '../lib/firebase';
+import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
+
+const SettingsPage = () => {
+  const { staff, loading: staffLoading } = useStaff();
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState('staff');
+  const [inviteLoading, setInviteLoading] = useState(false);
+
+  const handleInvite = async (e) => {
+    e.preventDefault();
+    setInviteLoading(true);
+    try {
+      const user = auth.currentUser;
+      // Get Org ID
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      const orgId = userDoc.data().orgId;
+
+      // Create Invite Doc
+      await addDoc(collection(db, 'invites'), {
+        email: inviteEmail,
+        role: inviteRole,
+        orgId,
+        status: 'pending',
+        invitedBy: user.uid,
+        createdAt: serverTimestamp()
+      });
+
+      alert(`Invite sent to ${inviteEmail}`);
+      setInviteEmail('');
+    } catch (error) {
+      console.error(error);
+      alert("Failed to send invite.");
+    } finally {
+      setInviteLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
+        <p className="text-slate-500 text-sm">Manage your team and organization</p>
+      </div>
+
+      {/* Staff List Card */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+          <h3 className="font-bold text-slate-800 flex items-center gap-2">
+            <User size={20} className="text-brand-500" />
+            Team Members
+          </h3>
+        </div>
+        
+        <div className="divide-y divide-gray-100">
+          {staffLoading ? (
+            <div className="p-6 text-center text-slate-400">Loading staff...</div>
+          ) : staff.map((member) => (
+            <div key={member.id} className="p-4 flex items-center justify-between hover:bg-gray-50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-brand-100 rounded-full flex items-center justify-center text-brand-600 font-bold">
+                  {member.email[0].toUpperCase()}
+                </div>
+                <div>
+                  <p className="font-medium text-slate-900">{member.fullName || 'Unnamed User'}</p>
+                  <p className="text-xs text-slate-500">{member.email}</p>
+                </div>
+              </div>
+              <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${
+                member.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+              }`}>
+                {member.role}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Invite Form Card */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
+          <h3 className="font-bold text-slate-800 flex items-center gap-2">
+            <Mail size={20} className="text-brand-500" />
+            Invite New Member
+          </h3>
+        </div>
+        <form onSubmit={handleInvite} className="p-6 flex flex-col md:flex-row gap-4 items-end">
+          <div className="flex-1 w-full">
+            <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
+            <input 
+              type="email" 
+              required
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
+              placeholder="colleague@freshnest.com"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+            />
+          </div>
+          <div className="w-full md:w-48">
+            <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
+            <select 
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none bg-white"
+              value={inviteRole}
+              onChange={(e) => setInviteRole(e.target.value)}
+            >
+              <option value="staff">Staff</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <button 
+            type="submit" 
+            disabled={inviteLoading}
+            className="w-full md:w-auto px-6 py-2 bg-brand-600 text-white rounded-lg font-medium hover:bg-brand-700 disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {inviteLoading ? <Loader className="animate-spin" size={18} /> : <Plus size={18} />}
+            Send Invite
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default SettingsPage;
+EOF
+
+# 2. Register Route in App.jsx
+echo "📝 Updating src/App.jsx to include Settings route..."
+cat << 'EOF' > src/App.jsx
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import AppLayout from './components/layout/AppLayout';
+import AuthGuard from './components/layout/AuthGuard';
+import LoginPage from './features/auth/LoginPage';
+import ClientsPage from './pages/ClientsPage';
+import JobsPage from './pages/JobsPage';
+import SchedulePage from './pages/SchedulePage';
+import SettingsPage from './pages/SettingsPage'; // ✨ Imported
+import DebugClaims from './components/debug/DebugClaims';
+
+// Placeholder Pages
+const Dashboard = () => (
+  <div>
+    <h2 className="text-2xl font-bold mb-4">Dashboard</h2>
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <h3 className="text-gray-500 text-sm font-medium">Jobs Today</h3>
+        <p className="text-2xl font-bold text-slate-800">0</p>
+      </div>
+    </div>
+    <DebugClaims />
+  </div>
+);
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        {/* Public Route */}
+        <Route path="/login" element={<LoginPage />} />
+
+        {/* Protected Routes */}
+        <Route path="/" element={
+          <AuthGuard>
+            <AppLayout />
+          </AuthGuard>
+        }>
+          <Route index element={<Dashboard />} />
+          <Route path="jobs" element={<JobsPage />} />
+          <Route path="schedule" element={<SchedulePage />} />
+          <Route path="clients" element={<ClientsPage />} />
+          <Route path="settings" element={<SettingsPage />} /> {/* ✨ Added Route */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+export default App;
+EOF
+
+echo "✅ Settings Page restored and route registered."
+```
+---
+
+## FILE: scripts/fix_staff_org.cjs
+```cjs
+const admin = require('firebase-admin');
+const serviceAccount = require('./service-account.json'); // Uses DEV key
+
+const ADMIN_EMAIL = "rpdouglas@gmail.com";
+const STAFF_EMAIL = "staff@freshnest.com";
+
+if (!admin.apps.length) {
+  admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+}
+const db = admin.firestore();
+const auth = admin.auth();
+
+async function fixOrg() {
+  try {
+    console.log(`🔧 Fixing Org Mismatch...`);
+
+    // 1. Get Admin's Org ID (The Source of Truth)
+    const adminAuth = await auth.getUserByEmail(ADMIN_EMAIL);
+    const adminDoc = await db.collection('users').doc(adminAuth.uid).get();
+    
+    if (!adminDoc.exists) {
+      console.error("❌ Admin profile not found. Cannot proceed.");
+      return;
+    }
+
+    const correctOrgId = adminDoc.data().orgId;
+    console.log(`✅ Admin Org ID: ${correctOrgId}`);
+
+    // 2. Get Staff User
+    const staffAuth = await auth.getUserByEmail(STAFF_EMAIL);
+    const staffRef = db.collection('users').doc(staffAuth.uid);
+
+    // 3. Force Update Staff
+    await staffRef.set({
+      orgId: correctOrgId
+    }, { merge: true }); // 'merge: true' keeps other fields like email/role intact
+
+    console.log(`✅ SUCCESS! Moved ${STAFF_EMAIL} into Org: ${correctOrgId}`);
+    console.log("👉 Refresh your browser. You should see them in Settings now.");
+
+  } catch (error) {
+    console.error("❌ Error:", error.message);
+  }
+}
+
+fixOrg();
 
 ```
 ---
@@ -2545,24 +3084,34 @@ echo "✅ Context Generated at: $OUTPUT_FILE"
 
 ## FILE: scripts/init-org.cjs
 ```cjs
-/**
- * scripts/init-org.js
- * USAGE: 
- * 1. Ensure service-account.json is in this folder (scripts/).
- * 2. Run: node scripts/init-org.cjs
- */
-
 const admin = require('firebase-admin');
-// Ensure this file exists! You downloaded it from Firebase Console -> Project Settings -> Service Accounts
-const serviceAccount = require('./service-account.json'); 
+const fs = require('fs');
+const path = require('path');
+
+// --- ARGS HANDLING ---
+// Usage: node scripts/init-org.cjs [env]
+// Example: node scripts/init-org.cjs uat
+const env = process.argv[2] || 'dev';
+const keyFilename = env === 'dev' ? 'service-account.json' : `service-account-${env}.json`;
+const keyPath = path.join(__dirname, keyFilename);
 
 // --- CONFIGURATION ---
-const TARGET_EMAIL = "FN_TEST_CLEANER@gmail.com"; // <--- The account you want to give a "Home" to
-const ORG_NAME = "Cleaner Test Org";              // <--- The name of their new Organization
+const TARGET_EMAIL = "rpdouglas@gmail.com"; 
+const ORG_NAME = "Fresh Nest (HQ)";
 // ---------------------
 
-// Initialize the Admin SDK
-// Check if already initialized to avoid hot-reload errors (though rare in scripts)
+if (!fs.existsSync(keyPath)) {
+  console.error(`❌ ERROR: Could not find key file: ${keyFilename}`);
+  console.error(`   Please download it from Firebase Console -> Project Settings -> Service Accounts`);
+  console.error(`   and save it to the 'scripts/' folder.`);
+  process.exit(1);
+}
+
+const serviceAccount = require(keyPath);
+
+console.log(`🌍 Environment: ${env.toUpperCase()}`);
+console.log(`🔑 Using Key: ${keyFilename}`);
+
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount)
@@ -2576,48 +3125,53 @@ async function bootstrap() {
   try {
     console.log(`🚀 Starting bootstrap for: ${TARGET_EMAIL}`);
 
-    // 1. Find the user
+    // 1. Ensure Auth User Exists
     let user;
     try {
       user = await auth.getUserByEmail(TARGET_EMAIL);
-      console.log(`✅ Found User: ${user.uid}`);
+      console.log(`✅ Found Existing Auth User: ${user.uid}`);
     } catch (e) {
-      console.error(`❌ User ${TARGET_EMAIL} not found in Auth. Did you sign up in the browser first?`);
-      process.exit(1);
+      console.log(`👤 User not found in Auth. Creating new user...`);
+      user = await auth.createUser({
+        email: TARGET_EMAIL,
+        password: 'password123', // Default password for new envs
+        emailVerified: true
+      });
+      console.log(`✅ Created New Auth User: ${user.uid}`);
     }
 
     // 2. Create the Organization
     const orgRef = await db.collection('organizations').add({
       name: ORG_NAME,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      plan: 'basic', // Default plan for new orgs
+      plan: 'enterprise',
       settings: {
         currency: 'USD',
-        geoFenceRadius: 200
+        geoFenceRadius: 500
       }
     });
     console.log(`✅ Created Organization: ${orgRef.id} (${ORG_NAME})`);
 
-    // 3. Update the User Profile (Firestore)
-    // We create a public profile for this user so we can find them easily later
+    // 3. Create/Update User Profile
     await db.collection('users').doc(user.uid).set({
       email: user.email,
       orgId: orgRef.id,
-      role: 'admin', // First user is always admin
-      fullName: 'Test User',
+      role: 'admin',
+      fullName: 'Rob Douglas',
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
-    console.log(`✅ Created User Profile in Firestore`);
+    console.log(`✅ Created/Updated Firestore Profile`);
 
-    // 4. Set Custom Claims (The "Magic" Token)
-    // This allows the frontend to know their role without querying the DB
+    // 4. Set Custom Claims (Legacy support, though we use Profile now)
     await auth.setCustomUserClaims(user.uid, {
       orgId: orgRef.id,
       role: 'admin'
     });
-    console.log(`✅ Claims set on Auth Token!`);
+    console.log(`✅ Claims set!`);
 
-    console.log("\n🎉 SUCCESS! You MUST Sign Out and Sign In again on the app to refresh your token.");
+    console.log("\n🎉 SUCCESS! You can now log in to " + env.toUpperCase());
+    console.log("👉 Login: " + TARGET_EMAIL);
+    console.log("👉 Pass:  password123 (if newly created) or your existing pass");
 
   } catch (error) {
     console.error("❌ Error during bootstrap:", error);
@@ -2625,6 +3179,7 @@ async function bootstrap() {
 }
 
 bootstrap();
+
 ```
 ---
 
@@ -2719,90 +3274,14 @@ bootstrap();
 
 # ====================================================
 # FRESH NEST: FEATURE INSTALLER
-# Feature: Job Assignment (Staff Allocation)
-# Approach: Simple Dropdown + Array Storage
+# Feature: Worker View (RBAC)
+# Approach: Smart Hooks (Role-Aware Querying)
 # ====================================================
 
-echo "🚀 Installing Job Assignment Feature..."
+echo "🚀 Installing Worker View Feature..."
 
-# 1. Create the Staff Hook
-# We need a dedicated way to fetch 'assignable' users (Admin + Staff)
-echo "📝 Writing src/hooks/useStaff.js..."
-cat << 'EOF' > src/hooks/useStaff.js
-import { useState, useEffect } from 'react';
-import { 
-  collection, query, where, onSnapshot, doc, getDoc 
-} from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
-
-export const useStaff = () => {
-  const [staff, setStaff] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    const user = auth.currentUser;
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-
-    const fetchOrgAndSubscribe = async () => {
-      try {
-        // 1. Get Org ID from User Profile
-        const userDocRef = doc(db, 'users', user.uid);
-        const userDoc = await getDoc(userDocRef);
-        
-        if (!userDoc.exists()) {
-          setLoading(false);
-          return;
-        }
-
-        const orgId = userDoc.data().orgId;
-
-        if (!orgId) {
-          setError("No Organization found.");
-          setLoading(false);
-          return;
-        }
-
-        // 2. Fetch all users in this Org
-        const q = query(
-          collection(db, 'users'),
-          where('orgId', '==', orgId)
-        );
-
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-          const staffData = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-          }));
-          setStaff(staffData);
-          setLoading(false);
-        }, (err) => {
-          console.error("Error fetching staff:", err);
-          setError("Failed to load staff list.");
-          setLoading(false);
-        });
-
-        return unsubscribe;
-
-      } catch (err) {
-        console.error(err);
-        setError("Error initializing staff list.");
-        setLoading(false);
-      }
-    };
-
-    const unsubscribePromise = fetchOrgAndSubscribe();
-    return () => { unsubscribePromise.then(unsub => unsub && unsub()); };
-  }, []);
-
-  return { staff, loading, error };
-};
-EOF
-
-# 2. Update useJobs to handle 'assignedTo'
+# 1. Update useJobs Hook (The Logic Core)
+# Now fetches 'role' from profile and filters query if role == 'staff'
 echo "📝 Updating src/hooks/useJobs.js..."
 cat << 'EOF' > src/hooks/useJobs.js
 import { useState, useEffect } from 'react';
@@ -2816,6 +3295,7 @@ export const useJobs = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [currentOrgId, setCurrentOrgId] = useState(null);
+  const [userRole, setUserRole] = useState(null);
 
   useEffect(() => {
     const user = auth.currentUser;
@@ -2826,10 +3306,21 @@ export const useJobs = () => {
 
     const fetchOrgAndSubscribe = async () => {
       try {
+        // 1. Fetch User Profile to get OrgId AND Role
         const userDocRef = doc(db, 'users', user.uid);
         const userDoc = await getDoc(userDocRef);
-        const orgId = userDoc.exists() ? userDoc.data().orgId : null;
+        
+        if (!userDoc.exists()) {
+          setLoading(false);
+          return;
+        }
+
+        const userData = userDoc.data();
+        const orgId = userData.orgId;
+        const role = userData.role;
+
         setCurrentOrgId(orgId);
+        setUserRole(role);
 
         if (!orgId) {
           setError("Organization ID missing.");
@@ -2837,11 +3328,18 @@ export const useJobs = () => {
           return;
         }
 
-        const q = query(
-          collection(db, 'jobs'),
+        // 2. Construct Query based on Role
+        let constraints = [
           where('orgId', '==', orgId),
           orderBy('scheduledDate', 'asc')
-        );
+        ];
+
+        // RBAC: If staff, ONLY show jobs assigned to them
+        if (role === 'staff') {
+          constraints.push(where('assignedTo', 'array-contains', user.uid));
+        }
+
+        const q = query(collection(db, 'jobs'), ...constraints);
 
         return onSnapshot(q, (snapshot) => {
           const jobData = snapshot.docs.map(doc => ({
@@ -2870,9 +3368,6 @@ export const useJobs = () => {
     if (!currentOrgId) throw new Error("No Organization ID found.");
 
     const timestampDate = new Date(jobData.scheduledDate);
-
-    // Prepare Assignment Array
-    // Even though UI is single select, we store as array for future proofing
     const assignedTo = jobData.assignedStaffId ? [jobData.assignedStaffId] : [];
 
     await addDoc(collection(db, 'jobs'), {
@@ -2880,7 +3375,7 @@ export const useJobs = () => {
       serviceType: jobData.serviceType,
       price: Number(jobData.price),
       notes: jobData.notes,
-      assignedTo: assignedTo, // ✨ NEW FIELD
+      assignedTo: assignedTo,
       status: 'scheduled',
       scheduledDate: Timestamp.fromDate(timestampDate),
       orgId: currentOrgId, 
@@ -2889,201 +3384,201 @@ export const useJobs = () => {
     });
   };
 
-  return { jobs, loading, error, addJob };
+  return { jobs, loading, error, addJob, role: userRole };
 };
 EOF
 
-# 3. Update UI Components
+# 2. Update useSchedule Hook
+# Matches logic from useJobs to secure the calendar view as well
+echo "📝 Updating src/hooks/useSchedule.js..."
+cat << 'EOF' > src/hooks/useSchedule.js
+import { useState, useEffect } from 'react';
+import { 
+  collection, query, where, onSnapshot, orderBy, Timestamp, doc, getDoc 
+} from 'firebase/firestore';
+import { auth, db } from '../lib/firebase';
 
-echo "📝 Updating src/components/jobs/JobFormModal.jsx..."
-cat << 'EOF' > src/components/jobs/JobFormModal.jsx
-import React, { useState } from 'react';
-import { X, Save, Loader, Calendar, DollarSign, User } from 'lucide-react';
+export const useSchedule = (startDate, endDate) => {
+  const [jobs, setJobs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [userRole, setUserRole] = useState(null);
 
-const JobFormModal = ({ isOpen, onClose, onSave, clients, staff }) => {
-  const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    clientId: '',
-    assignedStaffId: '', // Single select for UI
-    scheduledDate: '',
-    serviceType: 'standard',
-    price: '',
-    notes: ''
-  });
-
-  if (!isOpen) return null;
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!formData.clientId) {
-      alert("Please select a client.");
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user || !startDate || !endDate) {
+      setLoading(false);
       return;
     }
-    
-    setLoading(true);
-    try {
-      await onSave(formData);
-      // Reset form
-      setFormData({
-        clientId: '',
-        assignedStaffId: '',
-        scheduledDate: '',
-        serviceType: 'standard',
-        price: '',
-        notes: ''
-      });
-      onClose();
-    } catch (error) {
-      console.error(error);
-      alert("Failed to create job.");
-    } finally {
-      setLoading(false);
-    }
-  };
+
+    const fetchOrgAndSubscribe = async () => {
+      try {
+        const userDocRef = doc(db, 'users', user.uid);
+        const userDoc = await getDoc(userDocRef);
+        
+        if (!userDoc.exists()) {
+          setLoading(false);
+          return;
+        }
+
+        const userData = userDoc.data();
+        const orgId = userData.orgId;
+        const role = userData.role;
+        setUserRole(role);
+
+        if (!orgId) {
+          setError("Organization ID missing.");
+          setLoading(false);
+          return;
+        }
+
+        // Base Constraints
+        let constraints = [
+          where('orgId', '==', orgId),
+          where('scheduledDate', '>=', Timestamp.fromDate(startDate)),
+          where('scheduledDate', '<=', Timestamp.fromDate(endDate)),
+          orderBy('scheduledDate', 'asc')
+        ];
+
+        // RBAC: Staff Filter
+        if (role === 'staff') {
+          constraints.push(where('assignedTo', 'array-contains', user.uid));
+        }
+
+        const q = query(collection(db, 'jobs'), ...constraints);
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+          const jobData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            scheduledDate: doc.data().scheduledDate?.toDate()
+          }));
+          setJobs(jobData);
+          setLoading(false);
+        }, (err) => {
+          console.error("Error fetching schedule:", err);
+          setError("Failed to load schedule.");
+          setLoading(false);
+        });
+
+        return unsubscribe;
+      } catch (err) {
+        console.error(err);
+        setLoading(false);
+      }
+    };
+
+    const unsubscribePromise = fetchOrgAndSubscribe();
+    return () => { unsubscribePromise.then(unsub => unsub && unsub()); };
+  }, [startDate, endDate]); 
+
+  return { jobs, loading, error, role: userRole };
+};
+EOF
+
+# 3. Update JobsPage to pass role down
+echo "📝 Updating src/pages/JobsPage.jsx..."
+cat << 'EOF' > src/pages/JobsPage.jsx
+import React, { useState } from 'react';
+import { Plus, Search } from 'lucide-react';
+import { useJobs } from '../hooks/useJobs';
+import { useClients } from '../hooks/useClients';
+import { useStaff } from '../hooks/useStaff';
+import JobListMobile from '../components/jobs/JobListMobile';
+import JobTableDesktop from '../components/jobs/JobTableDesktop';
+import JobFormModal from '../components/jobs/JobFormModal';
+
+const JobsPage = () => {
+  // Destructure 'role' from hook
+  const { jobs, loading: jobsLoading, error: jobsError, addJob, role: userRole } = useJobs();
+  const { clients, loading: clientsLoading } = useClients(); 
+  const { staff, loading: staffLoading } = useStaff();
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const loading = jobsLoading || clientsLoading || staffLoading;
+
+  const filteredJobs = jobs.filter(job => {
+    const clientName = clients.find(c => c.id === job.clientId)?.name?.toLowerCase() || '';
+    return clientName.includes(searchTerm.toLowerCase());
+  });
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden">
-        
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-          <h3 className="font-bold text-lg text-slate-800">Schedule New Job</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            <X size={24} />
-          </button>
+    <div className="space-y-6">
+      {/* Header - Hide 'New Job' button for Staff if desired (Optional, keeping visible for now or hide?) 
+          Usually staff don't create jobs, but sticking to prompt reqs: Staff View Restrictions.
+          Let's hide the Add button if staff for better UX.
+      */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Job Management</h1>
+          <p className="text-slate-500 text-sm">Schedule and track cleaning appointments</p>
         </div>
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          
-          {/* Client Selector */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Select Client *</label>
-            <select
-              required
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none bg-white"
-              value={formData.clientId}
-              onChange={(e) => setFormData({...formData, clientId: e.target.value})}
+        
+        <div className="flex gap-3">
+          <div className="relative flex-1 md:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+            <input 
+              type="text"
+              placeholder="Search by client..."
+              className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          {/* Only Admin can add jobs */}
+          {userRole === 'admin' && (
+            <button 
+              onClick={() => setIsModalOpen(true)}
+              className="bg-brand-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-brand-700 flex items-center gap-2 shadow-sm whitespace-nowrap"
             >
-              <option value="">-- Choose a Client --</option>
-              {clients.map(client => (
-                <option key={client.id} value={client.id}>
-                  {client.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Date & Time *</label>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-2.5 text-slate-400" size={18} />
-                <input
-                  type="datetime-local"
-                  required
-                  className="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
-                  value={formData.scheduledDate}
-                  onChange={(e) => setFormData({...formData, scheduledDate: e.target.value})}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Service Type</label>
-              <select
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none bg-white"
-                value={formData.serviceType}
-                onChange={(e) => setFormData({...formData, serviceType: e.target.value})}
-              >
-                <option value="standard">Standard Clean</option>
-                <option value="deep">Deep Clean</option>
-                <option value="move-in-out">Move In/Out</option>
-                <option value="commercial">Commercial</option>
-              </select>
-            </div>
-          </div>
-
-          {/* STAFF ASSIGNMENT (New) */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Assign Staff</label>
-            <div className="relative">
-              <User className="absolute left-3 top-2.5 text-slate-400" size={18} />
-              <select
-                className="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none bg-white"
-                value={formData.assignedStaffId}
-                onChange={(e) => setFormData({...formData, assignedStaffId: e.target.value})}
-              >
-                <option value="">-- Unassigned --</option>
-                {staff.map(member => (
-                  <option key={member.id} value={member.id}>
-                    {member.fullName || member.email}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Price Estimate</label>
-            <div className="relative">
-              <DollarSign className="absolute left-3 top-2.5 text-slate-400" size={18} />
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0.00"
-                className="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
-                value={formData.price}
-                onChange={(e) => setFormData({...formData, price: e.target.value})}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Internal Notes</label>
-            <textarea
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
-              rows="2"
-              placeholder="Gate code, pets, special instructions..."
-              value={formData.notes}
-              onChange={(e) => setFormData({...formData, notes: e.target.value})}
-            ></textarea>
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium"
-            >
-              Cancel
+              <Plus size={20} />
+              <span className="hidden md:inline">New Job</span>
+              <span className="md:hidden">New</span>
             </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-4 py-2 bg-brand-600 text-white rounded-lg font-medium hover:bg-brand-700 flex items-center gap-2 disabled:opacity-50"
-            >
-              {loading ? <Loader className="animate-spin" size={18} /> : <Save size={18} />}
-              Schedule Job
-            </button>
-          </div>
-        </form>
+          )}
+        </div>
       </div>
+
+      {/* Content */}
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div>
+        </div>
+      ) : jobsError ? (
+        <div className="bg-red-50 text-red-600 p-4 rounded-lg border border-red-100">
+          Error: {jobsError}
+        </div>
+      ) : (
+        <>
+          <JobListMobile jobs={filteredJobs} clients={clients} staff={staff} userRole={userRole} />
+          <JobTableDesktop jobs={filteredJobs} clients={clients} staff={staff} userRole={userRole} />
+        </>
+      )}
+
+      <JobFormModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        onSave={addJob} 
+        clients={clients} 
+        staff={staff}
+      />
     </div>
   );
 };
 
-export default JobFormModal;
+export default JobsPage;
 EOF
 
+# 4. Update Desktop Table (Hide Price)
 echo "📝 Updating src/components/jobs/JobTableDesktop.jsx..."
 cat << 'EOF' > src/components/jobs/JobTableDesktop.jsx
 import React from 'react';
 import { MoreHorizontal, Calendar, Clock, MapPin, User } from 'lucide-react';
 import { format } from 'date-fns';
 
-const JobTableDesktop = ({ jobs, clients, staff }) => {
+const JobTableDesktop = ({ jobs, clients, staff, userRole }) => {
   const getClient = (id) => clients.find(c => c.id === id) || {};
   
   const getAssignedStaffName = (staffIds) => {
@@ -3095,7 +3590,7 @@ const JobTableDesktop = ({ jobs, clients, staff }) => {
   if (jobs.length === 0) {
     return (
       <div className="hidden md:block bg-white p-12 text-center rounded-xl border border-gray-200">
-        <p className="text-gray-500">No upcoming jobs.</p>
+        <p className="text-gray-500">No jobs found.</p>
       </div>
     );
   }
@@ -3110,6 +3605,7 @@ const JobTableDesktop = ({ jobs, clients, staff }) => {
             <th className="px-6 py-4">Assigned Staff</th>
             <th className="px-6 py-4">Service</th>
             <th className="px-6 py-4">Status</th>
+            {/* Hide Actions for Staff? Maybe they need to complete jobs later. Keeping for now. */}
             <th className="px-6 py-4 text-right">Actions</th>
           </tr>
         </thead>
@@ -3146,7 +3642,10 @@ const JobTableDesktop = ({ jobs, clients, staff }) => {
                 </td>
                 <td className="px-6 py-4">
                   <span className="capitalize text-sm text-slate-700">{job.serviceType}</span>
-                  {job.price > 0 && <div className="text-xs text-slate-400">${job.price}</div>}
+                  {/* RBAC: Hide Price if Staff */}
+                  {userRole !== 'staff' && job.price > 0 && (
+                    <div className="text-xs text-slate-400">${job.price}</div>
+                  )}
                 </td>
                 <td className="px-6 py-4">
                   <span className={`text-xs font-bold px-2 py-1 rounded-full ${
@@ -3172,13 +3671,14 @@ const JobTableDesktop = ({ jobs, clients, staff }) => {
 export default JobTableDesktop;
 EOF
 
+# 5. Update Mobile List (Hide Price)
 echo "📝 Updating src/components/jobs/JobListMobile.jsx..."
 cat << 'EOF' > src/components/jobs/JobListMobile.jsx
 import React from 'react';
 import { Calendar, Clock, DollarSign, MapPin, User } from 'lucide-react';
 import { format } from 'date-fns';
 
-const JobListMobile = ({ jobs, clients, staff }) => {
+const JobListMobile = ({ jobs, clients, staff, userRole }) => {
   const getClientName = (id) => clients.find(c => c.id === id)?.name || 'Unknown Client';
   const getClientAddress = (id) => clients.find(c => c.id === id)?.address;
   
@@ -3191,7 +3691,7 @@ const JobListMobile = ({ jobs, clients, staff }) => {
   if (jobs.length === 0) {
     return (
       <div className="text-center py-10 bg-white rounded-xl border border-gray-100">
-        <p className="text-gray-500">No upcoming jobs.</p>
+        <p className="text-gray-500">No jobs found.</p>
       </div>
     );
   }
@@ -3234,7 +3734,6 @@ const JobListMobile = ({ jobs, clients, staff }) => {
                 </span>
               </div>
               
-              {/* STAFF ASSIGNMENT ROW */}
               <div className={`flex items-center gap-2 ${isUnassigned ? 'text-slate-400 italic' : 'text-slate-700 font-medium'}`}>
                 <User size={16} className={isUnassigned ? "text-slate-300" : "text-brand-500"} />
                 <span>{assignedName}</span>
@@ -3246,7 +3745,9 @@ const JobListMobile = ({ jobs, clients, staff }) => {
                    <span className="truncate">{getClientAddress(job.clientId)}</span>
                  </div>
               )}
-               {job.price > 0 && (
+              
+              {/* RBAC: Hide Price if Staff */}
+              {userRole !== 'staff' && job.price > 0 && (
                  <div className="flex items-center gap-2 text-slate-500">
                    <DollarSign size={16} className="text-slate-400 shrink-0" />
                    <span>${job.price}</span>
@@ -3263,98 +3764,167 @@ const JobListMobile = ({ jobs, clients, staff }) => {
 export default JobListMobile;
 EOF
 
-# 4. Orchestrate in JobsPage
-echo "📝 Updating src/pages/JobsPage.jsx..."
-cat << 'EOF' > src/pages/JobsPage.jsx
+# 6. Update SchedulePage to pass role
+echo "📝 Updating src/pages/SchedulePage.jsx..."
+cat << 'EOF' > src/pages/SchedulePage.jsx
 import React, { useState } from 'react';
-import { Plus, Search } from 'lucide-react';
-import { useJobs } from '../hooks/useJobs';
+import { startOfWeek, endOfWeek, isSameDay } from 'date-fns';
+import { useSchedule } from '../hooks/useSchedule';
 import { useClients } from '../hooks/useClients';
-import { useStaff } from '../hooks/useStaff'; // ✨ NEW
-import JobListMobile from '../components/jobs/JobListMobile';
-import JobTableDesktop from '../components/jobs/JobTableDesktop';
-import JobFormModal from '../components/jobs/JobFormModal';
+import DateStrip from '../components/schedule/DateStrip';
+import DailyAgenda from '../components/schedule/DailyAgenda';
 
-const JobsPage = () => {
-  const { jobs, loading: jobsLoading, error: jobsError, addJob } = useJobs();
-  const { clients, loading: clientsLoading } = useClients(); 
-  const { staff, loading: staffLoading } = useStaff(); // Fetch staff
+const SchedulePage = () => {
+  const [selectedDate, setSelectedDate] = useState(new Date());
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 }); 
+  const weekEnd = endOfWeek(selectedDate, { weekStartsOn: 1 });     
 
-  const loading = jobsLoading || clientsLoading || staffLoading;
+  // Destructure role here
+  const { jobs, loading: scheduleLoading, error, role: userRole } = useSchedule(weekStart, weekEnd);
+  const { clients, loading: clientsLoading } = useClients();
 
-  // Simple filtering
-  const filteredJobs = jobs.filter(job => {
-    // Find client name for search
-    const clientName = clients.find(c => c.id === job.clientId)?.name?.toLowerCase() || '';
-    return clientName.includes(searchTerm.toLowerCase());
-  });
+  const todaysJobs = jobs.filter(job => 
+    job.scheduledDate && isSameDay(job.scheduledDate, selectedDate)
+  );
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Job Management</h1>
-          <p className="text-slate-500 text-sm">Schedule and track cleaning appointments</p>
-        </div>
-        
-        <div className="flex gap-3">
-          <div className="relative flex-1 md:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-            <input 
-              type="text"
-              placeholder="Search by client..."
-              className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            className="bg-brand-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-brand-700 flex items-center gap-2 shadow-sm whitespace-nowrap"
-          >
-            <Plus size={20} />
-            <span className="hidden md:inline">New Job</span>
-            <span className="md:hidden">New</span>
-          </button>
-        </div>
+    <div className="bg-gray-50 min-h-full pb-20">
+      <div className="sticky top-0 z-10">
+        <DateStrip 
+          selectedDate={selectedDate} 
+          onSelectDate={setSelectedDate} 
+        />
       </div>
 
-      {/* Content */}
-      {loading ? (
-        <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div>
-        </div>
-      ) : jobsError ? (
-        <div className="bg-red-50 text-red-600 p-4 rounded-lg border border-red-100">
-          Error: {jobsError}
-        </div>
-      ) : (
-        <>
-          <JobListMobile jobs={filteredJobs} clients={clients} staff={staff} />
-          <JobTableDesktop jobs={filteredJobs} clients={clients} staff={staff} />
-        </>
-      )}
+      <main>
+        {error && (
+          <div className="p-4 m-4 bg-red-50 text-red-600 rounded-lg text-sm text-center">
+            {error}
+          </div>
+        )}
 
-      {/* Modals */}
-      <JobFormModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        onSave={addJob} 
-        clients={clients} 
-        staff={staff}
-      />
+        <DailyAgenda 
+          jobs={todaysJobs} 
+          clients={clients} 
+          loading={scheduleLoading || clientsLoading} 
+          selectedDate={selectedDate}
+          userRole={userRole} 
+        />
+      </main>
     </div>
   );
 };
 
-export default JobsPage;
+export default SchedulePage;
 EOF
 
-echo "✅ SUCCESS! Job Assignment Feature installed."
+# 7. Update DailyAgenda (Hide Price)
+echo "📝 Updating src/components/schedule/DailyAgenda.jsx..."
+cat << 'EOF' > src/components/schedule/DailyAgenda.jsx
+import React from 'react';
+import { Clock, MapPin, DollarSign, User, AlertCircle } from 'lucide-react';
+import { format } from 'date-fns';
+
+const DailyAgenda = ({ jobs, clients, loading, selectedDate, userRole }) => {
+  const getClient = (clientId) => clients.find(c => c.id === clientId) || {};
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600 mb-4"></div>
+        <p className="text-slate-400 text-sm">Loading schedule...</p>
+      </div>
+    );
+  }
+
+  if (jobs.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+        <div className="bg-slate-50 p-4 rounded-full mb-4">
+          {/* Simple SVG icon inline for simplicity */}
+          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+          </svg>
+        </div>
+        <h3 className="text-lg font-bold text-slate-700">No jobs scheduled</h3>
+        <p className="text-slate-500 text-sm mt-1">
+          You have no jobs for {format(selectedDate, 'MMMM do')}.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 space-y-4 max-w-2xl mx-auto">
+      {jobs.map((job) => {
+        const client = getClient(job.clientId);
+        return (
+          <div key={job.id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex">
+            {/* Time Strip */}
+            <div className="w-16 bg-slate-50 flex flex-col items-center justify-center border-r border-gray-100 p-2">
+              <span className="text-sm font-bold text-slate-700">
+                {job.scheduledDate ? format(job.scheduledDate, 'h:mm') : '--'}
+              </span>
+              <span className="text-xs text-slate-400 uppercase">
+                {job.scheduledDate ? format(job.scheduledDate, 'a') : '--'}
+              </span>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 p-4">
+              <div className="flex justify-between items-start mb-1">
+                <h4 className="font-bold text-slate-800">{client.name || 'Unknown Client'}</h4>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                  job.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-brand-50 text-brand-700'
+                }`}>
+                  {job.status}
+                </span>
+              </div>
+              
+              <div className="space-y-1.5 mt-2">
+                <div className="flex items-center gap-2 text-sm text-slate-600">
+                  <User size={14} className="text-brand-400" />
+                  <span className="capitalize">{job.serviceType} Clean</span>
+                </div>
+                
+                {client.address && (
+                  <div className="flex items-start gap-2 text-sm text-slate-600">
+                    <MapPin size={14} className="text-brand-400 mt-0.5 shrink-0" />
+                    <span className="truncate">{client.address}</span>
+                  </div>
+                )}
+
+                {/* RBAC: Hide Price from Staff */}
+                {userRole !== 'staff' && job.price > 0 && (
+                  <div className="flex items-center gap-2 text-sm text-slate-500">
+                    <DollarSign size={14} className="text-brand-400" />
+                    <span>${job.price}</span>
+                  </div>
+                )}
+
+                {job.notes && (
+                  <div className="flex items-start gap-2 text-xs text-amber-600 bg-amber-50 p-2 rounded-lg mt-2">
+                    <AlertCircle size={12} className="mt-0.5 shrink-0" />
+                    <span>{job.notes}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+export default DailyAgenda;
+EOF
+
+echo "✅ SUCCESS! Worker View (RBAC) installed."
 ```
 ---
 
@@ -3456,6 +4026,49 @@ git push origin "$branch_name"
 echo "✅ Release Pushed!"
 echo "👉 GitHub Action is now deploying to Fresh-Nest-UAT."
 echo "👉 When UAT is verified, merge this PR into 'main' to deploy to PROD."
+
+```
+---
+
+## FILE: scripts/reset-password.cjs
+```cjs
+const admin = require('firebase-admin');
+const serviceAccount = require('./service-account.json');
+
+// --- CONFIGURATION ---
+const TARGET_EMAIL = "rpdouglas@gmail.com";
+const NEW_PASSWORD = "password123"; 
+// ---------------------
+
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+  });
+}
+
+const auth = admin.auth();
+
+async function resetPassword() {
+  try {
+    console.log(`🔍 Looking for user: ${TARGET_EMAIL}...`);
+    const user = await auth.getUserByEmail(TARGET_EMAIL);
+    
+    console.log(`👤 Found UID: ${user.uid}`);
+    console.log(`🔐 Setting new password...`);
+
+    await auth.updateUser(user.uid, {
+      password: NEW_PASSWORD
+    });
+
+    console.log(`✅ SUCCESS! Password updated to: ${NEW_PASSWORD}`);
+    console.log(`👉 You can now log in immediately.`);
+
+  } catch (error) {
+    console.error("❌ Error resetting password:", error.message);
+  }
+}
+
+resetPassword();
 
 ```
 ---
@@ -3822,6 +4435,146 @@ echo "👉 You should commit these changes now."
 ```
 ---
 
+## FILE: scripts/upgrade_pipelines.sh
+```sh
+#!/bin/bash
+
+echo "🚀 Upgrading CI/CD Pipelines to include Firestore..."
+
+# 1. Update DEV Pipeline
+cat << 'INNER_EOF' > .github/workflows/deploy-dev.yml
+name: Deploy to DEV
+
+on:
+  push:
+    branches:
+      - dev
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      # 1. Inject Secrets
+      - name: Create .env and Key Files
+        run: |
+          echo "${{ secrets.ENV_FILE_DEV }}" > .env
+          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_DEV }}' > service-account.json
+
+      # 2. Build App
+      - name: Build
+        run: npm run build
+        env:
+          VITE_APP_ENV: 'development'
+
+      # 3. Full Deployment (Hosting + Firestore)
+      - name: Deploy to Firebase
+        run: npx firebase deploy --project fresh-nest-dev --non-interactive
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: 'service-account.json'
+INNER_EOF
+
+# 2. Update UAT Pipeline
+cat << 'INNER_EOF' > .github/workflows/deploy-uat.yml
+name: Deploy to UAT
+
+on:
+  push:
+    branches:
+      - 'release/**'
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      # 1. Inject Secrets
+      - name: Create .env and Key Files
+        run: |
+          echo "${{ secrets.ENV_FILE_UAT }}" > .env
+          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_UAT }}' > service-account.json
+
+      # 2. Build App
+      - name: Build
+        run: npm run build
+        env:
+          VITE_APP_ENV: 'uat'
+
+      # 3. Full Deployment (Hosting + Firestore)
+      - name: Deploy to Firebase
+        run: npx firebase deploy --project fresh-nest-uat --non-interactive
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: 'service-account.json'
+INNER_EOF
+
+# 3. Update PROD Pipeline
+cat << 'INNER_EOF' > .github/workflows/deploy-prod.yml
+name: Deploy to PROD
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      # 1. Inject Secrets
+      - name: Create .env and Key Files
+        run: |
+          echo "${{ secrets.ENV_FILE_PROD }}" > .env
+          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_PROD }}' > service-account.json
+
+      # 2. Build App
+      - name: Build
+        run: npm run build
+        env:
+          VITE_APP_ENV: 'production'
+
+      # 3. Full Deployment (Hosting + Firestore)
+      - name: Deploy to Firebase
+        run: npx firebase deploy --project fresh-nest-prod --non-interactive
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: 'service-account.json'
+INNER_EOF
+
+echo "✅ Pipelines Upgraded to Full-Stack Deployment."
+
+```
+---
+
 ## FILE: .github/workflows/deploy-dev.yml
 ```yml
 name: Deploy to DEV
@@ -3846,22 +4599,23 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      # ✨ NEW STEP: Inject the .env file from Secrets
-      - name: Create .env file
-        run: echo "${{ secrets.ENV_FILE_DEV }}" > .env
+      # 1. Inject Secrets
+      - name: Create .env and Key Files
+        run: |
+          echo "${{ secrets.ENV_FILE_DEV }}" > .env
+          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_DEV }}' > service-account.json
 
+      # 2. Build App
       - name: Build
         run: npm run build
         env:
           VITE_APP_ENV: 'development'
 
-      - name: Deploy to Firebase Hosting (DEV)
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: '${{ secrets.GITHUB_TOKEN }}'
-          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_DEV }}'
-          channelId: live
-          projectId: fresh-nest-dev
+      # 3. Full Deployment (Hosting + Firestore)
+      - name: Deploy to Firebase
+        run: npx firebase deploy --project fresh-nest-dev --non-interactive
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: 'service-account.json'
 
 ```
 ---
@@ -3890,22 +4644,23 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      # ✨ NEW STEP: Inject the .env file from Secrets
-      - name: Create .env file
-        run: echo "${{ secrets.ENV_FILE_PROD }}" > .env
+      # 1. Inject Secrets
+      - name: Create .env and Key Files
+        run: |
+          echo "${{ secrets.ENV_FILE_PROD }}" > .env
+          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_PROD }}' > service-account.json
 
+      # 2. Build App
       - name: Build
         run: npm run build
         env:
           VITE_APP_ENV: 'production'
 
-      - name: Deploy to Firebase Hosting (PROD)
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: '${{ secrets.GITHUB_TOKEN }}'
-          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_PROD }}'
-          channelId: live
-          projectId: fresh-nest-prod
+      # 3. Full Deployment (Hosting + Firestore)
+      - name: Deploy to Firebase
+        run: npx firebase deploy --project fresh-nest-prod --non-interactive
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: 'service-account.json'
 
 ```
 ---
@@ -3934,22 +4689,23 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      # ✨ NEW STEP: Inject the .env file from Secrets
-      - name: Create .env file
-        run: echo "${{ secrets.ENV_FILE_UAT }}" > .env
+      # 1. Inject Secrets
+      - name: Create .env and Key Files
+        run: |
+          echo "${{ secrets.ENV_FILE_UAT }}" > .env
+          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_UAT }}' > service-account.json
 
+      # 2. Build App
       - name: Build
         run: npm run build
         env:
           VITE_APP_ENV: 'uat'
 
-      - name: Deploy to Firebase Hosting (UAT)
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: '${{ secrets.GITHUB_TOKEN }}'
-          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_UAT }}'
-          channelId: live
-          projectId: fresh-nest-uat
+      # 3. Full Deployment (Hosting + Firestore)
+      - name: Deploy to Firebase
+        run: npx firebase deploy --project fresh-nest-uat --non-interactive
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: 'service-account.json'
 
 ```
 ---
