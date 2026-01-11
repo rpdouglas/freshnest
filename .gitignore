@@ -39,3 +39,4 @@ ui-debug.log
 
 # SECURITY: Admin SDK Keys
 scripts/service-account.jsonscripts/service-account-*.json
+scripts/service-account*.json
