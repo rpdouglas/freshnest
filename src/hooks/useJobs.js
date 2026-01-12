@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { 
-  collection, query, where, onSnapshot, addDoc, serverTimestamp, orderBy, Timestamp, doc, getDoc 
+  collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, 
+  serverTimestamp, orderBy, Timestamp, doc, getDoc 
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 
@@ -59,6 +60,7 @@ export const useJobs = () => {
           const jobData = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data(),
+            // Convert Timestamp to JS Date for frontend
             scheduledDate: doc.data().scheduledDate?.toDate()
           }));
           setJobs(jobData);
@@ -78,8 +80,11 @@ export const useJobs = () => {
     return () => { unsubscribePromise.then(unsub => unsub && unsub()); };
   }, []);
 
+  // --- MUTATIONS ---
+
   const addJob = async (jobData) => {
     if (!currentOrgId) throw new Error("No Organization ID found.");
+    if (userRole !== 'admin') throw new Error("Unauthorized: Only Admins can create jobs.");
 
     const timestampDate = new Date(jobData.scheduledDate);
     const assignedTo = jobData.assignedStaffId ? [jobData.assignedStaffId] : [];
@@ -98,5 +103,30 @@ export const useJobs = () => {
     });
   };
 
-  return { jobs, loading, error, addJob, role: userRole };
+  const updateJob = async (jobId, jobData) => {
+    if (userRole !== 'admin') throw new Error("Unauthorized: Only Admins can edit jobs.");
+
+    const timestampDate = new Date(jobData.scheduledDate);
+    const assignedTo = jobData.assignedStaffId ? [jobData.assignedStaffId] : [];
+
+    const jobRef = doc(db, 'jobs', jobId);
+    await updateDoc(jobRef, {
+      clientId: jobData.clientId,
+      serviceType: jobData.serviceType,
+      price: Number(jobData.price),
+      notes: jobData.notes,
+      assignedTo: assignedTo,
+      scheduledDate: Timestamp.fromDate(timestampDate),
+      updatedAt: serverTimestamp()
+    });
+  };
+
+  const deleteJob = async (jobId) => {
+    if (userRole !== 'admin') throw new Error("Unauthorized: Only Admins can delete jobs.");
+    
+    const jobRef = doc(db, 'jobs', jobId);
+    await deleteDoc(jobRef);
+  };
+
+  return { jobs, loading, error, addJob, updateJob, deleteJob, role: userRole };
 };

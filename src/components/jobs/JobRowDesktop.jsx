@@ -3,7 +3,7 @@ import { MoreHorizontal, Calendar, Clock, MapPin, User, Edit, Trash2, Play, Chec
 import { format } from 'date-fns';
 import { useJobWorkflow } from '../../hooks/useJobWorkflow';
 
-const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole }) => {
+const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit, onDelete }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef(null);
   
@@ -113,32 +113,33 @@ const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole }) => {
               </button>
             )}
 
-            {/* EDIT (Placeholder) */}
-            <button 
-              onClick={() => alert('Edit feature coming soon')}
-              className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
-            >
-              <Edit size={16} className="text-slate-400" /> Edit Details
-            </button>
-            
             {/* ADMIN ACTIONS */}
             {userRole === 'admin' && (
-              <div className="border-t border-gray-100">
-                {canCancel && (
-                  <button 
-                    onClick={() => handleAction(cancelJob)}
-                    className="w-full px-4 py-3 text-sm text-amber-600 hover:bg-amber-50 flex items-center gap-2 transition-colors"
-                  >
-                    <XCircle size={16} /> Cancel Job
-                  </button>
-                )}
+              <>
                 <button 
-                  onClick={() => confirm("Delete?") && console.log('delete')}
-                  className="w-full px-4 py-3 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors"
+                  onClick={() => { setIsMenuOpen(false); onEdit(job); }}
+                  className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
                 >
-                  <Trash2 size={16} /> Delete
+                  <Edit size={16} className="text-slate-400" /> Edit Details
                 </button>
-              </div>
+
+                <div className="border-t border-gray-100">
+                  {canCancel && (
+                    <button 
+                      onClick={() => handleAction(cancelJob)}
+                      className="w-full px-4 py-3 text-sm text-amber-600 hover:bg-amber-50 flex items-center gap-2 transition-colors"
+                    >
+                      <XCircle size={16} /> Cancel Job
+                    </button>
+                  )}
+                  <button 
+                    onClick={() => { setIsMenuOpen(false); onDelete(job.id); }}
+                    className="w-full px-4 py-3 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors"
+                  >
+                    <Trash2 size={16} /> Delete
+                  </button>
+                </div>
+              </>
             )}
           </div>
         )}
