@@ -1,18 +1,13 @@
 #!/bin/bash
 
-# ====================================================
-# FRESH NEST: FEATURE CLOSE-OUT
-# Feature: Job Workflow (Status Transitions)
-# ====================================================
-
-echo "🏁 Initiating Close-Out for: Job Workflow..."
+echo "🏁 Finalizing Documentation for Phase 2..."
 
 # 1. Update Project Status
 echo "📝 Updating docs/PROJECT_STATUS.md..."
 cat << 'INNER_EOF' > docs/PROJECT_STATUS.md
 # 📌 Project Status: Fresh Nest
 
-**Current Phase:** Phase 2 - Core Workflows
+**Current Phase:** Phase 3 - Advanced Features & Geolocation
 **Last Updated:** $(date +%Y-%m-%d)
 
 ## ✅ Completed Features
@@ -20,22 +15,22 @@ cat << 'INNER_EOF' > docs/PROJECT_STATUS.md
 * **Clients:** CRUD, Filtering, Mobile/Desktop Views.
 * **Jobs:** Scheduling, Relational Data, Assignment.
 * **Worker View:** RBAC, Role-Aware Hooks, UI Restrictions.
-* **Job Workflow:** Status Transitions (Start/Complete/Cancel) with Timestamps.
+* **Job Workflow:** Status Transitions (Start/Complete/Cancel).
+* **Job CRUD:** Admin Edit & Delete functionality with unified modals.
 * **DevOps:** 3-Environment CI/CD, Firestore Indexes.
 
 ## 🚧 In Progress / Next Up
-* [ ] **Job Edit/Delete:** Full CRUD for Admins.
-* [ ] **Google Maps Integration:** Visualizing daily routes.
+* [ ] **Google Maps Integration:** Visualizing daily routes on a map.
+* [ ] **Geocoding:** Converting client addresses to Coordinates (Lat/Lng).
 
 ## 🗄️ Database Schema
 * `organizations/{orgId}`
 * `users/{userId}`: { role: 'admin'|'staff', orgId, fullName, ... }
-* `jobs/{jobId}`: { assignedTo: [userId], status, startedAt, completedAt, ... }
+* `jobs/{jobId}`: { assignedTo: [userId], status, startedAt, completedAt, updatedAt, ... }
 * `clients/{clientId}`: { name, address, orgId, ... }
 INNER_EOF
 
-# 2. Update Context Dump (Crucial for AI Memory)
-# We add the new status/timestamp fields to the schema definition
+# 2. Update Context Dump
 echo "📝 Updating docs/CONTEXT_DUMP.md..."
 cat << 'INNER_EOF' > docs/CONTEXT_DUMP.md
 # Fresh Nest: Context Dump
@@ -52,8 +47,7 @@ cat << 'INNER_EOF' > docs/CONTEXT_DUMP.md
 - **jobs/{jobId}**: 
     - `assignedTo`: [userId]
     - `status`: 'scheduled' | 'in_progress' | 'completed' | 'cancelled'
-    - `startedAt`: Timestamp
-    - `completedAt`: Timestamp
+    - `startedAt`, `completedAt`, `updatedAt`: Timestamps
     - `price`: Number
 - **clients/{clientId}**: { name, address, orgId, email, phone }
 
@@ -69,34 +63,10 @@ cat << 'INNER_EOF' > docs/CONTEXT_DUMP.md
 5. **Date Handling:** Use `date-fns`.
 INNER_EOF
 
-# 3. Commit Final Changes
-echo "🌿 Committing Documentation & Code..."
-git add .
-git commit -m "feat: complete job workflow and update docs schema"
+# 3. Commit
+echo "🌿 Committing Docs Update..."
+git add docs/
+git commit -m "docs: finalize phase 2 and update status"
+git push origin main
 
-# 4. Cut Release (Triggers UAT)
-VERSION="v0.3.0-workflow-$(date +%s)"
-echo "🚀 Cutting Release Branch: release/$VERSION"
-
-git checkout -b "release/$VERSION"
-git push origin "release/$VERSION"
-
-echo "✅ Release Pushed to GitHub!"
-echo "👉 Action: 'Deploy to UAT' should be running now."
-
-# 5. Merge to Dev & Cleanup
-echo "🔄 Syncing Dev Branch..."
-git checkout dev
-git pull origin dev
-git merge "feature/job-workflow"
-git push origin dev
-
-# 6. Delete Local Feature Branch
-# We stay on 'dev' now.
-echo "🗑️  Deleting local feature branch..."
-git branch -d feature/job-workflow
-
-echo "🎉 SUCCESS! Feature Closed."
-echo "   - UAT is deploying (release/$VERSION)"
-echo "   - Dev is up to date"
-echo "   - Docs are updated with new Schema"
+echo "🎉 Phase 2 Complete!"

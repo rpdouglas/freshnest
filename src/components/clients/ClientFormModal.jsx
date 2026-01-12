@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { X, Save, Loader } from 'lucide-react';
+import { X, Save, Loader, MapPin } from 'lucide-react';
+import { geocodeAddress } from '../../lib/maps';
 
 const ClientFormModal = ({ isOpen, onClose, onSave }) => {
   const [loading, setLoading] = useState(false);
+  const [geoStatus, setGeoStatus] = useState(null); // 'success', 'error', null
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -15,9 +17,27 @@ const ClientFormModal = ({ isOpen, onClose, onSave }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setGeoStatus(null);
+
     try {
-      await onSave(formData);
-      setFormData({ name: '', email: '', phone: '', address: '' }); // Reset
+      // 1. Attempt Geocoding
+      let coordinates = null;
+      if (formData.address) {
+        coordinates = await geocodeAddress(formData.address);
+        if (!coordinates) {
+          const confirmSave = window.confirm("⚠️ We couldn't find this address on the map. Save anyway?");
+          if (!confirmSave) {
+            setLoading(false);
+            return;
+          }
+        }
+      }
+
+      // 2. Save Client with Coords
+      await onSave({ ...formData, coordinates });
+      
+      // 3. Reset & Close
+      setFormData({ name: '', email: '', phone: '', address: '' });
       onClose();
     } catch (error) {
       console.error(error);
@@ -74,13 +94,18 @@ const ClientFormModal = ({ isOpen, onClose, onSave }) => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Address</label>
-            <textarea
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
-              rows="3"
-              value={formData.address}
-              onChange={(e) => setFormData({...formData, address: e.target.value})}
-            ></textarea>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Address (For Map)</label>
+            <div className="relative">
+              <MapPin className="absolute left-3 top-2.5 text-slate-400" size={18} />
+              <textarea
+                className="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                rows="2"
+                placeholder="123 Main St, City, Province"
+                value={formData.address}
+                onChange={(e) => setFormData({...formData, address: e.target.value})}
+              ></textarea>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">We will try to auto-locate this on the map.</p>
           </div>
 
           <div className="flex justify-end gap-3 pt-4">
