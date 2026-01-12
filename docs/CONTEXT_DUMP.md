@@ -12,8 +12,7 @@
 - **jobs/{jobId}**: 
     - `assignedTo`: [userId]
     - `status`: 'scheduled' | 'in_progress' | 'completed' | 'cancelled'
-    - `startedAt`: Timestamp
-    - `completedAt`: Timestamp
+    - `startedAt`, `completedAt`, `updatedAt`: Timestamps
     - `price`: Number
 - **clients/{clientId}**: { name, address, orgId, email, phone }
 
