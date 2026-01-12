@@ -1,5 +1,5 @@
 # FRESH NEST: CODEBASE DUMP
-**Date:** Sun Jan 11 17:19:46 EST 2026
+**Date:** Sun Jan 11 18:32:13 EST 2026
 **Description:** Complete codebase context.
 
 ## FILE: package.json
@@ -1511,8 +1511,10 @@ import {
   where, 
   onSnapshot, 
   addDoc, 
-  serverTimestamp,
-  orderBy 
+  serverTimestamp, 
+  orderBy,
+  doc,
+  getDoc
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 
@@ -1520,6 +1522,7 @@ export const useClients = () => {
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [currentOrgId, setCurrentOrgId] = useState(null);
 
   useEffect(() => {
     const user = auth.currentUser;
@@ -1528,55 +1531,67 @@ export const useClients = () => {
       return;
     }
 
-    // Get the orgId from the token claims (stored in local state or refetch)
-    // For now, we assume the user object is hydrated or we fetch the token result.
-    // In a robust app, we'd use a generic AuthContext, but here we access the ID token.
-    user.getIdTokenResult().then((idTokenResult) => {
-      const orgId = idTokenResult.claims.orgId;
+    const fetchOrgAndSubscribe = async () => {
+      try {
+        // 1. Fetch User Profile to get the REAL OrgId (Source of Truth)
+        const userDocRef = doc(db, 'users', user.uid);
+        const userDoc = await getDoc(userDocRef);
+        
+        if (!userDoc.exists()) {
+          setError("User profile not found.");
+          setLoading(false);
+          return;
+        }
 
-      if (!orgId) {
-        setError("Organization ID missing from user profile.");
+        const orgId = userDoc.data().orgId;
+        setCurrentOrgId(orgId);
+
+        if (!orgId) {
+          setError("Organization ID missing from user profile.");
+          setLoading(false);
+          return;
+        }
+
+        // 2. Subscribe ONLY to clients in this user's Org
+        const q = query(
+          collection(db, 'clients'),
+          where('orgId', '==', orgId),
+          orderBy('createdAt', 'desc')
+        );
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+          const clientData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+          setClients(clientData);
+          setLoading(false);
+        }, (err) => {
+          console.error("Error fetching clients:", err);
+          setError("Failed to load clients.");
+          setLoading(false);
+        });
+
+        return unsubscribe;
+
+      } catch (err) {
+        console.error(err);
+        setError("Error initializing client list.");
         setLoading(false);
-        return;
       }
+    };
 
-      // SECURITY: Subscribe ONLY to clients in this user's Org
-      const q = query(
-        collection(db, 'clients'),
-        where('orgId', '==', orgId),
-        orderBy('createdAt', 'desc')
-      );
-
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const clientData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        setClients(clientData);
-        setLoading(false);
-      }, (err) => {
-        console.error("Error fetching clients:", err);
-        setError("Failed to load clients.");
-        setLoading(false);
-      });
-
-      return () => unsubscribe();
-    });
+    const unsubscribePromise = fetchOrgAndSubscribe();
+    return () => { unsubscribePromise.then(unsub => unsub && unsub()); };
   }, []);
 
   const addClient = async (clientData) => {
-    const user = auth.currentUser;
-    if (!user) throw new Error("Not authenticated");
-
-    const idTokenResult = await user.getIdTokenResult();
-    const orgId = idTokenResult.claims.orgId;
-
-    if (!orgId) throw new Error("No Organization ID found.");
+    if (!currentOrgId) throw new Error("No Organization ID found.");
 
     // SECURITY: Force attach orgId and server timestamp
     await addDoc(collection(db, 'clients'), {
       ...clientData,
-      orgId, 
+      orgId: currentOrgId, 
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
@@ -2486,23 +2501,38 @@ Provide the complete, executable bash script. Do not execute it yourself; just p
 
 **Context:**
 I need to add a module to "Fresh Nest" that allows [WHO] to [DO WHAT].
+*Current State:* [Briefly describe relevant existing code, e.g., "We have a Jobs List, but no way to change status."]
 
 **Core Requirements:**
-1.  **Data:** [Describe data needs, e.g., "Store Client details linked to orgId"]
-2.  **UI:** [Describe UI needs, e.g., "Mobile cards, Desktop table"]
-3.  **Logic:** [Describe logic, e.g., "Real-time updates, security filters"]
+
+1.  **Data & Schema:**
+    * [What new collections or fields do we need?]
+    * [e.g., "Add 'startedAt' timestamp to 'jobs' collection"]
+
+2.  **UI (Mobile First):**
+    * **Mobile:** [How does it look on phone? e.g., "Swipe to complete", "Big button"]
+    * **Desktop:** [How does it look on PC? e.g., "Table Action Menu"]
+
+3.  **Security & RBAC (Crucial):**
+    * **Admin:** [What can they do? e.g., "Edit anything"]
+    * **Staff:** [What are they RESTRICTED from? e.g., "Can only update their own assigned jobs"]
+
+4.  **Logic & Constraints:**
+    * **Architecture:** Must use the "Database Lookup" pattern for `orgId`. NO `auth.token` usage.
+    * **State:** [Real-time updates required?]
 
 **🛑 STOP & THINK: Architectural Options**
 Before writing any code, please propose **3 Distinct Approaches** to implementing this feature:
 
-1.  **The "MVP" Approach:** Fastest to build, simplest code, uses basic HTML/Tailwind. Good for testing value quickly.
-2.  **The " robust & Scalable" Approach (Recommended):** Best balance. Uses proper abstractions (custom hooks), error handling, and reusable components. Future-proofs for growth.
-3.  **The "Over-Engineered" Approach:** Uses advanced libraries (e.g., React Query, Virtualized Tables) or complex patterns. best for massive scale but high initial complexity.
+1.  **The "Direct/Inline" Approach:** Logic inside components. Fast, but hard to test/reuse.
+2.  **The "Custom Hook" Approach (Recommended):** Logic extracted to `use[Feature]`. Handles DB subscriptions, loading states, and RBAC checks internally. Keeps UI clean.
+3.  **The "Complex/Global" Approach:** Uses global context providers or cloud functions for simple logic. Overkill?
 
 **Your Task:**
-1.  Briefly describe these 3 options (Pros/Cons of each).
-2.  Recommend which one fits our current "Mobile-First SaaS" stage best.
-3.  **WAIT** for my confirmation on which approach to take before generating the code.
+1.  Briefly describe these 3 options (Pros/Cons).
+2.  Recommend which one fits our current architecture best.
+3.  **List exact Schema Changes** (New fields/Collections).
+4.  **WAIT** for my confirmation before generating code.
 
 
 ```
@@ -2657,13 +2687,28 @@ echo "   - You are now on 'dev' branch"
 ## FILE: scripts/create_staff_user.cjs
 ```cjs
 const admin = require('firebase-admin');
-const serviceAccount = require('./service-account.json');
+const path = require('path');
+const fs = require('fs');
+
+// --- ARGS HANDLING ---
+// Usage: node scripts/create_staff_user.cjs [env]
+const env = process.argv[2] || 'dev';
+const keyFilename = env === 'dev' ? 'service-account.json' : `service-account-${env}.json`;
+const keyPath = path.join(__dirname, keyFilename);
 
 // --- CONFIGURATION ---
-const ADMIN_EMAIL = "rpdouglas@gmail.com"; // Your main account
-const STAFF_EMAIL = "staff@freshnest.com"; // The test account
+const ADMIN_EMAIL = "rpdouglas@gmail.com"; 
+const STAFF_EMAIL = "staff@freshnest.com"; 
 const STAFF_PASSWORD = "password123";
 // ---------------------
+
+if (!fs.existsSync(keyPath)) {
+  console.error(`❌ ERROR: Could not find key file: ${keyFilename}`);
+  process.exit(1);
+}
+
+const serviceAccount = require(keyPath);
+console.log(`🌍 Environment: ${env.toUpperCase()}`);
 
 if (!admin.apps.length) {
   admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
@@ -2673,33 +2718,52 @@ const auth = admin.auth();
 
 async function createStaff() {
   try {
-    console.log(`🔍 Finding Admin Org...`);
-    const adminUser = await auth.getUserByEmail(ADMIN_EMAIL);
+    console.log(`🔍 Finding Admin Org for: ${ADMIN_EMAIL}...`);
+    
+    // 1. Find Admin to get the correct Org ID
+    let adminUser;
+    try {
+      adminUser = await auth.getUserByEmail(ADMIN_EMAIL);
+    } catch (e) {
+      console.error(`❌ Admin user ${ADMIN_EMAIL} not found in Auth! Run init-org.cjs first.`);
+      return;
+    }
+
     const adminProfile = await db.collection('users').doc(adminUser.uid).get();
+    if (!adminProfile.exists) {
+      console.error(`❌ Admin profile not found in Firestore.`);
+      return;
+    }
+
     const orgId = adminProfile.data().orgId;
     console.log(`✅ Found Org ID: ${orgId}`);
 
-    console.log(`👤 Creating Staff User: ${STAFF_EMAIL}...`);
+    // 2. Create/Get Staff User
+    console.log(`👤 Creating/Updating Staff User: ${STAFF_EMAIL}...`);
     let staffUser;
     try {
       staffUser = await auth.getUserByEmail(STAFF_EMAIL);
       console.log(`   User already exists (UID: ${staffUser.uid})`);
     } catch {
-      staffUser = await auth.createUser({ email: STAFF_EMAIL, password: STAFF_PASSWORD });
+      staffUser = await auth.createUser({ 
+        email: STAFF_EMAIL, 
+        password: STAFF_PASSWORD,
+        emailVerified: true
+      });
       console.log(`   Created new Auth User (UID: ${staffUser.uid})`);
     }
 
-    console.log(`📝 Writing Staff Profile to Firestore...`);
+    // 3. Write Profile linked to Admin's Org
     await db.collection('users').doc(staffUser.uid).set({
       email: STAFF_EMAIL,
-      fullName: "Test Staffer",
-      role: "staff", // <--- THE KEY PART
+      fullName: "UAT Staffer",
+      role: "staff", 
       orgId: orgId,
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    console.log(`\n🎉 SUCCESS!`);
-    console.log(`Login with: ${STAFF_EMAIL} / ${STAFF_PASSWORD}`);
+    console.log(`\n🎉 SUCCESS! Staff created in ${env.toUpperCase()}`);
+    console.log(`👉 Login: ${STAFF_EMAIL} / ${STAFF_PASSWORD}`);
 
   } catch (error) {
     console.error("❌ Error:", error.message);
@@ -4431,6 +4495,172 @@ INNER_EOF
 
 echo "✅ Documentation Updated Successfully."
 echo "👉 You should commit these changes now."
+
+```
+---
+
+## FILE: scripts/update_docs_v2.sh
+```sh
+#!/bin/bash
+
+echo "📚 Performing Comprehensive Documentation Update..."
+
+# ==========================================
+# 1. UPDATE PROJECT STATUS
+# ==========================================
+echo "📝 Updating docs/PROJECT_STATUS.md..."
+cat << 'INNER_EOF' > docs/PROJECT_STATUS.md
+# 📌 Project Status: Fresh Nest
+
+**Current Phase:** Phase 2 - Core Workflows
+**Last Updated:** $(date +%Y-%m-%d)
+
+## ✅ Completed Features
+* **Core:** Project Setup, Auth, Multi-Tenancy (Profile-based).
+* **Clients:** CRUD, Filtering, Mobile/Desktop Views.
+* **Jobs:** Scheduling, Relational Data, Assignment.
+* **Worker View (RBAC):** * "Ghost Client" fix (DB Lookup vs Token).
+    * Role-Aware Hooks (`useJobs`, `useClients`).
+    * UI Restrictions (Hidden Prices, Hidden Buttons).
+* **DevOps:** * 3-Environment CI/CD (Dev/UAT/Prod) with Firestore Rules/Indexes.
+    * Environment-aware seeding scripts.
+
+## 🚧 In Progress / Next Up
+* [ ] **Job Workflow:** Allow staff to mark jobs as "In Progress" / "Completed".
+* [ ] **Job Edit/Delete:** Full CRUD for Admins.
+* [ ] **Google Maps Integration:** Visualizing daily routes.
+
+## 🗄️ Database Schema
+* `organizations/{orgId}`
+* `users/{userId}`: { role: 'admin'|'staff', orgId, fullName, ... }
+* `jobs/{jobId}`: { assignedTo: [userId], status, price, ... }
+* `clients/{clientId}`: { name, address, orgId, ... }
+INNER_EOF
+
+# ==========================================
+# 2. UPDATE CONTEXT DUMP (The Architectural Rules)
+# ==========================================
+echo "📝 Updating docs/CONTEXT_DUMP.md..."
+cat << 'INNER_EOF' > docs/CONTEXT_DUMP.md
+# Fresh Nest: Context Dump
+**Stack:** React + Vite + Firebase (Auth, Firestore) + Tailwind CSS
+**Architecture:** Multi-Tenant SaaS.
+**Current State:**
+- Auth is implemented (Login/Signup).
+- **CRITICAL:** `orgId` is stored in the **Firestore User Profile** (`users/{uid}`).
+
+## Schema (Implemented)
+- **organizations/{orgId}**: { name, settings }
+- **users/{userId}**: { email, orgId, role, fullName }
+- **invites/{inviteId}**: { email, orgId, role }
+- **jobs/{jobId}**: { assignedTo: [userId], status, serviceType, ... }
+
+## Rules for AI (STRICT)
+1. **NO PLACEHOLDERS:** Provide COMPLETE FILES only.
+2. **Icons:** Use `lucide-react`.
+3. **Tailwind:** Mobile-first (`block md:flex`).
+4. **Security & Data Access (CRITICAL):**
+   - **NEVER use `request.auth.token.orgId` (Custom Claims) in React Code.** It is stale.
+   - **ALWAYS** fetch `users/{uid}` from Firestore to get the current `orgId`.
+   - All Firestore queries MUST filter by `.where("orgId", "==", currentOrgId)`.
+   - All writes MUST include `orgId`.
+5. **Date Handling:** Use `date-fns`.
+INNER_EOF
+
+# ==========================================
+# 3. UPDATE DEVOPS MANUAL
+# ==========================================
+echo "📝 Updating docs/DEVOPS_MANUAL.md..."
+cat << 'INNER_EOF' > docs/DEVOPS_MANUAL.md
+# ☁️ DevOps & Infrastructure Manual
+
+## 1. CI/CD Architecture
+We use **GitHub Actions** for "Full Stack" deployments.
+* **Workflows:** `.github/workflows/`
+* **What Deploys:** Hosting + Firestore Security Rules + Firestore Indexes.
+* **Triggers:**
+  * `dev` branch -> **Dev** Environment
+  * `release/*` branch -> **UAT** Environment
+  * `main` branch -> **Production** Environment
+
+## 2. Environment Management
+We use "Environment-Aware" scripts. You must pass the target environment (`dev`, `uat`, `prod`) as an argument.
+
+### A. Initialization (New Env)
+Sets up the Admin User and Organization.
+\`\`\`bash
+node scripts/init-org.cjs uat
+\`\`\`
+
+### B. Seeding Staff Users
+Creates a test staff account linked to the Admin's Org.
+\`\`\`bash
+node scripts/create_staff_user.cjs uat
+\`\`\`
+
+## 3. GitHub Secrets (Required)
+| Secret Name | Content |
+| :--- | :--- |
+| `FIREBASE_SERVICE_ACCOUNT_DEV` | JSON key for Dev |
+| `FIREBASE_SERVICE_ACCOUNT_UAT` | JSON key for UAT |
+| `FIREBASE_SERVICE_ACCOUNT_PROD` | JSON key for Prod |
+| `ENV_FILE_DEV` | `.env.development` content |
+| `ENV_FILE_UAT` | `.env.uat` content |
+| `ENV_FILE_PROD` | `.env.production` content |
+
+## 4. Troubleshooting
+**"Missing Permissions" in CI/CD?**
+* Go to Google Cloud IAM.
+* Find the Service Account (e.g., `github-actions@...`).
+* Grant it the **"Editor"** role (or specifically Firestore Admin + Service Usage Admin).
+
+**"Staff User Not Seeing Data"?**
+* Ensure you aren't using `auth.token.orgId`.
+* Check Firestore `users/{uid}` to ensure `orgId` matches the data.
+INNER_EOF
+
+# ==========================================
+# 4. UPDATE INITIALIZATION PROMPT
+# ==========================================
+echo "📝 Updating docs/PROMPT_INITIALIZATION.md..."
+cat << 'INNER_EOF' > docs/PROMPT_INITIALIZATION.md
+# 🤖 AI Session Initialization Prompt
+
+**Instructions:**
+1.  Run `scripts/generate-context.sh` to copy your current codebase.
+2.  Paste the **Codebase Context** into the bottom of this prompt.
+3.  Send the *entire* block below to your AI assistant.
+
+---
+
+**Role:** You are the Senior Lead Developer and Architect for "Fresh Nest," a React + Firebase SaaS application.
+
+**Input:** I am providing the full codebase context below.
+
+**Your Goal:** Ingest this context to completely understand our:
+* **Tech Stack:** React (Vite), Tailwind CSS, Firebase (Auth, Firestore, Functions).
+* **Architecture:** Multi-Tenant SaaS.
+* **CRITICAL ARCHITECTURE RULE:** We do **NOT** rely on Custom Claims for `orgId` in the frontend. We fetch the Firestore Profile.
+
+**Critical Rules for Interaction:**
+1.  **NO Placeholders:** Never use `// ... rest of code`. Provide **COMPLETE FILES**.
+2.  **Mobile First:** All UI must be fully responsive.
+3.  **Icons:** Use `lucide-react`.
+4.  **Security & Data:**
+    * **NEVER** use `idTokenResult.claims.orgId`. Fetch the user profile from DB.
+    * Every query MUST filter by `.where("orgId", "==", user.orgId)`.
+    * Every write must include `orgId`.
+5.  **Quality:**
+    * All buttons/inputs must be functional.
+    * Adhere to HTML best practices.
+
+**Codebase Context:**
+[PASTE_FULL_CODEBASE_CONTEXT_HERE]
+
+**Reply "Context Received. Ready for instructions." if you understand.**
+INNER_EOF
+
+echo "✅ Documentation Suite Updated Successfully."
 
 ```
 ---

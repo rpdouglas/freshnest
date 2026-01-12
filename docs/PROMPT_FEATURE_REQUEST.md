@@ -13,21 +13,36 @@
 
 **Context:**
 I need to add a module to "Fresh Nest" that allows [WHO] to [DO WHAT].
+*Current State:* [Briefly describe relevant existing code, e.g., "We have a Jobs List, but no way to change status."]
 
 **Core Requirements:**
-1.  **Data:** [Describe data needs, e.g., "Store Client details linked to orgId"]
-2.  **UI:** [Describe UI needs, e.g., "Mobile cards, Desktop table"]
-3.  **Logic:** [Describe logic, e.g., "Real-time updates, security filters"]
+
+1.  **Data & Schema:**
+    * [What new collections or fields do we need?]
+    * [e.g., "Add 'startedAt' timestamp to 'jobs' collection"]
+
+2.  **UI (Mobile First):**
+    * **Mobile:** [How does it look on phone? e.g., "Swipe to complete", "Big button"]
+    * **Desktop:** [How does it look on PC? e.g., "Table Action Menu"]
+
+3.  **Security & RBAC (Crucial):**
+    * **Admin:** [What can they do? e.g., "Edit anything"]
+    * **Staff:** [What are they RESTRICTED from? e.g., "Can only update their own assigned jobs"]
+
+4.  **Logic & Constraints:**
+    * **Architecture:** Must use the "Database Lookup" pattern for `orgId`. NO `auth.token` usage.
+    * **State:** [Real-time updates required?]
 
 **🛑 STOP & THINK: Architectural Options**
 Before writing any code, please propose **3 Distinct Approaches** to implementing this feature:
 
-1.  **The "MVP" Approach:** Fastest to build, simplest code, uses basic HTML/Tailwind. Good for testing value quickly.
-2.  **The " robust & Scalable" Approach (Recommended):** Best balance. Uses proper abstractions (custom hooks), error handling, and reusable components. Future-proofs for growth.
-3.  **The "Over-Engineered" Approach:** Uses advanced libraries (e.g., React Query, Virtualized Tables) or complex patterns. best for massive scale but high initial complexity.
+1.  **The "Direct/Inline" Approach:** Logic inside components. Fast, but hard to test/reuse.
+2.  **The "Custom Hook" Approach (Recommended):** Logic extracted to `use[Feature]`. Handles DB subscriptions, loading states, and RBAC checks internally. Keeps UI clean.
+3.  **The "Complex/Global" Approach:** Uses global context providers or cloud functions for simple logic. Overkill?
 
 **Your Task:**
-1.  Briefly describe these 3 options (Pros/Cons of each).
-2.  Recommend which one fits our current "Mobile-First SaaS" stage best.
-3.  **WAIT** for my confirmation on which approach to take before generating the code.
+1.  Briefly describe these 3 options (Pros/Cons).
+2.  Recommend which one fits our current architecture best.
+3.  **List exact Schema Changes** (New fields/Collections).
+4.  **WAIT** for my confirmation before generating code.
 
