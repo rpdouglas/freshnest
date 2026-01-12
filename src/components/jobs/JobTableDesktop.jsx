@@ -1,7 +1,7 @@
 import React from 'react';
 import JobRowDesktop from './JobRowDesktop';
 
-const JobTableDesktop = ({ jobs, clients, staff, userRole }) => {
+const JobTableDesktop = ({ jobs, clients, staff, userRole, onEdit, onDelete }) => {
   const getClient = (id) => clients.find(c => c.id === id) || {};
   
   const getAssignedStaffName = (staffIds) => {
@@ -39,6 +39,8 @@ const JobTableDesktop = ({ jobs, clients, staff, userRole }) => {
               getClient={getClient}
               getAssignedStaffName={getAssignedStaffName}
               userRole={userRole}
+              onEdit={onEdit}
+              onDelete={onDelete}
             />
           ))}
         </tbody>

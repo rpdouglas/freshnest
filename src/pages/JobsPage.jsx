@@ -8,12 +8,12 @@ import JobTableDesktop from '../components/jobs/JobTableDesktop';
 import JobFormModal from '../components/jobs/JobFormModal';
 
 const JobsPage = () => {
-  // Destructure 'role' from hook
-  const { jobs, loading: jobsLoading, error: jobsError, addJob, role: userRole } = useJobs();
+  const { jobs, loading: jobsLoading, error: jobsError, addJob, updateJob, deleteJob, role: userRole } = useJobs();
   const { clients, loading: clientsLoading } = useClients(); 
   const { staff, loading: staffLoading } = useStaff();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingJob, setEditingJob] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
 
   const loading = jobsLoading || clientsLoading || staffLoading;
@@ -23,12 +23,35 @@ const JobsPage = () => {
     return clientName.includes(searchTerm.toLowerCase());
   });
 
+  // --- Handlers ---
+
+  const handleCreateOpen = () => {
+    setEditingJob(null);
+    setIsModalOpen(true);
+  };
+
+  const handleEditOpen = (job) => {
+    setEditingJob(job);
+    setIsModalOpen(true);
+  };
+
+  const handleSave = async (formData) => {
+    if (editingJob) {
+      await updateJob(editingJob.id, formData);
+    } else {
+      await addJob(formData);
+    }
+  };
+
+  const handleDelete = async (jobId) => {
+    if (window.confirm("Are you sure you want to delete this job? This cannot be undone.")) {
+      await deleteJob(jobId);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      {/* Header - Hide 'New Job' button for Staff if desired (Optional, keeping visible for now or hide?) 
-          Usually staff don't create jobs, but sticking to prompt reqs: Staff View Restrictions.
-          Let's hide the Add button if staff for better UX.
-      */}
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Job Management</h1>
@@ -49,7 +72,7 @@ const JobsPage = () => {
           {/* Only Admin can add jobs */}
           {userRole === 'admin' && (
             <button 
-              onClick={() => setIsModalOpen(true)}
+              onClick={handleCreateOpen}
               className="bg-brand-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-brand-700 flex items-center gap-2 shadow-sm whitespace-nowrap"
             >
               <Plus size={20} />
@@ -71,17 +94,31 @@ const JobsPage = () => {
         </div>
       ) : (
         <>
-          <JobListMobile jobs={filteredJobs} clients={clients} staff={staff} userRole={userRole} />
-          <JobTableDesktop jobs={filteredJobs} clients={clients} staff={staff} userRole={userRole} />
+          <JobListMobile 
+            jobs={filteredJobs} 
+            clients={clients} 
+            staff={staff} 
+            userRole={userRole} 
+            onEdit={handleEditOpen} 
+          />
+          <JobTableDesktop 
+            jobs={filteredJobs} 
+            clients={clients} 
+            staff={staff} 
+            userRole={userRole} 
+            onEdit={handleEditOpen}
+            onDelete={handleDelete}
+          />
         </>
       )}
 
       <JobFormModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
-        onSave={addJob} 
+        onSave={handleSave} 
         clients={clients} 
         staff={staff}
+        initialData={editingJob}
       />
     </div>
   );

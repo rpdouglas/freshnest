@@ -1,16 +1,54 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Save, Loader, Calendar, DollarSign, User } from 'lucide-react';
+import { format } from 'date-fns';
 
-const JobFormModal = ({ isOpen, onClose, onSave, clients, staff }) => {
+const JobFormModal = ({ isOpen, onClose, onSave, clients, staff, initialData }) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     clientId: '',
-    assignedStaffId: '', // Single select for UI
+    assignedStaffId: '', 
     scheduledDate: '',
     serviceType: 'standard',
     price: '',
     notes: ''
   });
+
+  // Populate form when initialData changes (Edit Mode)
+  useEffect(() => {
+    if (isOpen) {
+      if (initialData) {
+        // Edit Mode: Pre-fill
+        // IMPORTANT: Format Date to 'yyyy-MM-ddThh:mm' for HTML input
+        let dateStr = '';
+        if (initialData.scheduledDate) {
+          try {
+            dateStr = format(initialData.scheduledDate, "yyyy-MM-dd'T'HH:mm");
+          } catch (e) {
+            console.error("Date parsing error", e);
+          }
+        }
+
+        setFormData({
+          clientId: initialData.clientId || '',
+          assignedStaffId: initialData.assignedTo?.[0] || '',
+          scheduledDate: dateStr,
+          serviceType: initialData.serviceType || 'standard',
+          price: initialData.price || '',
+          notes: initialData.notes || ''
+        });
+      } else {
+        // Create Mode: Reset
+        setFormData({
+          clientId: '',
+          assignedStaffId: '',
+          scheduledDate: '',
+          serviceType: 'standard',
+          price: '',
+          notes: ''
+        });
+      }
+    }
+  }, [isOpen, initialData]);
 
   if (!isOpen) return null;
 
@@ -24,23 +62,16 @@ const JobFormModal = ({ isOpen, onClose, onSave, clients, staff }) => {
     setLoading(true);
     try {
       await onSave(formData);
-      // Reset form
-      setFormData({
-        clientId: '',
-        assignedStaffId: '',
-        scheduledDate: '',
-        serviceType: 'standard',
-        price: '',
-        notes: ''
-      });
       onClose();
     } catch (error) {
       console.error(error);
-      alert("Failed to create job.");
+      alert("Failed to save job.");
     } finally {
       setLoading(false);
     }
   };
+
+  const isEditMode = !!initialData;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
@@ -48,7 +79,9 @@ const JobFormModal = ({ isOpen, onClose, onSave, clients, staff }) => {
         
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-          <h3 className="font-bold text-lg text-slate-800">Schedule New Job</h3>
+          <h3 className="font-bold text-lg text-slate-800">
+            {isEditMode ? 'Edit Job Details' : 'Schedule New Job'}
+          </h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X size={24} />
           </button>
@@ -105,7 +138,7 @@ const JobFormModal = ({ isOpen, onClose, onSave, clients, staff }) => {
             </div>
           </div>
 
-          {/* STAFF ASSIGNMENT (New) */}
+          {/* STAFF ASSIGNMENT */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Assign Staff</label>
             <div className="relative">
@@ -166,7 +199,7 @@ const JobFormModal = ({ isOpen, onClose, onSave, clients, staff }) => {
               className="px-4 py-2 bg-brand-600 text-white rounded-lg font-medium hover:bg-brand-700 flex items-center gap-2 disabled:opacity-50"
             >
               {loading ? <Loader className="animate-spin" size={18} /> : <Save size={18} />}
-              Schedule Job
+              {isEditMode ? 'Update Job' : 'Schedule Job'}
             </button>
           </div>
         </form>
