@@ -3,43 +3,27 @@
 ## 1. CI/CD Architecture
 We use **GitHub Actions** for "Full Stack" deployments.
 * **Workflows:** `.github/workflows/`
-* **What Deploys:** Hosting + Firestore Security Rules + Firestore Indexes.
-* **Triggers:**
-  * `dev` branch -> **Dev** Environment
-  * `release/*` branch -> **UAT** Environment
-  * `main` branch -> **Production** Environment
+* **Triggers:** `dev` (Dev), `release/*` (UAT), `main` (Prod).
 
 ## 2. Environment Management
-We use "Environment-Aware" scripts. You must pass the target environment (`dev`, `uat`, `prod`) as an argument.
-
-### A. Initialization (New Env)
-Sets up the Admin User and Organization.
-\`\`\`bash
-node scripts/init-org.cjs uat
-\`\`\`
-
-### B. Seeding Staff Users
-Creates a test staff account linked to the Admin's Org.
-\`\`\`bash
-node scripts/create_staff_user.cjs uat
-\`\`\`
+Scripts in `/scripts` handle data seeding. Always pass the env arg (e.g., `node scripts/init-org.cjs uat`).
 
 ## 3. GitHub Secrets (Required)
 | Secret Name | Content |
 | :--- | :--- |
-| `FIREBASE_SERVICE_ACCOUNT_DEV` | JSON key for Dev |
-| `FIREBASE_SERVICE_ACCOUNT_UAT` | JSON key for UAT |
-| `FIREBASE_SERVICE_ACCOUNT_PROD` | JSON key for Prod |
-| `ENV_FILE_DEV` | `.env.development` content |
-| `ENV_FILE_UAT` | `.env.uat` content |
-| `ENV_FILE_PROD` | `.env.production` content |
+| `FIREBASE_SERVICE_ACCOUNT_[ENV]` | JSON key for Firebase Admin |
+| `ENV_FILE_[ENV]` | Full contents of `.env` |
 
-## 4. Troubleshooting
-**"Missing Permissions" in CI/CD?**
-* Go to Google Cloud IAM.
-* Find the Service Account (e.g., `github-actions@...`).
-* Grant it the **"Editor"** role (or specifically Firestore Admin + Service Usage Admin).
+## 4. Google Maps Setup (New Project)
+If creating a new environment (e.g., Staging), you MUST:
+1.  **GCP Console:** Enable "Maps JavaScript API" and "Geocoding API".
+2.  **Billing:** Link the project to your Billing Account (Critical).
+3.  **Credentials:** Create an API Key.
+4.  **Secrets:** Add `VITE_GOOGLE_MAPS_API_KEY=...` to the `ENV_FILE_[ENV]` GitHub Secret.
 
-**"Staff User Not Seeing Data"?**
-* Ensure you aren't using `auth.token.orgId`.
-* Check Firestore `users/{uid}` to ensure `orgId` matches the data.
+## 5. Troubleshooting
+**"Billing Not Setup" on Map:**
+* Go to GCP Console -> Billing -> Link the project to your account.
+
+**"Missing Permissions" in CI/CD:**
+* Grant `firebase-adminsdk` Service Account "Editor" or "Cloud Datastore User" roles.

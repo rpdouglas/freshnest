@@ -1,23 +1,21 @@
 # 📌 Project Status: Fresh Nest
 
-**Current Phase:** Phase 3 - Advanced Features & Geolocation
+**Current Phase:** Phase 4 - Invoicing & Revenue
 **Last Updated:** $(date +%Y-%m-%d)
 
 ## ✅ Completed Features
-* **Core:** Project Setup, Auth, Multi-Tenancy (Profile-based).
-* **Clients:** CRUD, Filtering, Mobile/Desktop Views.
-* **Jobs:** Scheduling, Relational Data, Assignment.
-* **Worker View:** RBAC, Role-Aware Hooks, UI Restrictions.
-* **Job Workflow:** Status Transitions (Start/Complete/Cancel).
-* **Job CRUD:** Admin Edit & Delete functionality with unified modals.
-* **DevOps:** 3-Environment CI/CD, Firestore Indexes.
+* **Core:** Project Setup, Auth, Multi-Tenancy.
+* **Clients:** CRUD, Filtering, Geocoding (Auto-Coordinates).
+* **Jobs:** Scheduling, CRUD, Workflow (Start/Complete/Cancel).
+* **Maps:** Interactive Schedule Map (Google Maps API).
+* **DevOps:** 3-Environment CI/CD, Firestore Indexes, Maps API Integration.
 
 ## 🚧 In Progress / Next Up
-* [ ] **Google Maps Integration:** Visualizing daily routes on a map.
-* [ ] **Geocoding:** Converting client addresses to Coordinates (Lat/Lng).
+* [ ] **Invoicing:** Generate PDF invoices for completed jobs.
+* [ ] **Revenue Reporting:** Basic dashboard for earnings.
 
 ## 🗄️ Database Schema
 * `organizations/{orgId}`
-* `users/{userId}`: { role: 'admin'|'staff', orgId, fullName, ... }
-* `jobs/{jobId}`: { assignedTo: [userId], status, startedAt, completedAt, updatedAt, ... }
-* `clients/{clientId}`: { name, address, orgId, ... }
+* `users/{userId}`: { role: 'admin'|'staff', orgId, ... }
+* `jobs/{jobId}`: { status: 'scheduled'|'completed', price, startedAt, completedAt ... }
+* `clients/{clientId}`: { name, address, coordinates: { lat, lng }, ... }
