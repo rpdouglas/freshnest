@@ -9,7 +9,13 @@
 - **organizations/{orgId}**: { name, settings }
 - **users/{userId}**: { email, orgId, role, fullName }
 - **invites/{inviteId}**: { email, orgId, role }
-- **jobs/{jobId}**: { assignedTo: [userId], status, serviceType, ... }
+- **jobs/{jobId}**: 
+    - `assignedTo`: [userId]
+    - `status`: 'scheduled' | 'in_progress' | 'completed' | 'cancelled'
+    - `startedAt`: Timestamp
+    - `completedAt`: Timestamp
+    - `price`: Number
+- **clients/{clientId}**: { name, address, orgId, email, phone }
 
 ## Rules for AI (STRICT)
 1. **NO PLACEHOLDERS:** Provide COMPLETE FILES only.
