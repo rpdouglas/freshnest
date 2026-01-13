@@ -1,7 +1,7 @@
 import React from 'react';
 import JobCardMobile from './JobCardMobile';
 
-const JobListMobile = ({ jobs, clients, staff, userRole, onEdit }) => {
+const JobListMobile = ({ jobs, clients, staff, userRole, onEdit, onInvoice }) => {
   const getClientName = (id) => clients.find(c => c.id === id)?.name || 'Unknown Client';
   const getClientAddress = (id) => clients.find(c => c.id === id)?.address;
   
@@ -30,6 +30,7 @@ const JobListMobile = ({ jobs, clients, staff, userRole, onEdit }) => {
           getAssignedStaffName={getAssignedStaffName}
           userRole={userRole}
           onEdit={onEdit}
+          onInvoice={onInvoice} // <--- ADDED THIS PROP
         />
       ))}
     </div>

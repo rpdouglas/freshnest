@@ -14,9 +14,7 @@ const JobsPage = () => {
   const { staff, loading: staffLoading } = useStaff();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingJobId, setEditingJobId] = useState(null); // Changed to ID
-  
-  // Invoice State - Now stores ID only
+  const [editingJobId, setEditingJobId] = useState(null);
   const [invoicingJobId, setInvoicingJobId] = useState(null);
   
   const [searchTerm, setSearchTerm] = useState('');
@@ -28,11 +26,8 @@ const JobsPage = () => {
     return clientName.includes(searchTerm.toLowerCase());
   });
 
-  // --- Derived State (Live Data) ---
   const editingJob = editingJobId ? jobs.find(j => j.id === editingJobId) : null;
   const invoicingJob = invoicingJobId ? jobs.find(j => j.id === invoicingJobId) : null;
-
-  // --- Handlers ---
 
   const handleCreateOpen = () => {
     setEditingJobId(null);
@@ -64,12 +59,10 @@ const JobsPage = () => {
 
   const handleMarkInvoiced = async (jobId) => {
     await markAsInvoiced(jobId);
-    // No need to close; the 'invoicingJob' variable will auto-update because it's derived from 'jobs'
   };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Job Management</h1>
@@ -87,7 +80,6 @@ const JobsPage = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          {/* Only Admin can add jobs */}
           {userRole === 'admin' && (
             <button 
               onClick={handleCreateOpen}
@@ -101,7 +93,6 @@ const JobsPage = () => {
         </div>
       </div>
 
-      {/* Content */}
       {loading ? (
         <div className="flex justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div>
@@ -117,7 +108,8 @@ const JobsPage = () => {
             clients={clients} 
             staff={staff} 
             userRole={userRole} 
-            onEdit={handleEditOpen} 
+            onEdit={handleEditOpen}
+            onInvoice={handleInvoiceOpen} // <--- ADDED THIS PROP
           />
           <JobTableDesktop 
             jobs={filteredJobs} 
@@ -131,7 +123,6 @@ const JobsPage = () => {
         </>
       )}
 
-      {/* Modals */}
       <JobFormModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 

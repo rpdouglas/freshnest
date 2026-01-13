@@ -1,9 +1,9 @@
 import React from 'react';
-import { Calendar, Clock, DollarSign, MapPin, User, CheckCircle, Play, Loader, Edit } from 'lucide-react';
+import { Calendar, Clock, DollarSign, MapPin, User, CheckCircle, Play, Loader, Edit, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { useJobWorkflow } from '../../hooks/useJobWorkflow';
 
-const JobCardMobile = ({ job, getClientName, getClientAddress, getAssignedStaffName, userRole, onEdit }) => {
+const JobCardMobile = ({ job, getClientName, getClientAddress, getAssignedStaffName, userRole, onEdit, onInvoice }) => {
   const { startJob, completeJob, canStart, canComplete, loading } = useJobWorkflow(job, userRole);
 
   const assignedName = getAssignedStaffName(job.assignedTo);
@@ -20,7 +20,7 @@ const JobCardMobile = ({ job, getClientName, getClientAddress, getAssignedStaffN
 
   return (
     <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 relative">
-      {/* Admin Edit Button (Top Right Absolute) */}
+      {/* Admin Edit Button */}
       {userRole === 'admin' && (
         <button 
           onClick={() => onEdit(job)}
@@ -79,6 +79,17 @@ const JobCardMobile = ({ job, getClientName, getClientAddress, getAssignedStaffN
           </div>
         )}
       </div>
+
+      {/* ADMIN INVOICE BUTTON (Completed Jobs Only) */}
+      {userRole === 'admin' && job.status === 'completed' && (
+        <button
+          onClick={() => onInvoice(job)}
+          className="w-full mt-3 px-4 py-2 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-lg font-medium flex items-center justify-center gap-2 border border-purple-100 transition-colors"
+        >
+          <FileText size={18} />
+          {job.invoicedAt ? 'View Invoice' : 'Generate Invoice'}
+        </button>
+      )}
 
       {/* WORKFLOW BUTTONS */}
       {(canStart || canComplete) && (
