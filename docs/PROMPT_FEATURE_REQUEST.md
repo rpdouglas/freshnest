@@ -24,9 +24,10 @@ I need to add a module to "Fresh Nest" that allows [WHO] to [DO WHAT].
 1.  **Data & Schema:**
     * [What new collections or fields do we need?]
     * [e.g., "Add 'coordinates' to 'clients' collection"]
+    * *Reference:* Check `docs/SCHEMA_REFERENCE.md` in the context.
 
-2.  **UI (Mobile First):**
-    * **Mobile:** [How does it look on phone? e.g., "Swipe to complete", "Big button"]
+2.  **UI (Mobile First & Parity):**
+    * **Mobile:** [How does it look on phone?] **CRITICAL:** Verify if this feature requires a specific Mobile UI component (e.g., Card vs Table).
     * **Desktop:** [How does it look on PC? e.g., "Table Action Menu"]
 
 3.  **Security & RBAC (Crucial):**
@@ -34,9 +35,9 @@ I need to add a module to "Fresh Nest" that allows [WHO] to [DO WHAT].
     * **Staff:** [What are they RESTRICTED from?]
     * *Constraint:* **NEVER** use `auth.token` or Custom Claims for roles. **ALWAYS** fetch the User Profile from Firestore (`users/{uid}`).
 
-4.  **Infrastructure & Config (New):**
-    * **Dependencies:** [Do we need new NPM packages? e.g., `react-pdf`, `@react-google-maps/api`]
-    * **Env Variables:** [Do we need new API Keys? e.g., `VITE_STRIPE_KEY`]
+4.  **Infrastructure & Config:**
+    * **Dependencies:** [Do we need new NPM packages? e.g., `recharts`, `jspdf`]
+    * **Env Variables:** [Do we need new API Keys?]
 
 **🛑 STOP & THINK: Architectural Options**
 Before writing any code, please propose **3 Distinct Approaches** to implementing this feature:
@@ -46,11 +47,12 @@ Before writing any code, please propose **3 Distinct Approaches** to implementin
 3.  **The "Complex/Global" Approach:** Uses global context providers or cloud functions for simple logic. Overkill?
 
 **Your Task:**
-1.  **Analyze the Codebase:** Review the provided file dump to understand our patterns (Hooks, Firebase Auth, Tailwind).
-2.  **Compare Options:** Briefly describe the 3 approaches above (Pros/Cons).
-3.  **Recommendation:** Recommend the best approach for our "Lean SaaS" architecture.
-4.  **Specifications:** List exact **Schema Changes**, **New Dependencies**, and **New Files**.
-5.  **WAIT** for my confirmation before generating any code.
+1.  **Analyze the Codebase:** Review the provided file dump. Pay close attention to `docs/CONTEXT_DUMP.md` and `docs/RBAC_MATRIX.md`.
+2.  **Mobile Parity Check:** Explicitly state how this feature will work on Mobile vs Desktop. Do we need a separate Mobile component?
+3.  **Compare Options:** Briefly describe the 3 approaches above (Pros/Cons).
+4.  **Recommendation:** Recommend the best approach for our "Lean SaaS" architecture.
+5.  **Specifications:** List exact **Schema Changes**, **New Dependencies**, and **New Files**.
+6.  **WAIT** for my confirmation before generating any code.
 
 ---
 

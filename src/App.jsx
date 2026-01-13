@@ -6,22 +6,8 @@ import LoginPage from './features/auth/LoginPage';
 import ClientsPage from './pages/ClientsPage';
 import JobsPage from './pages/JobsPage';
 import SchedulePage from './pages/SchedulePage';
-import SettingsPage from './pages/SettingsPage'; // ✨ Imported
-import DebugClaims from './components/debug/DebugClaims';
-
-// Placeholder Pages
-const Dashboard = () => (
-  <div>
-    <h2 className="text-2xl font-bold mb-4">Dashboard</h2>
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-        <h3 className="text-gray-500 text-sm font-medium">Jobs Today</h3>
-        <p className="text-2xl font-bold text-slate-800">0</p>
-      </div>
-    </div>
-    <DebugClaims />
-  </div>
-);
+import SettingsPage from './pages/SettingsPage';
+import DashboardPage from './pages/DashboardPage'; // ✨ New Import
 
 function App() {
   return (
@@ -36,11 +22,11 @@ function App() {
             <AppLayout />
           </AuthGuard>
         }>
-          <Route index element={<Dashboard />} />
+          <Route index element={<DashboardPage />} /> {/* ✨ Replaced Placeholder */}
           <Route path="jobs" element={<JobsPage />} />
           <Route path="schedule" element={<SchedulePage />} />
           <Route path="clients" element={<ClientsPage />} />
-          <Route path="settings" element={<SettingsPage />} /> {/* ✨ Added Route */}
+          <Route path="settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

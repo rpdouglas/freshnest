@@ -2,78 +2,94 @@
 
 # ====================================================
 # FRESH NEST: FEATURE CLOSE-OUT
-# Feature: Invoicing & PDF Generation
+# Feature: Revenue Dashboard & Analytics
 # ====================================================
 
-echo "🏁 Initiating Close-Out for: Invoicing..."
+echo "🏁 Initiating Close-Out for: Revenue Dashboard..."
 
 # 1. Update Project Status
 echo "📝 Updating docs/PROJECT_STATUS.md..."
 cat << 'INNER_EOF' > docs/PROJECT_STATUS.md
 # 📌 Project Status: Fresh Nest
 
-**Current Phase:** Phase 4 - Revenue & Reporting
+**Current Phase:** Phase 6 - Data Export & Polish
 **Last Updated:** $(date +%Y-%m-%d)
 
 ## ✅ Completed Features
 * **Core:** Project Setup, Auth, Multi-Tenancy.
 * **Clients:** CRUD, Filtering, Geocoding.
 * **Jobs:** Scheduling, CRUD, Workflow, Maps.
-* **Invoicing:** PDF Generation, Status Tracking (Invoiced/Draft).
+* **Invoicing:** PDF Generation (Client-side), Mobile Parity.
+* **Dashboard:** Admin KPIs, Revenue Charts (Recharts), Staff View restrictions.
 * **DevOps:** 3-Environment CI/CD, Firestore Indexes.
 
 ## 🚧 In Progress / Next Up
-* [ ] **Revenue Dashboard:** Visual charts for Earnings (Daily/Monthly).
-* [ ] **Data Export:** CSV export for accounting.
+* [ ] **Data Export:** CSV export for accounting (Quickbooks/Xero support).
+* [ ] **Final Polish:** UX consistency check.
 
 ## 🗄️ Database Schema
 * `organizations/{orgId}`
 * `users/{userId}`: { role: 'admin'|'staff', orgId, ... }
-* `jobs/{jobId}`: 
-    - `status`: 'scheduled'|'in_progress'|'completed'|'cancelled'
-    - `invoiceNumber`: String
-    - `invoicedAt`: Timestamp
-    - `price`: Number
+* `jobs/{jobId}`: { status, price, completedAt, scheduledDate, ... }
 * `clients/{clientId}`: { name, address, coordinates, ... }
 INNER_EOF
 
-# 2. Update Context Dump (Schema Update)
+# 2. Update Context Dump (Dashboard Logic)
 echo "📝 Updating docs/CONTEXT_DUMP.md..."
 cat << 'INNER_EOF' > docs/CONTEXT_DUMP.md
 # Fresh Nest: Context Dump
 **Stack:** React + Vite + Firebase + Tailwind CSS
 **Architecture:** Multi-Tenant SaaS.
 
-## Schema (Implemented)
-- **organizations/{orgId}**: { name, settings }
-- **users/{userId}**: { email, orgId, role, fullName }
-- **jobs/{jobId}**: 
-    - `assignedTo`: [userId]
-    - `status`: 'scheduled' | 'in_progress' | 'completed' | 'cancelled'
-    - `invoiceNumber`: String (e.g. "2026-1023")
-    - `invoicedAt`: Timestamp
-    - `price`: Number
-- **clients/{clientId}**: { coordinates: { lat, lng }, ... }
+## Documentation References
+* **Schema:** See `docs/SCHEMA_REFERENCE.md`
+* **Security/RBAC:** See `docs/RBAC_MATRIX.md`
+* **DevOps:** See `docs/DEVOPS_MANUAL.md`
 
-## Rules for AI (STRICT)
+## Architecture Rules (STRICT)
 1. **NO PLACEHOLDERS:** Provide COMPLETE FILES only.
 2. **Icons:** Use `lucide-react`.
 3. **Tailwind:** Mobile-first (`block md:flex`).
 4. **Security & Data Access (CRITICAL):**
    - **NEVER use `request.auth.token.orgId`.** Fetch `users/{uid}`.
    - All queries must filter by `.where("orgId", "==", currentOrgId)`.
-   - All writes MUST include `orgId`.
-5. **State Management:**
-   - Prefer deriving state from lists (e.g. `jobs.find(id)`) over storing object snapshots to prevent stale data.
+5. **Analytics Strategy:**
+   - **Client-Side Aggregation:** Fetch raw jobs via `useDashboard` and calculate totals in JS (reduce/map).
+   - **Visualization:** Use `recharts` for graphs. Ensure horizontal scrolling on mobile.
+6. **PDF Generation:**
+   - Desktop: `PDFViewer` (iframe).
+   - Mobile: `InvoiceHTMLPreview` (HTML/CSS) + Download Link.
 INNER_EOF
 
-# 3. Commit Final Changes
+# 3. Update Changelog
+echo "📝 Updating docs/CHANGELOG.md..."
+cat << 'INNER_EOF' > docs/CHANGELOG.md
+# 📜 Changelog
+
+## [v0.6.0] - 2026-01-12
+### Added
+* **Revenue Dashboard:** Admin view with Total Revenue, Jobs Completed, and Avg Ticket KPIs.
+* **Visualizations:** Monthly Revenue Bar Chart using `recharts`.
+* **Staff Dashboard:** Restricted view showing only assigned upcoming jobs.
+* **Mobile Optimization:** Horizontal scroll containers for charts on small screens.
+
+## [v0.5.1] - 2026-01-12
+### Fixed
+* **Mobile Invoicing:** Added responsive HTML preview for mobile devices.
+
+## [v0.5.0] - 2026-01-12
+### Added
+* **Invoicing Module:** Client-side PDF generation.
+
+INNER_EOF
+
+# 4. Commit Final Changes
 echo "🌿 Committing Documentation..."
 git add .
-git commit -m "feat: complete invoicing module and update docs"
+git commit -m "feat: complete revenue dashboard and update docs"
 
-# 4. Cut Release (Triggers UAT)
-VERSION="v0.5.0-invoicing-$(date +%s)"
+# 5. Cut Release (Triggers UAT)
+VERSION="v0.6.0-dashboard-$(date +%s)"
 echo "🚀 Cutting Release Branch: release/$VERSION"
 
 git checkout -b "release/$VERSION"
@@ -82,16 +98,16 @@ git push origin "release/$VERSION"
 echo "✅ Release Pushed to GitHub!"
 echo "👉 Action: 'Deploy to UAT' should be running now."
 
-# 5. Merge to Dev & Cleanup
+# 6. Merge to Dev & Cleanup
 echo "🔄 Syncing Dev Branch..."
 git checkout dev
 git pull origin dev
-git merge "feature/invoicing"
+git merge "feature/dashboard"
 git push origin dev
 
-# 6. Delete Local Feature Branch
+# 7. Delete Local Feature Branch
 echo "🗑️  Deleting local feature branch..."
-git branch -d feature/invoicing
+git branch -d feature/dashboard
 
-echo "🎉 SUCCESS! Feature Closed."
+echo "🎉 SUCCESS! Phase 5 Closed."
 echo "   - UAT is deploying (release/$VERSION)"

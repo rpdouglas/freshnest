@@ -2,26 +2,21 @@
 **Stack:** React + Vite + Firebase + Tailwind CSS
 **Architecture:** Multi-Tenant SaaS.
 
-## Schema (Implemented)
-- **organizations/{orgId}**: { name, settings }
-- **users/{userId}**: { email, orgId, role, fullName }
-- **jobs/{jobId}**: 
-    - `assignedTo`: [userId]
-    - `status`: 'scheduled' | 'in_progress' | 'completed' | 'cancelled'
-    - `invoiceNumber`: String (e.g. "2026-1023")
-    - `invoicedAt`: Timestamp
-    - `price`: Number
-- **clients/{clientId}**: { coordinates: { lat, lng }, ... }
+## Documentation References
+* **Schema:** See `docs/SCHEMA_REFERENCE.md`
+* **Security/RBAC:** See `docs/RBAC_MATRIX.md`
+* **DevOps:** See `docs/DEVOPS_MANUAL.md`
 
-## Rules for AI (STRICT)
+## Architecture Rules (STRICT)
 1. **NO PLACEHOLDERS:** Provide COMPLETE FILES only.
 2. **Icons:** Use `lucide-react`.
 3. **Tailwind:** Mobile-first (`block md:flex`).
 4. **Security & Data Access (CRITICAL):**
    - **NEVER use `request.auth.token.orgId`.** Fetch `users/{uid}`.
    - All queries must filter by `.where("orgId", "==", currentOrgId)`.
-   - All writes MUST include `orgId`.
-5. **PDF Generation Strategy:**
-   - **Desktop:** Use `@react-pdf/renderer` inside a `PDFViewer` (iframe).
-   - **Mobile:** Do **NOT** use iframes. Render a semantic HTML/Tailwind preview component (`InvoiceHTMLPreview`) and provide a `PDFDownloadLink`.
-   - **State:** Always use Live Data (IDs) for modals to prevent stale state bugs.
+5. **Analytics Strategy:**
+   - **Client-Side Aggregation:** Fetch raw jobs via `useDashboard` and calculate totals in JS (reduce/map).
+   - **Visualization:** Use `recharts` for graphs. Ensure horizontal scrolling on mobile.
+6. **PDF Generation:**
+   - Desktop: `PDFViewer` (iframe).
+   - Mobile: `InvoiceHTMLPreview` (HTML/CSS) + Download Link.
