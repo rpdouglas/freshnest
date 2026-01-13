@@ -41,3 +41,4 @@ ui-debug.log
 scripts/service-account.jsonscripts/service-account-*.json
 scripts/service-account*.json
 scripts/close_feature.sh
+docs/FULL_CODEBASE_CONTEXT.md

@@ -21,7 +21,6 @@ export const useJobs = () => {
 
     const fetchOrgAndSubscribe = async () => {
       try {
-        // 1. Fetch User Profile to get OrgId AND Role
         const userDocRef = doc(db, 'users', user.uid);
         const userDoc = await getDoc(userDocRef);
         
@@ -43,13 +42,12 @@ export const useJobs = () => {
           return;
         }
 
-        // 2. Construct Query based on Role
+        // Constraints
         let constraints = [
           where('orgId', '==', orgId),
           orderBy('scheduledDate', 'asc')
         ];
 
-        // RBAC: If staff, ONLY show jobs assigned to them
         if (role === 'staff') {
           constraints.push(where('assignedTo', 'array-contains', user.uid));
         }
@@ -60,8 +58,8 @@ export const useJobs = () => {
           const jobData = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data(),
-            // Convert Timestamp to JS Date for frontend
-            scheduledDate: doc.data().scheduledDate?.toDate()
+            scheduledDate: doc.data().scheduledDate?.toDate(),
+            invoicedAt: doc.data().invoicedAt?.toDate()
           }));
           setJobs(jobData);
           setLoading(false);
@@ -83,8 +81,8 @@ export const useJobs = () => {
   // --- MUTATIONS ---
 
   const addJob = async (jobData) => {
-    if (!currentOrgId) throw new Error("No Organization ID found.");
-    if (userRole !== 'admin') throw new Error("Unauthorized: Only Admins can create jobs.");
+    if (!currentOrgId) throw new Error("No Org ID.");
+    if (userRole !== 'admin') throw new Error("Unauthorized.");
 
     const timestampDate = new Date(jobData.scheduledDate);
     const assignedTo = jobData.assignedStaffId ? [jobData.assignedStaffId] : [];
@@ -104,7 +102,7 @@ export const useJobs = () => {
   };
 
   const updateJob = async (jobId, jobData) => {
-    if (userRole !== 'admin') throw new Error("Unauthorized: Only Admins can edit jobs.");
+    if (userRole !== 'admin') throw new Error("Unauthorized.");
 
     const timestampDate = new Date(jobData.scheduledDate);
     const assignedTo = jobData.assignedStaffId ? [jobData.assignedStaffId] : [];
@@ -122,11 +120,24 @@ export const useJobs = () => {
   };
 
   const deleteJob = async (jobId) => {
-    if (userRole !== 'admin') throw new Error("Unauthorized: Only Admins can delete jobs.");
-    
+    if (userRole !== 'admin') throw new Error("Unauthorized.");
     const jobRef = doc(db, 'jobs', jobId);
     await deleteDoc(jobRef);
   };
 
-  return { jobs, loading, error, addJob, updateJob, deleteJob, role: userRole };
+  const markAsInvoiced = async (jobId) => {
+    if (userRole !== 'admin') throw new Error("Unauthorized.");
+    
+    // Simple ID gen: Year + Random 4 digits (e.g. 2026-4821)
+    const invoiceNumber = `${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    
+    const jobRef = doc(db, 'jobs', jobId);
+    await updateDoc(jobRef, {
+      invoicedAt: serverTimestamp(),
+      invoiceNumber: invoiceNumber,
+      updatedAt: serverTimestamp()
+    });
+  };
+
+  return { jobs, loading, error, addJob, updateJob, deleteJob, markAsInvoiced, role: userRole };
 };

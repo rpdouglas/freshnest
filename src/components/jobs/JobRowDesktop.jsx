@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MoreHorizontal, Calendar, Clock, MapPin, User, Edit, Trash2, Play, CheckCircle, XCircle } from 'lucide-react';
+import { MoreHorizontal, Calendar, Clock, MapPin, User, Edit, Trash2, Play, CheckCircle, XCircle, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { useJobWorkflow } from '../../hooks/useJobWorkflow';
 
-const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit, onDelete }) => {
+const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit, onDelete, onInvoice }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef(null);
   
@@ -73,6 +73,11 @@ const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit,
       </td>
       <td className="px-6 py-4">
         {getStatusBadge(job.status)}
+        {job.invoicedAt && userRole === 'admin' && (
+          <div className="mt-1 text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded inline-block">
+            Invoiced
+          </div>
+        )}
       </td>
       
       {/* ACTIONS */}
@@ -116,6 +121,17 @@ const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit,
             {/* ADMIN ACTIONS */}
             {userRole === 'admin' && (
               <>
+                {/* INVOICE ACTION */}
+                {job.status === 'completed' && (
+                  <button 
+                    onClick={() => { setIsMenuOpen(false); onInvoice(job); }}
+                    className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-purple-50 flex items-center gap-2 transition-colors border-t border-gray-50 font-medium"
+                  >
+                    <FileText size={16} className="text-purple-500" /> 
+                    {job.invoicedAt ? 'View Invoice' : 'Generate Invoice'}
+                  </button>
+                )}
+
                 <button 
                   onClick={() => { setIsMenuOpen(false); onEdit(job); }}
                   className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"

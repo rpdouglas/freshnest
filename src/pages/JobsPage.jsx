@@ -6,14 +6,19 @@ import { useStaff } from '../hooks/useStaff';
 import JobListMobile from '../components/jobs/JobListMobile';
 import JobTableDesktop from '../components/jobs/JobTableDesktop';
 import JobFormModal from '../components/jobs/JobFormModal';
+import InvoiceModal from '../components/invoicing/InvoiceModal';
 
 const JobsPage = () => {
-  const { jobs, loading: jobsLoading, error: jobsError, addJob, updateJob, deleteJob, role: userRole } = useJobs();
+  const { jobs, loading: jobsLoading, error: jobsError, addJob, updateJob, deleteJob, markAsInvoiced, role: userRole } = useJobs();
   const { clients, loading: clientsLoading } = useClients(); 
   const { staff, loading: staffLoading } = useStaff();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingJob, setEditingJob] = useState(null);
+  
+  // Invoice State
+  const [invoicingJob, setInvoicingJob] = useState(null);
+  
   const [searchTerm, setSearchTerm] = useState('');
 
   const loading = jobsLoading || clientsLoading || staffLoading;
@@ -35,6 +40,10 @@ const JobsPage = () => {
     setIsModalOpen(true);
   };
 
+  const handleInvoiceOpen = (job) => {
+    setInvoicingJob(job);
+  };
+
   const handleSave = async (formData) => {
     if (editingJob) {
       await updateJob(editingJob.id, formData);
@@ -47,6 +56,11 @@ const JobsPage = () => {
     if (window.confirm("Are you sure you want to delete this job? This cannot be undone.")) {
       await deleteJob(jobId);
     }
+  };
+
+  const handleMarkInvoiced = async (jobId) => {
+    await markAsInvoiced(jobId);
+    // Note: We don't close the modal automatically so they can download the now-finalized invoice
   };
 
   return (
@@ -108,10 +122,12 @@ const JobsPage = () => {
             userRole={userRole} 
             onEdit={handleEditOpen}
             onDelete={handleDelete}
+            onInvoice={handleInvoiceOpen}
           />
         </>
       )}
 
+      {/* Modals */}
       <JobFormModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
@@ -119,6 +135,14 @@ const JobsPage = () => {
         clients={clients} 
         staff={staff}
         initialData={editingJob}
+      />
+
+      <InvoiceModal 
+        isOpen={!!invoicingJob}
+        onClose={() => setInvoicingJob(null)}
+        job={invoicingJob}
+        client={invoicingJob ? clients.find(c => c.id === invoicingJob.clientId) : null}
+        onMarkInvoiced={handleMarkInvoiced}
       />
     </div>
   );
