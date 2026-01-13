@@ -1,3 +1,9 @@
+#!/bin/bash
+
+echo "🔧 Applying Hotfix: Mobile PDF Rendering..."
+
+echo "📝 Updating src/components/invoicing/InvoiceModal.jsx..."
+cat << 'INNER_EOF' > src/components/invoicing/InvoiceModal.jsx
 import React, { useEffect, useState } from 'react';
 import { X, CheckCircle, Download, FileText, ExternalLink } from 'lucide-react';
 import { PDFViewer, PDFDownloadLink } from '@react-pdf/renderer';
@@ -120,3 +126,6 @@ const InvoiceModal = ({ isOpen, onClose, job, client, onMarkInvoiced }) => {
 };
 
 export default InvoiceModal;
+INNER_EOF
+
+echo "✅ Hotfix Applied: Responsive PDF Modal."
