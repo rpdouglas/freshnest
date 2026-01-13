@@ -14,10 +14,10 @@ const JobsPage = () => {
   const { staff, loading: staffLoading } = useStaff();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingJob, setEditingJob] = useState(null);
+  const [editingJobId, setEditingJobId] = useState(null); // Changed to ID
   
-  // Invoice State
-  const [invoicingJob, setInvoicingJob] = useState(null);
+  // Invoice State - Now stores ID only
+  const [invoicingJobId, setInvoicingJobId] = useState(null);
   
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -28,25 +28,29 @@ const JobsPage = () => {
     return clientName.includes(searchTerm.toLowerCase());
   });
 
+  // --- Derived State (Live Data) ---
+  const editingJob = editingJobId ? jobs.find(j => j.id === editingJobId) : null;
+  const invoicingJob = invoicingJobId ? jobs.find(j => j.id === invoicingJobId) : null;
+
   // --- Handlers ---
 
   const handleCreateOpen = () => {
-    setEditingJob(null);
+    setEditingJobId(null);
     setIsModalOpen(true);
   };
 
   const handleEditOpen = (job) => {
-    setEditingJob(job);
+    setEditingJobId(job.id);
     setIsModalOpen(true);
   };
 
   const handleInvoiceOpen = (job) => {
-    setInvoicingJob(job);
+    setInvoicingJobId(job.id);
   };
 
   const handleSave = async (formData) => {
-    if (editingJob) {
-      await updateJob(editingJob.id, formData);
+    if (editingJobId) {
+      await updateJob(editingJobId, formData);
     } else {
       await addJob(formData);
     }
@@ -60,7 +64,7 @@ const JobsPage = () => {
 
   const handleMarkInvoiced = async (jobId) => {
     await markAsInvoiced(jobId);
-    // Note: We don't close the modal automatically so they can download the now-finalized invoice
+    // No need to close; the 'invoicingJob' variable will auto-update because it's derived from 'jobs'
   };
 
   return (
@@ -139,7 +143,7 @@ const JobsPage = () => {
 
       <InvoiceModal 
         isOpen={!!invoicingJob}
-        onClose={() => setInvoicingJob(null)}
+        onClose={() => setInvoicingJobId(null)}
         job={invoicingJob}
         client={invoicingJob ? clients.find(c => c.id === invoicingJob.clientId) : null}
         onMarkInvoiced={handleMarkInvoiced}
