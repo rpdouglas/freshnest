@@ -4,21 +4,29 @@ import { useClients } from '../hooks/useClients';
 import ClientListMobile from '../components/clients/ClientListMobile';
 import ClientTableDesktop from '../components/clients/ClientTableDesktop';
 import ClientFormModal from '../components/clients/ClientFormModal';
+import ExportButton from '../components/common/ExportButton';
 
 const ClientsPage = () => {
-  const { clients, loading, error, addClient } = useClients();
+  const { clients, loading, error, addClient, role } = useClients();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Client-side filtering
   const filteredClients = clients.filter(c => 
     c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     c.email?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const exportHeaders = [
+    { key: 'name', label: 'Client Name' },
+    { key: 'email', label: 'Email' },
+    { key: 'phone', label: 'Phone' },
+    { key: 'address', label: 'Address' },
+    { key: 'lat', label: 'Latitude' },
+    { key: 'lng', label: 'Longitude' }
+  ];
+
   return (
     <div className="space-y-6">
-      {/* Header & Actions */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Clients</h1>
@@ -36,6 +44,14 @@ const ClientsPage = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
+
+          <ExportButton 
+            role={role} 
+            data={filteredClients} 
+            filename="Clients" 
+            headers={exportHeaders} 
+          />
+
           <button 
             onClick={() => setIsModalOpen(true)}
             className="bg-brand-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-brand-700 flex items-center gap-2 shadow-sm whitespace-nowrap"
@@ -47,7 +63,6 @@ const ClientsPage = () => {
         </div>
       </div>
 
-      {/* Content */}
       {loading ? (
         <div className="flex justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div>
@@ -63,7 +78,6 @@ const ClientsPage = () => {
         </>
       )}
 
-      {/* Modals */}
       <ClientFormModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 

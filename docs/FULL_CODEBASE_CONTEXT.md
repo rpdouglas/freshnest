@@ -1,5 +1,5 @@
 # FRESH NEST: CODEBASE DUMP
-**Date:** Wed Jan 14 17:20:12 EST 2026
+**Date:** Mon Jan 12 19:00:14 EST 2026
 **Description:** Complete codebase context.
 
 ## FILE: package.json
@@ -4278,131 +4278,378 @@ echo "🎉 Phase 3 Maps & Geocoding Officially Closed!"
 ```
 ---
 
-## FILE: scripts/fix_mobile_pdf.sh
+## FILE: scripts/fix_settings.sh
 ```sh
 #!/bin/bash
 
-echo "🔧 Applying Hotfix: Mobile PDF Rendering..."
+echo "🔧 Fixing Settings Page Redirect..."
 
-echo "📝 Updating src/components/invoicing/InvoiceModal.jsx..."
-cat << 'INNER_EOF' > src/components/invoicing/InvoiceModal.jsx
-import React, { useEffect, useState } from 'react';
-import { X, CheckCircle, Download, FileText, ExternalLink } from 'lucide-react';
-import { PDFViewer, PDFDownloadLink } from '@react-pdf/renderer';
-import InvoiceDocument from './InvoiceDocument';
+# 1. Create the Settings Page Component
+# This restores the UI to view Staff and send Invites
+echo "📝 Creating src/pages/SettingsPage.jsx..."
+cat << 'EOF' > src/pages/SettingsPage.jsx
+import React, { useState } from 'react';
+import { Mail, User, Shield, Plus, Loader } from 'lucide-react';
+import { useStaff } from '../hooks/useStaff';
+import { auth, db } from '../lib/firebase';
+import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 
-const InvoiceModal = ({ isOpen, onClose, job, client, onMarkInvoiced }) => {
-  const [isClientReady, setIsClientReady] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+const SettingsPage = () => {
+  const { staff, loading: staffLoading } = useStaff();
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState('staff');
+  const [inviteLoading, setInviteLoading] = useState(false);
 
-  // Check if mobile (simple width check)
-  useEffect(() => {
-    setIsClientReady(true);
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
+  const handleInvite = async (e) => {
+    e.preventDefault();
+    setInviteLoading(true);
+    try {
+      const user = auth.currentUser;
+      // Get Org ID
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      const orgId = userDoc.data().orgId;
 
-  if (!isOpen || !job || !client) return null;
+      // Create Invite Doc
+      await addDoc(collection(db, 'invites'), {
+        email: inviteEmail,
+        role: inviteRole,
+        orgId,
+        status: 'pending',
+        invitedBy: user.uid,
+        createdAt: serverTimestamp()
+      });
+
+      alert(`Invite sent to ${inviteEmail}`);
+      setInviteEmail('');
+    } catch (error) {
+      console.error(error);
+      alert("Failed to send invite.");
+    } finally {
+      setInviteLoading(false);
+    }
+  };
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl h-[90vh] flex flex-col overflow-hidden">
-        
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-          <div className="flex items-center gap-3">
-            <div className="bg-brand-100 p-2 rounded-lg text-brand-600">
-              <FileText size={20} />
-            </div>
-            <div>
-              <h3 className="font-bold text-lg text-slate-800">Invoice Preview</h3>
-              <p className="text-xs text-slate-500">Client: {client.name}</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            <X size={24} />
-          </button>
-        </div>
-
-        {/* CONTENT AREA */}
-        <div className="flex-1 bg-gray-100 p-4 flex flex-col items-center justify-center">
-          {isClientReady ? (
-            isMobile ? (
-              // --- MOBILE VIEW (No Iframe) ---
-              <div className="text-center space-y-4 p-6 bg-white rounded-xl shadow-sm max-w-sm">
-                <div className="w-16 h-16 bg-brand-50 text-brand-500 rounded-full flex items-center justify-center mx-auto mb-2">
-                  <FileText size={32} />
-                </div>
-                <h4 className="font-bold text-slate-800">PDF Ready</h4>
-                <p className="text-sm text-slate-500">
-                  Mobile browsers cannot embed PDF previews. Please download the file to view it.
-                </p>
-                <PDFDownloadLink
-                  document={<InvoiceDocument job={job} client={client} />}
-                  fileName={`Invoice_${client.name.replace(/\s+/g, '_')}.pdf`}
-                  className="block w-full py-3 bg-brand-600 text-white rounded-lg font-bold hover:bg-brand-700 transition-colors"
-                >
-                  {({ loading }) => (loading ? 'Preparing...' : 'Download / Open PDF')}
-                </PDFDownloadLink>
-              </div>
-            ) : (
-              // --- DESKTOP VIEW (Embed) ---
-              <PDFViewer width="100%" height="100%" className="rounded-lg border border-gray-200 shadow-inner">
-                <InvoiceDocument job={job} client={client} />
-              </PDFViewer>
-            )
-          ) : (
-            <div className="flex items-center justify-center h-full text-slate-400">
-              Loading PDF Engine...
-            </div>
-          )}
-        </div>
-
-        {/* Footer Controls */}
-        <div className="px-6 py-4 border-t border-gray-100 bg-white flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="text-sm text-slate-500 w-full md:w-auto text-center md:text-left">
-            Status: {job.invoicedAt ? (
-              <span className="text-green-600 font-medium flex items-center justify-center md:justify-start gap-1">
-                <CheckCircle size={14} /> Invoiced ({job.invoiceNumber})
-              </span>
-            ) : (
-              <span className="text-amber-600 font-medium">Draft (Not Sent)</span>
-            )}
-          </div>
-
-          <div className="flex gap-3 w-full md:w-auto">
-            {/* Mark as Invoiced Button */}
-            {!job.invoicedAt && (
-              <button
-                onClick={() => onMarkInvoiced(job.id)}
-                className="flex-1 md:flex-none px-4 py-2 text-slate-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
-              >
-                <CheckCircle size={18} />
-                <span className="md:inline">Mark Invoiced</span>
-              </button>
-            )}
-
-            {/* Desktop Download Button (Hidden on Mobile since we have the big button above) */}
-            {!isMobile && isClientReady && (
-              <PDFDownloadLink
-                document={<InvoiceDocument job={job} client={client} />}
-                fileName={`Invoice_${client.name.replace(/\s+/g, '_')}.pdf`}
-                className="px-6 py-2 bg-brand-600 text-white rounded-lg font-bold hover:bg-brand-700 flex items-center gap-2 transition-colors shadow-sm"
-              >
-                {({ loading }) => (
-                  <>
-                    <Download size={18} />
-                    {loading ? 'Preparing...' : 'Download'}
-                  </>
-                )}
-              </PDFDownloadLink>
-            )}
-          </div>
-        </div>
-
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
+        <p className="text-slate-500 text-sm">Manage your team and organization</p>
       </div>
+
+      {/* Staff List Card */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+          <h3 className="font-bold text-slate-800 flex items-center gap-2">
+            <User size={20} className="text-brand-500" />
+            Team Members
+          </h3>
+        </div>
+        
+        <div className="divide-y divide-gray-100">
+          {staffLoading ? (
+            <div className="p-6 text-center text-slate-400">Loading staff...</div>
+          ) : staff.map((member) => (
+            <div key={member.id} className="p-4 flex items-center justify-between hover:bg-gray-50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-brand-100 rounded-full flex items-center justify-center text-brand-600 font-bold">
+                  {member.email[0].toUpperCase()}
+                </div>
+                <div>
+                  <p className="font-medium text-slate-900">{member.fullName || 'Unnamed User'}</p>
+                  <p className="text-xs text-slate-500">{member.email}</p>
+                </div>
+              </div>
+              <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${
+                member.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+              }`}>
+                {member.role}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Invite Form Card */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
+          <h3 className="font-bold text-slate-800 flex items-center gap-2">
+            <Mail size={20} className="text-brand-500" />
+            Invite New Member
+          </h3>
+        </div>
+        <form onSubmit={handleInvite} className="p-6 flex flex-col md:flex-row gap-4 items-end">
+          <div className="flex-1 w-full">
+            <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
+            <input 
+              type="email" 
+              required
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
+              placeholder="colleague@freshnest.com"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+            />
+          </div>
+          <div className="w-full md:w-48">
+            <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
+            <select 
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none bg-white"
+              value={inviteRole}
+              onChange={(e) => setInviteRole(e.target.value)}
+            >
+              <option value="staff">Staff</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <button 
+            type="submit" 
+            disabled={inviteLoading}
+            className="w-full md:w-auto px-6 py-2 bg-brand-600 text-white rounded-lg font-medium hover:bg-brand-700 disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {inviteLoading ? <Loader className="animate-spin" size={18} /> : <Plus size={18} />}
+            Send Invite
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default SettingsPage;
+EOF
+
+# 2. Register Route in App.jsx
+echo "📝 Updating src/App.jsx to include Settings route..."
+cat << 'EOF' > src/App.jsx
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import AppLayout from './components/layout/AppLayout';
+import AuthGuard from './components/layout/AuthGuard';
+import LoginPage from './features/auth/LoginPage';
+import ClientsPage from './pages/ClientsPage';
+import JobsPage from './pages/JobsPage';
+import SchedulePage from './pages/SchedulePage';
+import SettingsPage from './pages/SettingsPage'; // ✨ Imported
+import DebugClaims from './components/debug/DebugClaims';
+
+// Placeholder Pages
+const Dashboard = () => (
+  <div>
+    <h2 className="text-2xl font-bold mb-4">Dashboard</h2>
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <h3 className="text-gray-500 text-sm font-medium">Jobs Today</h3>
+        <p className="text-2xl font-bold text-slate-800">0</p>
+      </div>
+    </div>
+    <DebugClaims />
+  </div>
+);
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        {/* Public Route */}
+        <Route path="/login" element={<LoginPage />} />
+
+        {/* Protected Routes */}
+        <Route path="/" element={
+          <AuthGuard>
+            <AppLayout />
+          </AuthGuard>
+        }>
+          <Route index element={<Dashboard />} />
+          <Route path="jobs" element={<JobsPage />} />
+          <Route path="schedule" element={<SchedulePage />} />
+          <Route path="clients" element={<ClientsPage />} />
+          <Route path="settings" element={<SettingsPage />} /> {/* ✨ Added Route */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+export default App;
+EOF
+
+echo "✅ Settings Page restored and route registered."
+```
+---
+
+## FILE: scripts/fix_staff_org.cjs
+```cjs
+const admin = require('firebase-admin');
+const serviceAccount = require('./service-account.json'); // Uses DEV key
+
+const ADMIN_EMAIL = "rpdouglas@gmail.com";
+const STAFF_EMAIL = "staff@freshnest.com";
+
+if (!admin.apps.length) {
+  admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+}
+const db = admin.firestore();
+const auth = admin.auth();
+
+async function fixOrg() {
+  try {
+    console.log(`🔧 Fixing Org Mismatch...`);
+
+    // 1. Get Admin's Org ID (The Source of Truth)
+    const adminAuth = await auth.getUserByEmail(ADMIN_EMAIL);
+    const adminDoc = await db.collection('users').doc(adminAuth.uid).get();
+    
+    if (!adminDoc.exists) {
+      console.error("❌ Admin profile not found. Cannot proceed.");
+      return;
+    }
+
+    const correctOrgId = adminDoc.data().orgId;
+    console.log(`✅ Admin Org ID: ${correctOrgId}`);
+
+    // 2. Get Staff User
+    const staffAuth = await auth.getUserByEmail(STAFF_EMAIL);
+    const staffRef = db.collection('users').doc(staffAuth.uid);
+
+    // 3. Force Update Staff
+    await staffRef.set({
+      orgId: correctOrgId
+    }, { merge: true }); // 'merge: true' keeps other fields like email/role intact
+
+    console.log(`✅ SUCCESS! Moved ${STAFF_EMAIL} into Org: ${correctOrgId}`);
+    console.log("👉 Refresh your browser. You should see them in Settings now.");
+
+  } catch (error) {
+    console.error("❌ Error:", error.message);
+  }
+}
+
+fixOrg();
+
+```
+---
+
+## FILE: scripts/fix_syntax.sh
+```sh
+#!/bin/bash
+
+echo "🔧 Repairing Syntax Errors in Maps Feature..."
+
+# 1. Fix src/lib/maps.js
+# Removing extra backslashes from template literals
+echo "📝 Repairing src/lib/maps.js..."
+cat << 'INNER_JS' > src/lib/maps.js
+// Utility to handle Google Maps Geocoding
+const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
+export const geocodeAddress = async (address) => {
+  if (!address || !API_KEY) return null;
+
+  try {
+    // CORRECTED: No backslash before the backtick or ${
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${API_KEY}`;
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (data.status === 'OK' && data.results.length > 0) {
+      const location = data.results[0].geometry.location;
+      return {
+        lat: location.lat,
+        lng: location.lng
+      };
+    } else {
+      console.warn("Geocoding failed:", data.status);
+      return null;
+    }
+  } catch (error) {
+    console.error("Geocoding error:", error);
+    return null;
+  }
+};
+INNER_JS
+
+# 2. Fix src/pages/SchedulePage.jsx
+# Removing extra backslashes from className template literals
+echo "📝 Repairing src/pages/SchedulePage.jsx..."
+cat << 'INNER_JSX' > src/pages/SchedulePage.jsx
+import React, { useState } from 'react';
+import { startOfWeek, endOfWeek, isSameDay } from 'date-fns';
+import { Map, List } from 'lucide-react';
+import { useSchedule } from '../hooks/useSchedule';
+import { useClients } from '../hooks/useClients';
+import DateStrip from '../components/schedule/DateStrip';
+import DailyAgenda from '../components/schedule/DailyAgenda';
+import MapComponent from '../components/map/MapComponent';
+
+const SchedulePage = () => {
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [viewMode, setViewMode] = useState('list'); // 'list' | 'map'
+
+  const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 }); 
+  const weekEnd = endOfWeek(selectedDate, { weekStartsOn: 1 });      
+
+  const { jobs, loading: scheduleLoading, error, role: userRole } = useSchedule(weekStart, weekEnd);
+  const { clients, loading: clientsLoading } = useClients();
+
+  const todaysJobs = jobs.filter(job => 
+    job.scheduledDate && isSameDay(job.scheduledDate, selectedDate)
+  );
+
+  return (
+    <div className="bg-gray-50 min-h-full pb-20">
+      <div className="sticky top-0 z-10 bg-white border-b border-gray-200">
+        <DateStrip 
+          selectedDate={selectedDate} 
+          onSelectDate={setSelectedDate} 
+        />
+        
+        {/* View Toggle Bar */}
+        <div className="flex justify-center p-2 bg-gray-50 border-b border-gray-200">
+          <div className="bg-white p-1 rounded-lg border border-gray-200 flex shadow-sm">
+            <button
+              onClick={() => setViewMode('list')}
+              // CORRECTED: No backslashes here
+              className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'list' ? 'bg-brand-50 text-brand-700' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <List size={16} /> List
+            </button>
+            <button
+              onClick={() => setViewMode('map')}
+              // CORRECTED: No backslashes here
+              className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'map' ? 'bg-brand-50 text-brand-700' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <Map size={16} /> Map
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <main className="p-4 max-w-3xl mx-auto">
+        {error && (
+          <div className="p-4 mb-4 bg-red-50 text-red-600 rounded-lg text-sm text-center">
+            {error}
+          </div>
+        )}
+
+        {viewMode === 'list' ? (
+          <DailyAgenda 
+            jobs={todaysJobs} 
+            clients={clients} 
+            loading={scheduleLoading || clientsLoading} 
+            selectedDate={selectedDate}
+            userRole={userRole} 
+          />
+        ) : (
+          <MapComponent 
+            jobs={todaysJobs}
+            clients={clients}
+          />
+        )}
+      </main>
     </div>
   );
 };

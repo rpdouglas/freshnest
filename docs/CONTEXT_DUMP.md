@@ -21,5 +21,7 @@
    - **NEVER use `request.auth.token.orgId`.** Fetch `users/{uid}`.
    - All queries must filter by `.where("orgId", "==", currentOrgId)`.
    - All writes MUST include `orgId`.
-5. **State Management:**
-   - Prefer deriving state from lists (e.g. `jobs.find(id)`) over storing object snapshots to prevent stale data.
+5. **PDF Generation Strategy:**
+   - **Desktop:** Use `@react-pdf/renderer` inside a `PDFViewer` (iframe).
+   - **Mobile:** Do **NOT** use iframes. Render a semantic HTML/Tailwind preview component (`InvoiceHTMLPreview`) and provide a `PDFDownloadLink`.
+   - **State:** Always use Live Data (IDs) for modals to prevent stale state bugs.
