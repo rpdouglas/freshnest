@@ -23,5 +23,5 @@ git push origin dev
 # 4. Return to feature branch
 git checkout "$current_branch"
 
-echo "✅ Merged and Pushed! GitHub Action is now deploying to Fresh-Nest-Dev."
+echo "✅ Merged and Pushed! GitHub Action is naw deploying to Fresh-Nest-Dev."
 echo "👉 Check status here: https://github.com/rpdouglas/fresh-nest/actions"
