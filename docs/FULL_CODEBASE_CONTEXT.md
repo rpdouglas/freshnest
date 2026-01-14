@@ -1,5 +1,5 @@
 # FRESH NEST: CODEBASE DUMP
-**Date:** Mon Jan 12 19:00:14 EST 2026
+**Date:** Wed Jan 14 17:37:42 EST 2026
 **Description:** Complete codebase context.
 
 ## FILE: package.json
@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@react-google-maps/api": "^2.20.8",
+    "@react-pdf/renderer": "^4.3.2",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "firebase": "^12.7.0",
@@ -25,6 +26,7 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.11.0",
+    "recharts": "^3.6.0",
     "tailwind-merge": "^3.4.0",
     "uuid": "^13.0.0"
   },
@@ -206,22 +208,8 @@ import LoginPage from './features/auth/LoginPage';
 import ClientsPage from './pages/ClientsPage';
 import JobsPage from './pages/JobsPage';
 import SchedulePage from './pages/SchedulePage';
-import SettingsPage from './pages/SettingsPage'; // ✨ Imported
-import DebugClaims from './components/debug/DebugClaims';
-
-// Placeholder Pages
-const Dashboard = () => (
-  <div>
-    <h2 className="text-2xl font-bold mb-4">Dashboard</h2>
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-        <h3 className="text-gray-500 text-sm font-medium">Jobs Today</h3>
-        <p className="text-2xl font-bold text-slate-800">0</p>
-      </div>
-    </div>
-    <DebugClaims />
-  </div>
-);
+import SettingsPage from './pages/SettingsPage';
+import DashboardPage from './pages/DashboardPage';
 
 function App() {
   return (
@@ -236,11 +224,11 @@ function App() {
             <AppLayout />
           </AuthGuard>
         }>
-          <Route index element={<Dashboard />} />
+          <Route index element={<DashboardPage />} />
           <Route path="jobs" element={<JobsPage />} />
           <Route path="schedule" element={<SchedulePage />} />
           <Route path="clients" element={<ClientsPage />} />
-          <Route path="settings" element={<SettingsPage />} /> {/* ✨ Added Route */}
+          <Route path="settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
@@ -531,6 +519,218 @@ export default ClientTableDesktop;
 ```
 ---
 
+## FILE: src/components/dashboard/AdminDashboard.jsx
+```jsx
+import React from 'react';
+import { DollarSign, Briefcase, TrendingUp, CheckCircle } from 'lucide-react';
+import KPICard from './KPICard';
+import RevenueChart from './RevenueChart';
+
+const AdminDashboard = ({ stats }) => {
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
+
+      {/* KPI GRID */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <KPICard 
+          title="Total Revenue" 
+          value={`$${stats.totalRevenue.toFixed(2)}`} 
+          icon={DollarSign}
+          colorClass="bg-green-50 text-green-600"
+        />
+        <KPICard 
+          title="Jobs Completed" 
+          value={stats.jobsCompleted} 
+          icon={CheckCircle}
+          colorClass="bg-blue-50 text-blue-600"
+        />
+        <KPICard 
+          title="Avg. Ticket" 
+          value={`$${stats.avgTicket.toFixed(2)}`} 
+          icon={TrendingUp}
+          colorClass="bg-purple-50 text-purple-600"
+        />
+      </div>
+
+      {/* CHART SECTION */}
+      <RevenueChart data={stats.revenueByMonth} />
+
+      {/* RECENT ACTIVITY */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100">
+          <h3 className="font-bold text-slate-800">Recent Jobs</h3>
+        </div>
+        <div className="divide-y divide-gray-100">
+          {stats.recentActivity.map(job => (
+            <div key={job.id} className="px-6 py-3 flex justify-between items-center text-sm">
+              <div>
+                <span className="font-medium text-slate-900 capitalize">{job.serviceType}</span>
+                <span className="text-slate-400 mx-2">•</span>
+                <span className="text-slate-500">{job.status}</span>
+              </div>
+              <div className="font-medium text-slate-900">
+                ${Number(job.price || 0).toFixed(2)}
+              </div>
+            </div>
+          ))}
+          {stats.recentActivity.length === 0 && (
+            <div className="p-6 text-center text-slate-400">No activity yet.</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default AdminDashboard;
+
+```
+---
+
+## FILE: src/components/dashboard/KPICard.jsx
+```jsx
+import React from 'react';
+
+const KPICard = ({ title, value, icon: Icon, colorClass = "bg-brand-50 text-brand-600" }) => {
+  return (
+    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-start justify-between">
+      <div>
+        <p className="text-sm font-medium text-slate-500 mb-1">{title}</p>
+        <h3 className="text-2xl font-bold text-slate-800">{value}</h3>
+      </div>
+      <div className={`p-3 rounded-lg ${colorClass}`}>
+        <Icon size={24} />
+      </div>
+    </div>
+  );
+};
+
+export default KPICard;
+
+```
+---
+
+## FILE: src/components/dashboard/RevenueChart.jsx
+```jsx
+import React from 'react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+
+const RevenueChart = ({ data }) => {
+  if (!data || data.length === 0) return null;
+
+  return (
+    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-96 flex flex-col">
+      <h3 className="text-lg font-bold text-slate-800 mb-6">Revenue Trend</h3>
+      
+      {/* Mobile Scroll Wrapper */}
+      <div className="flex-1 min-w-0 overflow-x-auto">
+        <div className="min-w-[500px] h-full"> 
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <XAxis 
+                dataKey="label" 
+                axisLine={false} 
+                tickLine={false} 
+                tick={{ fill: '#64748b', fontSize: 12 }} 
+                dy={10}
+              />
+              <YAxis 
+                axisLine={false} 
+                tickLine={false} 
+                tick={{ fill: '#64748b', fontSize: 12 }}
+                tickFormatter={(value) => `$${value}`}
+              />
+              <Tooltip 
+                cursor={{ fill: '#f8fafc' }}
+                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                formatter={(value) => [`$${value.toFixed(2)}`, 'Revenue']}
+              />
+              <Bar 
+                dataKey="revenue" 
+                fill="#0ea5e9" 
+                radius={[4, 4, 0, 0]} 
+                barSize={40}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default RevenueChart;
+
+```
+---
+
+## FILE: src/components/dashboard/StaffDashboard.jsx
+```jsx
+import React from 'react';
+import { Calendar, MapPin, CheckCircle, User } from 'lucide-react';
+import { format } from 'date-fns';
+
+const StaffDashboard = ({ jobs, clients }) => {
+  
+  // Helper to find name from ID
+  const getClientName = (id) => {
+    if (!clients) return 'Loading...';
+    const client = clients.find(c => c.id === id);
+    return client ? client.name : 'Unknown Client';
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-brand-600 text-white p-6 rounded-2xl shadow-lg">
+        <h1 className="text-2xl font-bold">Welcome Back!</h1>
+        <p className="text-brand-100 opacity-90">Here are your assigned jobs.</p>
+      </div>
+
+      <div className="space-y-4">
+        <h2 className="font-bold text-slate-800 text-lg">Upcoming Jobs</h2>
+        {jobs.length === 0 ? (
+          <div className="bg-white p-8 text-center rounded-xl border border-gray-100 text-slate-500">
+            No jobs assigned right now.
+          </div>
+        ) : (
+          jobs.map(job => (
+            <div key={job.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-start gap-4">
+              <div className="bg-brand-50 p-3 rounded-lg text-brand-600 shrink-0">
+                <Calendar size={20} />
+              </div>
+              <div>
+                <div className="font-bold text-slate-900">
+                  {job.scheduledDate ? format(job.scheduledDate, 'MMM d, h:mm a') : 'TBD'}
+                </div>
+                
+                <div className="flex items-center gap-1 text-sm text-slate-600 mt-1">
+                  <User size={14} />
+                  {getClientName(job.clientId)}
+                </div>
+
+                <div className="mt-2">
+                  <span className={`text-[10px] uppercase font-bold px-2 py-1 rounded-full ${
+                    job.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-blue-50 text-blue-700'
+                  }`}>
+                    {job.status}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default StaffDashboard;
+
+```
+---
+
 ## FILE: src/components/debug/DebugClaims.jsx
 ```jsx
 import React, { useEffect, useState } from 'react';
@@ -581,14 +781,333 @@ export default DebugClaims;
 ```
 ---
 
+## FILE: src/components/invoicing/InvoiceDocument.jsx
+```jsx
+import React from 'react';
+import { Page, Text, View, Document, StyleSheet } from '@react-pdf/renderer';
+import { format } from 'date-fns';
+
+// Define styles
+const styles = StyleSheet.create({
+  page: {
+    padding: 40,
+    fontSize: 12,
+    fontFamily: 'Helvetica',
+    color: '#333'
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 40,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+    paddingBottom: 20
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#0ea5e9' // Brand Blue
+  },
+  section: {
+    marginBottom: 20
+  },
+  label: {
+    fontSize: 10,
+    color: '#666',
+    marginBottom: 4,
+    textTransform: 'uppercase'
+  },
+  value: {
+    fontSize: 12,
+    marginBottom: 8
+  },
+  table: {
+    marginTop: 40,
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
+    paddingBottom: 8
+  },
+  total: {
+    marginTop: 20,
+    textAlign: 'right',
+    fontSize: 18,
+    fontWeight: 'bold'
+  },
+  footer: {
+    position: 'absolute',
+    bottom: 30,
+    left: 40,
+    right: 40,
+    fontSize: 10,
+    textAlign: 'center',
+    color: '#999'
+  }
+});
+
+const InvoiceDocument = ({ job, client }) => {
+  const invoiceNum = job.invoiceNumber || 'DRAFT';
+  const date = job.invoicedAt ? format(job.invoicedAt, 'MMM d, yyyy') : format(new Date(), 'MMM d, yyyy');
+
+  return (
+    <Document>
+      <Page size="A4" style={styles.page}>
+        
+        {/* HEADER */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.title}>INVOICE</Text>
+            <Text style={styles.label}>#{invoiceNum}</Text>
+          </View>
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={{ fontSize: 16, fontWeight: 'bold' }}>Fresh Nest</Text>
+            <Text style={styles.label}>Date: {date}</Text>
+          </View>
+        </View>
+
+        {/* BILL TO */}
+        <View style={styles.section}>
+          <Text style={styles.label}>Bill To:</Text>
+          <Text style={{ fontSize: 14, fontWeight: 'bold' }}>{client.name}</Text>
+          <Text style={styles.value}>{client.email}</Text>
+          <Text style={styles.value}>{client.address}</Text>
+        </View>
+
+        {/* DETAILS */}
+        <View style={styles.table}>
+          <Text style={{ width: '60%' }}>Description</Text>
+          <Text style={{ width: '20%', textAlign: 'right' }}>Date</Text>
+          <Text style={{ width: '20%', textAlign: 'right' }}>Amount</Text>
+        </View>
+
+        <View style={{ flexDirection: 'row', paddingTop: 10 }}>
+          <Text style={{ width: '60%' }}>
+            {job.serviceType.charAt(0).toUpperCase() + job.serviceType.slice(1)} Cleaning Service
+          </Text>
+          <Text style={{ width: '20%', textAlign: 'right' }}>
+            {job.scheduledDate ? format(job.scheduledDate, 'MMM d') : ''}
+          </Text>
+          <Text style={{ width: '20%', textAlign: 'right' }}>
+            ${job.price?.toFixed(2)}
+          </Text>
+        </View>
+
+        {/* TOTAL */}
+        <Text style={styles.total}>
+          Total Due: ${job.price?.toFixed(2)}
+        </Text>
+
+        {/* FOOTER */}
+        <Text style={styles.footer}>
+          Thank you for choosing Fresh Nest! Please pay within 30 days.
+        </Text>
+      </Page>
+    </Document>
+  );
+};
+
+export default InvoiceDocument;
+
+```
+---
+
+## FILE: src/components/invoicing/InvoiceHTMLPreview.jsx
+```jsx
+import React from 'react';
+import { format } from 'date-fns';
+
+const InvoiceHTMLPreview = ({ job, client }) => {
+  const invoiceNum = job.invoiceNumber || 'DRAFT';
+  const date = job.invoicedAt ? format(job.invoicedAt, 'MMM d, yyyy') : format(new Date(), 'MMM d, yyyy');
+
+  return (
+    <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 text-sm h-full overflow-y-auto">
+      {/* Header */}
+      <div className="flex justify-between items-start border-b border-gray-100 pb-4 mb-4">
+        <div>
+          <h2 className="text-xl font-bold text-brand-600">INVOICE</h2>
+          <p className="text-slate-500 font-mono text-xs mt-1">#{invoiceNum}</p>
+        </div>
+        <div className="text-right">
+          <h3 className="font-bold text-slate-800">Fresh Nest</h3>
+          <p className="text-slate-500 text-xs">{date}</p>
+        </div>
+      </div>
+
+      {/* Bill To */}
+      <div className="mb-6">
+        <h4 className="text-xs font-bold text-slate-400 uppercase mb-2">Bill To</h4>
+        <div className="text-slate-800 font-medium">{client.name}</div>
+        <div className="text-slate-600 text-xs">{client.email}</div>
+        <div className="text-slate-600 text-xs mt-1 max-w-[200px]">{client.address}</div>
+      </div>
+
+      {/* Line Items */}
+      <div className="mb-6">
+        <div className="flex justify-between text-xs font-bold text-slate-400 border-b border-gray-100 pb-2 mb-2">
+          <span>Description</span>
+          <span>Amount</span>
+        </div>
+        
+        <div className="flex justify-between items-start py-2">
+          <div>
+            <div className="font-medium text-slate-800 capitalize">
+              {job.serviceType} Cleaning Service
+            </div>
+            <div className="text-xs text-slate-500">
+              Date: {job.scheduledDate ? format(job.scheduledDate, 'MMM d, yyyy') : 'N/A'}
+            </div>
+          </div>
+          <div className="font-medium text-slate-800">
+            ${job.price?.toFixed(2)}
+          </div>
+        </div>
+      </div>
+
+      {/* Total */}
+      <div className="flex justify-end border-t border-gray-200 pt-4 mb-8">
+        <div className="text-right">
+          <span className="text-slate-500 text-xs mr-4">Total Due:</span>
+          <span className="text-xl font-bold text-brand-600">${job.price?.toFixed(2)}</span>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="text-center text-xs text-slate-400 mt-auto pt-8 border-t border-gray-50">
+        <p>Thank you for choosing Fresh Nest!</p>
+        <p>Please pay within 30 days.</p>
+      </div>
+    </div>
+  );
+};
+
+export default InvoiceHTMLPreview;
+
+```
+---
+
+## FILE: src/components/invoicing/InvoiceModal.jsx
+```jsx
+import React, { useEffect, useState } from 'react';
+import { X, CheckCircle, Download, FileText } from 'lucide-react';
+import { PDFViewer, PDFDownloadLink } from '@react-pdf/renderer';
+import InvoiceDocument from './InvoiceDocument';
+import InvoiceHTMLPreview from './InvoiceHTMLPreview';
+
+const InvoiceModal = ({ isOpen, onClose, job, client, onMarkInvoiced }) => {
+  const [isClientReady, setIsClientReady] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    setIsClientReady(true);
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  if (!isOpen || !job || !client) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl h-[90vh] flex flex-col overflow-hidden">
+        
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+          <div className="flex items-center gap-3">
+            <div className="bg-brand-100 p-2 rounded-lg text-brand-600">
+              <FileText size={20} />
+            </div>
+            <div>
+              <h3 className="font-bold text-lg text-slate-800">Invoice Preview</h3>
+              <p className="text-xs text-slate-500">Client: {client.name}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X size={24} />
+          </button>
+        </div>
+
+        {/* CONTENT AREA */}
+        <div className="flex-1 bg-gray-100 p-4 overflow-hidden relative">
+          {isClientReady ? (
+            isMobile ? (
+              // --- MOBILE VIEW (HTML Preview) ---
+              <div className="h-full overflow-y-auto">
+                <InvoiceHTMLPreview job={job} client={client} />
+              </div>
+            ) : (
+              // --- DESKTOP VIEW (PDF Embed) ---
+              <PDFViewer width="100%" height="100%" className="rounded-lg border border-gray-200 shadow-inner">
+                <InvoiceDocument job={job} client={client} />
+              </PDFViewer>
+            )
+          ) : (
+            <div className="flex items-center justify-center h-full text-slate-400">
+              Loading Preview...
+            </div>
+          )}
+        </div>
+
+        {/* Footer Controls */}
+        <div className="px-6 py-4 border-t border-gray-100 bg-white flex flex-col md:flex-row justify-between items-center gap-4">
+          <div className="text-sm text-slate-500 w-full md:w-auto text-center md:text-left">
+            Status: {job.invoicedAt ? (
+              <span className="text-green-600 font-medium flex items-center justify-center md:justify-start gap-1">
+                <CheckCircle size={14} /> Invoiced ({job.invoiceNumber})
+              </span>
+            ) : (
+              <span className="text-amber-600 font-medium">Draft (Not Sent)</span>
+            )}
+          </div>
+
+          <div className="flex gap-3 w-full md:w-auto">
+            {!job.invoicedAt && (
+              <button
+                onClick={() => onMarkInvoiced(job.id)}
+                className="flex-1 md:flex-none px-4 py-2 text-slate-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
+              >
+                <CheckCircle size={18} />
+                <span className="md:inline">Mark Invoiced</span>
+              </button>
+            )}
+
+            {/* DOWNLOAD BUTTON (Visible on BOTH Mobile & Desktop) */}
+            {isClientReady && (
+              <PDFDownloadLink
+                document={<InvoiceDocument job={job} client={client} />}
+                fileName={`Invoice_${client.name.replace(/\s+/g, '_')}.pdf`}
+                className="flex-1 md:flex-none px-6 py-2 bg-brand-600 text-white rounded-lg font-bold hover:bg-brand-700 flex items-center justify-center gap-2 transition-colors shadow-sm"
+              >
+                {({ loading }) => (
+                  <>
+                    <Download size={18} />
+                    {loading ? 'Preparing...' : 'Download PDF'}
+                  </>
+                )}
+              </PDFDownloadLink>
+            )}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+};
+
+export default InvoiceModal;
+
+```
+---
+
 ## FILE: src/components/jobs/JobCardMobile.jsx
 ```jsx
 import React from 'react';
-import { Calendar, Clock, DollarSign, MapPin, User, CheckCircle, Play, Loader, Edit } from 'lucide-react';
+import { Calendar, Clock, DollarSign, MapPin, User, CheckCircle, Play, Loader, Edit, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { useJobWorkflow } from '../../hooks/useJobWorkflow';
 
-const JobCardMobile = ({ job, getClientName, getClientAddress, getAssignedStaffName, userRole, onEdit }) => {
+const JobCardMobile = ({ job, getClientName, getClientAddress, getAssignedStaffName, userRole, onEdit, onInvoice }) => {
   const { startJob, completeJob, canStart, canComplete, loading } = useJobWorkflow(job, userRole);
 
   const assignedName = getAssignedStaffName(job.assignedTo);
@@ -605,7 +1124,7 @@ const JobCardMobile = ({ job, getClientName, getClientAddress, getAssignedStaffN
 
   return (
     <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 relative">
-      {/* Admin Edit Button (Top Right Absolute) */}
+      {/* Admin Edit Button */}
       {userRole === 'admin' && (
         <button 
           onClick={() => onEdit(job)}
@@ -664,6 +1183,17 @@ const JobCardMobile = ({ job, getClientName, getClientAddress, getAssignedStaffN
           </div>
         )}
       </div>
+
+      {/* ADMIN INVOICE BUTTON (Completed Jobs Only) */}
+      {userRole === 'admin' && job.status === 'completed' && (
+        <button
+          onClick={() => onInvoice(job)}
+          className="w-full mt-3 px-4 py-2 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-lg font-medium flex items-center justify-center gap-2 border border-purple-100 transition-colors"
+        >
+          <FileText size={18} />
+          {job.invoicedAt ? 'View Invoice' : 'Generate Invoice'}
+        </button>
+      )}
 
       {/* WORKFLOW BUTTONS */}
       {(canStart || canComplete) && (
@@ -922,7 +1452,7 @@ export default JobFormModal;
 import React from 'react';
 import JobCardMobile from './JobCardMobile';
 
-const JobListMobile = ({ jobs, clients, staff, userRole, onEdit }) => {
+const JobListMobile = ({ jobs, clients, staff, userRole, onEdit, onInvoice }) => {
   const getClientName = (id) => clients.find(c => c.id === id)?.name || 'Unknown Client';
   const getClientAddress = (id) => clients.find(c => c.id === id)?.address;
   
@@ -951,6 +1481,7 @@ const JobListMobile = ({ jobs, clients, staff, userRole, onEdit }) => {
           getAssignedStaffName={getAssignedStaffName}
           userRole={userRole}
           onEdit={onEdit}
+          onInvoice={onInvoice} // <--- ADDED THIS PROP
         />
       ))}
     </div>
@@ -965,11 +1496,11 @@ export default JobListMobile;
 ## FILE: src/components/jobs/JobRowDesktop.jsx
 ```jsx
 import React, { useState, useRef, useEffect } from 'react';
-import { MoreHorizontal, Calendar, Clock, MapPin, User, Edit, Trash2, Play, CheckCircle, XCircle } from 'lucide-react';
+import { MoreHorizontal, Calendar, Clock, MapPin, User, Edit, Trash2, Play, CheckCircle, XCircle, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { useJobWorkflow } from '../../hooks/useJobWorkflow';
 
-const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit, onDelete }) => {
+const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit, onDelete, onInvoice }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef(null);
   
@@ -1039,6 +1570,11 @@ const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit,
       </td>
       <td className="px-6 py-4">
         {getStatusBadge(job.status)}
+        {job.invoicedAt && userRole === 'admin' && (
+          <div className="mt-1 text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded inline-block">
+            Invoiced
+          </div>
+        )}
       </td>
       
       {/* ACTIONS */}
@@ -1082,6 +1618,17 @@ const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit,
             {/* ADMIN ACTIONS */}
             {userRole === 'admin' && (
               <>
+                {/* INVOICE ACTION */}
+                {job.status === 'completed' && (
+                  <button 
+                    onClick={() => { setIsMenuOpen(false); onInvoice(job); }}
+                    className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-purple-50 flex items-center gap-2 transition-colors border-t border-gray-50 font-medium"
+                  >
+                    <FileText size={16} className="text-purple-500" /> 
+                    {job.invoicedAt ? 'View Invoice' : 'Generate Invoice'}
+                  </button>
+                )}
+
                 <button 
                   onClick={() => { setIsMenuOpen(false); onEdit(job); }}
                   className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
@@ -1124,7 +1671,7 @@ export default JobRowDesktop;
 import React from 'react';
 import JobRowDesktop from './JobRowDesktop';
 
-const JobTableDesktop = ({ jobs, clients, staff, userRole, onEdit, onDelete }) => {
+const JobTableDesktop = ({ jobs, clients, staff, userRole, onEdit, onDelete, onInvoice }) => {
   const getClient = (id) => clients.find(c => c.id === id) || {};
   
   const getAssignedStaffName = (staffIds) => {
@@ -1164,6 +1711,7 @@ const JobTableDesktop = ({ jobs, clients, staff, userRole, onEdit, onDelete }) =
               userRole={userRole}
               onEdit={onEdit}
               onDelete={onDelete}
+              onInvoice={onInvoice}
             />
           ))}
         </tbody>
@@ -1901,6 +2449,146 @@ export const useClients = () => {
 ```
 ---
 
+## FILE: src/hooks/useDashboard.js
+```js
+import { useState, useEffect } from 'react';
+import { 
+  collection, query, where, onSnapshot, orderBy, doc, getDoc, limit 
+} from 'firebase/firestore';
+import { auth, db } from '../lib/firebase';
+import { format, subMonths, isSameMonth } from 'date-fns';
+
+export const useDashboard = () => {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [stats, setStats] = useState({
+    totalRevenue: 0,
+    jobsCompleted: 0,
+    avgTicket: 0,
+    revenueByMonth: [],
+    recentActivity: []
+  });
+  const [role, setRole] = useState(null);
+
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const init = async () => {
+      try {
+        // 1. Get Role & Org
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        if (!userDoc.exists()) throw new Error("User profile not found");
+        
+        const { orgId, role: userRole } = userDoc.data();
+        setRole(userRole);
+
+        if (!orgId) throw new Error("No Org ID");
+
+        // 2. Define Query based on Role
+        let q;
+        if (userRole === 'admin') {
+          // Admin: Get all jobs for calculation (Limit to 500 for MVP safety)
+          q = query(
+            collection(db, 'jobs'),
+            where('orgId', '==', orgId),
+            orderBy('scheduledDate', 'desc'),
+            limit(500)
+          );
+        } else {
+          // Staff: Only get their recent jobs
+          q = query(
+            collection(db, 'jobs'),
+            where('orgId', '==', orgId),
+            where('assignedTo', 'array-contains', user.uid),
+            orderBy('scheduledDate', 'desc'),
+            limit(10)
+          );
+        }
+
+        // 3. Real-time Listener
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+          const jobs = snapshot.docs.map(d => ({ 
+            id: d.id, 
+            ...d.data(),
+            scheduledDate: d.data().scheduledDate?.toDate(),
+            completedAt: d.data().completedAt?.toDate()
+          }));
+
+          if (userRole === 'admin') {
+            processAdminStats(jobs);
+          } else {
+            processStaffStats(jobs);
+          }
+          setLoading(false);
+        }, (err) => {
+          console.error(err);
+          setError("Failed to load dashboard data.");
+          setLoading(false);
+        });
+
+        return unsubscribe;
+
+      } catch (err) {
+        console.error(err);
+        setError(err.message);
+        setLoading(false);
+      }
+    };
+
+    const unsubPromise = init();
+    return () => { unsubPromise && unsubPromise.then(fn => fn && fn()); };
+  }, []);
+
+  // --- Aggregation Logic (Admin) ---
+  const processAdminStats = (jobs) => {
+    const completedJobs = jobs.filter(j => j.status === 'completed');
+    
+    // KPI: Totals
+    const totalRevenue = completedJobs.reduce((sum, job) => sum + (Number(job.price) || 0), 0);
+    const jobsCompleted = completedJobs.length;
+    const avgTicket = jobsCompleted > 0 ? totalRevenue / jobsCompleted : 0;
+
+    // Chart: Last 6 Months
+    const last6Months = Array.from({ length: 6 }).map((_, i) => {
+      const d = subMonths(new Date(), i); 
+      return {
+        date: d,
+        label: format(d, 'MMM'),
+        revenue: 0
+      };
+    }).reverse();
+
+    completedJobs.forEach(job => {
+      if (!job.completedAt) return;
+      const monthBucket = last6Months.find(m => isSameMonth(m.date, job.completedAt));
+      if (monthBucket) {
+        monthBucket.revenue += (Number(job.price) || 0);
+      }
+    });
+
+    setStats({
+      totalRevenue,
+      jobsCompleted,
+      avgTicket,
+      revenueByMonth: last6Months,
+      recentActivity: jobs.slice(0, 5) // Last 5 jobs regardless of status
+    });
+  };
+
+  // --- Aggregation Logic (Staff) ---
+  const processStaffStats = (jobs) => {
+    setStats({
+      recentActivity: jobs
+    });
+  };
+
+  return { stats, role, loading, error };
+};
+
+```
+---
+
 ## FILE: src/hooks/useJobWorkflow.js
 ```js
 import { useState } from 'react';
@@ -2027,7 +2715,6 @@ export const useJobs = () => {
 
     const fetchOrgAndSubscribe = async () => {
       try {
-        // 1. Fetch User Profile to get OrgId AND Role
         const userDocRef = doc(db, 'users', user.uid);
         const userDoc = await getDoc(userDocRef);
         
@@ -2049,13 +2736,12 @@ export const useJobs = () => {
           return;
         }
 
-        // 2. Construct Query based on Role
+        // Constraints
         let constraints = [
           where('orgId', '==', orgId),
           orderBy('scheduledDate', 'asc')
         ];
 
-        // RBAC: If staff, ONLY show jobs assigned to them
         if (role === 'staff') {
           constraints.push(where('assignedTo', 'array-contains', user.uid));
         }
@@ -2066,8 +2752,8 @@ export const useJobs = () => {
           const jobData = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data(),
-            // Convert Timestamp to JS Date for frontend
-            scheduledDate: doc.data().scheduledDate?.toDate()
+            scheduledDate: doc.data().scheduledDate?.toDate(),
+            invoicedAt: doc.data().invoicedAt?.toDate()
           }));
           setJobs(jobData);
           setLoading(false);
@@ -2089,8 +2775,8 @@ export const useJobs = () => {
   // --- MUTATIONS ---
 
   const addJob = async (jobData) => {
-    if (!currentOrgId) throw new Error("No Organization ID found.");
-    if (userRole !== 'admin') throw new Error("Unauthorized: Only Admins can create jobs.");
+    if (!currentOrgId) throw new Error("No Org ID.");
+    if (userRole !== 'admin') throw new Error("Unauthorized.");
 
     const timestampDate = new Date(jobData.scheduledDate);
     const assignedTo = jobData.assignedStaffId ? [jobData.assignedStaffId] : [];
@@ -2110,7 +2796,7 @@ export const useJobs = () => {
   };
 
   const updateJob = async (jobId, jobData) => {
-    if (userRole !== 'admin') throw new Error("Unauthorized: Only Admins can edit jobs.");
+    if (userRole !== 'admin') throw new Error("Unauthorized.");
 
     const timestampDate = new Date(jobData.scheduledDate);
     const assignedTo = jobData.assignedStaffId ? [jobData.assignedStaffId] : [];
@@ -2128,13 +2814,26 @@ export const useJobs = () => {
   };
 
   const deleteJob = async (jobId) => {
-    if (userRole !== 'admin') throw new Error("Unauthorized: Only Admins can delete jobs.");
-    
+    if (userRole !== 'admin') throw new Error("Unauthorized.");
     const jobRef = doc(db, 'jobs', jobId);
     await deleteDoc(jobRef);
   };
 
-  return { jobs, loading, error, addJob, updateJob, deleteJob, role: userRole };
+  const markAsInvoiced = async (jobId) => {
+    if (userRole !== 'admin') throw new Error("Unauthorized.");
+    
+    // Simple ID gen: Year + Random 4 digits (e.g. 2026-4821)
+    const invoiceNumber = `${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    
+    const jobRef = doc(db, 'jobs', jobId);
+    await updateDoc(jobRef, {
+      invoicedAt: serverTimestamp(),
+      invoiceNumber: invoiceNumber,
+      updatedAt: serverTimestamp()
+    });
+  };
+
+  return { jobs, loading, error, addJob, updateJob, deleteJob, markAsInvoiced, role: userRole };
 };
 
 ```
@@ -2479,6 +3178,44 @@ export default ClientsPage;
 ```
 ---
 
+## FILE: src/pages/DashboardPage.jsx
+```jsx
+import React from 'react';
+import { useDashboard } from '../hooks/useDashboard';
+import { useClients } from '../hooks/useClients';
+import AdminDashboard from '../components/dashboard/AdminDashboard';
+import StaffDashboard from '../components/dashboard/StaffDashboard';
+
+const DashboardPage = () => {
+  const { stats, role, loading: dashboardLoading, error } = useDashboard();
+  const { clients, loading: clientsLoading } = useClients();
+
+  if (dashboardLoading || clientsLoading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-4 bg-red-50 text-red-600 rounded-lg">
+        Error loading dashboard: {error}
+      </div>
+    );
+  }
+
+  return role === 'admin' 
+    ? <AdminDashboard stats={stats} /> 
+    : <StaffDashboard jobs={stats.recentActivity} clients={clients} />;
+};
+
+export default DashboardPage;
+
+```
+---
+
 ## FILE: src/pages/JobsPage.jsx
 ```jsx
 import React, { useState } from 'react';
@@ -2489,14 +3226,17 @@ import { useStaff } from '../hooks/useStaff';
 import JobListMobile from '../components/jobs/JobListMobile';
 import JobTableDesktop from '../components/jobs/JobTableDesktop';
 import JobFormModal from '../components/jobs/JobFormModal';
+import InvoiceModal from '../components/invoicing/InvoiceModal';
 
 const JobsPage = () => {
-  const { jobs, loading: jobsLoading, error: jobsError, addJob, updateJob, deleteJob, role: userRole } = useJobs();
+  const { jobs, loading: jobsLoading, error: jobsError, addJob, updateJob, deleteJob, markAsInvoiced, role: userRole } = useJobs();
   const { clients, loading: clientsLoading } = useClients(); 
   const { staff, loading: staffLoading } = useStaff();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingJob, setEditingJob] = useState(null);
+  const [editingJobId, setEditingJobId] = useState(null);
+  const [invoicingJobId, setInvoicingJobId] = useState(null);
+  
   const [searchTerm, setSearchTerm] = useState('');
 
   const loading = jobsLoading || clientsLoading || staffLoading;
@@ -2506,21 +3246,26 @@ const JobsPage = () => {
     return clientName.includes(searchTerm.toLowerCase());
   });
 
-  // --- Handlers ---
+  const editingJob = editingJobId ? jobs.find(j => j.id === editingJobId) : null;
+  const invoicingJob = invoicingJobId ? jobs.find(j => j.id === invoicingJobId) : null;
 
   const handleCreateOpen = () => {
-    setEditingJob(null);
+    setEditingJobId(null);
     setIsModalOpen(true);
   };
 
   const handleEditOpen = (job) => {
-    setEditingJob(job);
+    setEditingJobId(job.id);
     setIsModalOpen(true);
   };
 
+  const handleInvoiceOpen = (job) => {
+    setInvoicingJobId(job.id);
+  };
+
   const handleSave = async (formData) => {
-    if (editingJob) {
-      await updateJob(editingJob.id, formData);
+    if (editingJobId) {
+      await updateJob(editingJobId, formData);
     } else {
       await addJob(formData);
     }
@@ -2532,9 +3277,12 @@ const JobsPage = () => {
     }
   };
 
+  const handleMarkInvoiced = async (jobId) => {
+    await markAsInvoiced(jobId);
+  };
+
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Job Management</h1>
@@ -2552,7 +3300,6 @@ const JobsPage = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          {/* Only Admin can add jobs */}
           {userRole === 'admin' && (
             <button 
               onClick={handleCreateOpen}
@@ -2566,7 +3313,6 @@ const JobsPage = () => {
         </div>
       </div>
 
-      {/* Content */}
       {loading ? (
         <div className="flex justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div>
@@ -2582,7 +3328,8 @@ const JobsPage = () => {
             clients={clients} 
             staff={staff} 
             userRole={userRole} 
-            onEdit={handleEditOpen} 
+            onEdit={handleEditOpen}
+            onInvoice={handleInvoiceOpen} // <--- ADDED THIS PROP
           />
           <JobTableDesktop 
             jobs={filteredJobs} 
@@ -2591,6 +3338,7 @@ const JobsPage = () => {
             userRole={userRole} 
             onEdit={handleEditOpen}
             onDelete={handleDelete}
+            onInvoice={handleInvoiceOpen}
           />
         </>
       )}
@@ -2602,6 +3350,14 @@ const JobsPage = () => {
         clients={clients} 
         staff={staff}
         initialData={editingJob}
+      />
+
+      <InvoiceModal 
+        isOpen={!!invoicingJob}
+        onClose={() => setInvoicingJobId(null)}
+        job={invoicingJob}
+        client={invoicingJob ? clients.find(c => c.id === invoicingJob.clientId) : null}
+        onMarkInvoiced={handleMarkInvoiced}
       />
     </div>
   );
@@ -2846,20 +3602,23 @@ export default SettingsPage;
 - **jobs/{jobId}**: 
     - `assignedTo`: [userId]
     - `status`: 'scheduled' | 'in_progress' | 'completed' | 'cancelled'
-    - `startedAt`, `completedAt`: Timestamps
-- **clients/{clientId}**: 
-    - `coordinates`: { lat: number, lng: number }
+    - `invoiceNumber`: String (e.g. "2026-1023")
+    - `invoicedAt`: Timestamp
+    - `price`: Number
+- **clients/{clientId}**: { coordinates: { lat, lng }, ... }
 
 ## Rules for AI (STRICT)
 1. **NO PLACEHOLDERS:** Provide COMPLETE FILES only.
 2. **Icons:** Use `lucide-react`.
 3. **Tailwind:** Mobile-first (`block md:flex`).
 4. **Security & Data Access (CRITICAL):**
-   - **NEVER use `request.auth.token.orgId`.** Fetch `users/{uid}` from Firestore.
+   - **NEVER use `request.auth.token.orgId`.** Fetch `users/{uid}`.
    - All queries must filter by `.where("orgId", "==", currentOrgId)`.
-5. **Environment Variables:**
-   - ALWAYS use `import.meta.env.VITE_...` (Vite standard).
-   - NEVER use `process.env` in frontend code.
+   - All writes MUST include `orgId`.
+5. **PDF Generation Strategy:**
+   - **Desktop:** Use `@react-pdf/renderer` inside a `PDFViewer` (iframe).
+   - **Mobile:** Do **NOT** use iframes. Render a semantic HTML/Tailwind preview component (`InvoiceHTMLPreview`) and provide a `PDFDownloadLink`.
+   - **State:** Always use Live Data (IDs) for modals to prevent stale state bugs.
 
 ```
 ---
@@ -2903,25 +3662,28 @@ If creating a new environment (e.g., Staging), you MUST:
 ```md
 # 📌 Project Status: Fresh Nest
 
-**Current Phase:** Phase 4 - Invoicing & Revenue
+**Current Phase:** Phase 5 - Revenue & Reporting
 **Last Updated:** $(date +%Y-%m-%d)
+**Latest Version:** v0.5.1 (Mobile Invoicing Patch)
 
 ## ✅ Completed Features
 * **Core:** Project Setup, Auth, Multi-Tenancy.
-* **Clients:** CRUD, Filtering, Geocoding (Auto-Coordinates).
-* **Jobs:** Scheduling, CRUD, Workflow (Start/Complete/Cancel).
-* **Maps:** Interactive Schedule Map (Google Maps API).
-* **DevOps:** 3-Environment CI/CD, Firestore Indexes, Maps API Integration.
+* **Clients:** CRUD, Filtering, Geocoding.
+* **Jobs:** Scheduling, CRUD, Workflow, Maps.
+* **Invoicing:** * PDF Generation (@react-pdf/renderer).
+    * Invoice Status Tracking.
+    * **Mobile Parity:** HTML Preview for mobile devices (iframe workaround).
+* **DevOps:** 3-Environment CI/CD, Firestore Indexes.
 
 ## 🚧 In Progress / Next Up
-* [ ] **Invoicing:** Generate PDF invoices for completed jobs.
-* [ ] **Revenue Reporting:** Basic dashboard for earnings.
+* [ ] **Revenue Dashboard:** Visual charts for Earnings (Daily/Monthly).
+* [ ] **Data Export:** CSV export for accounting.
 
 ## 🗄️ Database Schema
 * `organizations/{orgId}`
 * `users/{userId}`: { role: 'admin'|'staff', orgId, ... }
-* `jobs/{jobId}`: { status: 'scheduled'|'completed', price, startedAt, completedAt ... }
-* `clients/{clientId}`: { name, address, coordinates: { lat, lng }, ... }
+* `jobs/{jobId}`: { invoiceNumber, invoicedAt, price, status, ... }
+* `clients/{clientId}`: { name, address, coordinates, ... }
 
 ```
 ---
@@ -3160,76 +3922,101 @@ Before writing any code, please propose **3 Distinct Approaches** to implementin
 ```sh
 #!/bin/bash
 
-echo "🏁 Finalizing Documentation for Phase 2..."
+# ====================================================
+# FRESH NEST: FEATURE CLOSE-OUT
+# Feature: Invoicing & PDF Generation
+# ====================================================
+
+echo "🏁 Initiating Close-Out for: Invoicing..."
 
 # 1. Update Project Status
 echo "📝 Updating docs/PROJECT_STATUS.md..."
 cat << 'INNER_EOF' > docs/PROJECT_STATUS.md
 # 📌 Project Status: Fresh Nest
 
-**Current Phase:** Phase 3 - Advanced Features & Geolocation
+**Current Phase:** Phase 4 - Revenue & Reporting
 **Last Updated:** $(date +%Y-%m-%d)
 
 ## ✅ Completed Features
-* **Core:** Project Setup, Auth, Multi-Tenancy (Profile-based).
-* **Clients:** CRUD, Filtering, Mobile/Desktop Views.
-* **Jobs:** Scheduling, Relational Data, Assignment.
-* **Worker View:** RBAC, Role-Aware Hooks, UI Restrictions.
-* **Job Workflow:** Status Transitions (Start/Complete/Cancel).
-* **Job CRUD:** Admin Edit & Delete functionality with unified modals.
+* **Core:** Project Setup, Auth, Multi-Tenancy.
+* **Clients:** CRUD, Filtering, Geocoding.
+* **Jobs:** Scheduling, CRUD, Workflow, Maps.
+* **Invoicing:** PDF Generation, Status Tracking (Invoiced/Draft).
 * **DevOps:** 3-Environment CI/CD, Firestore Indexes.
 
 ## 🚧 In Progress / Next Up
-* [ ] **Google Maps Integration:** Visualizing daily routes on a map.
-* [ ] **Geocoding:** Converting client addresses to Coordinates (Lat/Lng).
+* [ ] **Revenue Dashboard:** Visual charts for Earnings (Daily/Monthly).
+* [ ] **Data Export:** CSV export for accounting.
 
 ## 🗄️ Database Schema
 * `organizations/{orgId}`
-* `users/{userId}`: { role: 'admin'|'staff', orgId, fullName, ... }
-* `jobs/{jobId}`: { assignedTo: [userId], status, startedAt, completedAt, updatedAt, ... }
-* `clients/{clientId}`: { name, address, orgId, ... }
+* `users/{userId}`: { role: 'admin'|'staff', orgId, ... }
+* `jobs/{jobId}`: 
+    - `status`: 'scheduled'|'in_progress'|'completed'|'cancelled'
+    - `invoiceNumber`: String
+    - `invoicedAt`: Timestamp
+    - `price`: Number
+* `clients/{clientId}`: { name, address, coordinates, ... }
 INNER_EOF
 
-# 2. Update Context Dump
+# 2. Update Context Dump (Schema Update)
 echo "📝 Updating docs/CONTEXT_DUMP.md..."
 cat << 'INNER_EOF' > docs/CONTEXT_DUMP.md
 # Fresh Nest: Context Dump
-**Stack:** React + Vite + Firebase (Auth, Firestore) + Tailwind CSS
+**Stack:** React + Vite + Firebase + Tailwind CSS
 **Architecture:** Multi-Tenant SaaS.
-**Current State:**
-- Auth is implemented (Login/Signup).
-- **CRITICAL:** `orgId` is stored in the **Firestore User Profile** (`users/{uid}`).
 
 ## Schema (Implemented)
 - **organizations/{orgId}**: { name, settings }
 - **users/{userId}**: { email, orgId, role, fullName }
-- **invites/{inviteId}**: { email, orgId, role }
 - **jobs/{jobId}**: 
     - `assignedTo`: [userId]
     - `status`: 'scheduled' | 'in_progress' | 'completed' | 'cancelled'
-    - `startedAt`, `completedAt`, `updatedAt`: Timestamps
+    - `invoiceNumber`: String (e.g. "2026-1023")
+    - `invoicedAt`: Timestamp
     - `price`: Number
-- **clients/{clientId}**: { name, address, orgId, email, phone }
+- **clients/{clientId}**: { coordinates: { lat, lng }, ... }
 
 ## Rules for AI (STRICT)
 1. **NO PLACEHOLDERS:** Provide COMPLETE FILES only.
 2. **Icons:** Use `lucide-react`.
 3. **Tailwind:** Mobile-first (`block md:flex`).
 4. **Security & Data Access (CRITICAL):**
-   - **NEVER use `request.auth.token.orgId` (Custom Claims) in React Code.** It is stale.
-   - **ALWAYS** fetch `users/{uid}` from Firestore to get the current `orgId`.
-   - All Firestore queries MUST filter by `.where("orgId", "==", currentOrgId)`.
+   - **NEVER use `request.auth.token.orgId`.** Fetch `users/{uid}`.
+   - All queries must filter by `.where("orgId", "==", currentOrgId)`.
    - All writes MUST include `orgId`.
-5. **Date Handling:** Use `date-fns`.
+5. **State Management:**
+   - Prefer deriving state from lists (e.g. `jobs.find(id)`) over storing object snapshots to prevent stale data.
 INNER_EOF
 
-# 3. Commit
-echo "🌿 Committing Docs Update..."
-git add docs/
-git commit -m "docs: finalize phase 2 and update status"
-git push origin main
+# 3. Commit Final Changes
+echo "🌿 Committing Documentation..."
+git add .
+git commit -m "feat: complete invoicing module and update docs"
 
-echo "🎉 Phase 2 Complete!"
+# 4. Cut Release (Triggers UAT)
+VERSION="v0.5.0-invoicing-$(date +%s)"
+echo "🚀 Cutting Release Branch: release/$VERSION"
+
+git checkout -b "release/$VERSION"
+git push origin "release/$VERSION"
+
+echo "✅ Release Pushed to GitHub!"
+echo "👉 Action: 'Deploy to UAT' should be running now."
+
+# 5. Merge to Dev & Cleanup
+echo "🔄 Syncing Dev Branch..."
+git checkout dev
+git pull origin dev
+git merge "feature/invoicing"
+git push origin dev
+
+# 6. Delete Local Feature Branch
+echo "🗑️  Deleting local feature branch..."
+git branch -d feature/invoicing
+
+echo "🎉 SUCCESS! Feature Closed."
+echo "   - UAT is deploying (release/$VERSION)"
 
 ```
 ---
@@ -3491,386 +4278,323 @@ echo "🎉 Phase 3 Maps & Geocoding Officially Closed!"
 ```
 ---
 
-## FILE: scripts/fix_settings.sh
+## FILE: scripts/finalize_phase5_docs.sh
 ```sh
 #!/bin/bash
 
-echo "🔧 Fixing Settings Page Redirect..."
+# ====================================================
+# FRESH NEST: DOCUMENTATION SYNCHRONIZATION
+# Goal: Update all docs to reflect Phase 5 Completion
+# ====================================================
 
-# 1. Create the Settings Page Component
-# This restores the UI to view Staff and send Invites
-echo "📝 Creating src/pages/SettingsPage.jsx..."
-cat << 'EOF' > src/pages/SettingsPage.jsx
-import React, { useState } from 'react';
-import { Mail, User, Shield, Plus, Loader } from 'lucide-react';
-import { useStaff } from '../hooks/useStaff';
-import { auth, db } from '../lib/firebase';
-import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
+echo "📚 Synchronizing Documentation Suite..."
 
-const SettingsPage = () => {
-  const { staff, loading: staffLoading } = useStaff();
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState('staff');
-  const [inviteLoading, setInviteLoading] = useState(false);
+# 1. Create Root README.md (The Front Door)
+echo "📝 Creating README.md..."
+cat << 'INNER_EOF' > README.md
+# 🧹 Fresh Nest
 
-  const handleInvite = async (e) => {
-    e.preventDefault();
-    setInviteLoading(true);
-    try {
-      const user = auth.currentUser;
-      // Get Org ID
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      const orgId = userDoc.data().orgId;
+**Fresh Nest** is a Lean SaaS Field Service Management (FSM) platform built for cleaning businesses.
+It features Multi-Tenancy, Role-Based Access Control, Geolocation, and Financial Analytics.
 
-      // Create Invite Doc
-      await addDoc(collection(db, 'invites'), {
-        email: inviteEmail,
-        role: inviteRole,
-        orgId,
-        status: 'pending',
-        invitedBy: user.uid,
-        createdAt: serverTimestamp()
-      });
+## 🚀 Quick Start
 
-      alert(`Invite sent to ${inviteEmail}`);
-      setInviteEmail('');
-    } catch (error) {
-      console.error(error);
-      alert("Failed to send invite.");
-    } finally {
-      setInviteLoading(false);
-    }
-  };
+1. **Install Dependencies:**
+   \`npm install\`
+
+2. **Environment Setup:**
+   Ensure you have \`.env.development\` with valid Firebase & Google Maps Keys.
+
+3. **Run Local Dev:**
+   \`npm run dev\`
+
+## 📂 Documentation Index
+
+* **[Project Status](./docs/PROJECT_STATUS.md):** Current phase and roadmap.
+* **[DevOps Manual](./docs/DEVOPS_MANUAL.md):** CI/CD, Secrets, and Infrastructure.
+* **[Context Dump](./docs/CONTEXT_DUMP.md):** High-level architecture rules for AI.
+* **[RBAC Matrix](./docs/RBAC_MATRIX.md):** Security permissions reference.
+* **[Schema Reference](./docs/SCHEMA_REFERENCE.md):** Firestore data model & Business Logic.
+
+## 🏗️ Architecture
+* **Frontend:** React + Vite + Tailwind CSS
+* **Backend:** Firebase (Auth, Firestore, Functions)
+* **Maps:** Google Maps Javascript API
+* **Invoicing:** @react-pdf/renderer (Client-side)
+* **Analytics:** Recharts (Client-side aggregation)
+INNER_EOF
+
+# 2. Update Project Status
+echo "📝 Updating docs/PROJECT_STATUS.md..."
+cat << 'INNER_EOF' > docs/PROJECT_STATUS.md
+# 📌 Project Status: Fresh Nest
+
+**Current Phase:** Phase 6 - Data Export & Polish
+**Last Updated:** $(date +%Y-%m-%d)
+**Latest Version:** v0.6.0 (Revenue Dashboard)
+
+## ✅ Completed Features
+* **Core:** Project Setup, Auth, Multi-Tenancy.
+* **Clients:** CRUD, Filtering, Geocoding.
+* **Jobs:** Scheduling, CRUD, Workflow, Maps.
+* **Invoicing:** PDF Generation, Mobile Parity.
+* **Dashboard:** Admin KPIs, Revenue Charts, Staff Restrictions.
+* **DevOps:** 3-Environment CI/CD, Firestore Indexes.
+
+## 🚧 In Progress / Next Up
+* [ ] **Data Export:** CSV export for accounting (Quickbooks/Xero support).
+* [ ] **Final Polish:** UX consistency check.
+INNER_EOF
+
+# 3. Update RBAC Matrix (Add Dashboard Rules)
+echo "📝 Updating docs/RBAC_MATRIX.md..."
+cat << 'INNER_EOF' > docs/RBAC_MATRIX.md
+# 🛡️ Role-Based Access Control (RBAC) Matrix
+
+**Roles:** `admin` (Owner), `staff` (Worker)
+**Enforcement:** 1. **Frontend:** UI Hiding via `useJobWorkflow` / `userRole`.
+2. **Backend:** Firestore Security Rules (checks `resource.data.orgId`).
+
+| Feature | Action | Admin | Staff | Notes |
+| :--- | :--- | :---: | :---: | :--- |
+| **Dashboard** | View KPIs | ✅ | ❌ | Revenue, Avg Ticket, Total Jobs. |
+| | View Charts | ✅ | ❌ | Monthly Revenue Trends. |
+| | View "My Jobs"| ✅ | ✅ | Staff see their assigned list. |
+| **Clients** | View List | ✅ | ✅ | Staff see all clients in Org. |
+| | Create/Edit | ✅ | ❌ | |
+| **Jobs** | View List | ✅ | ⚠️ | Staff only see *assigned* jobs. |
+| | Create Job | ✅ | ❌ | |
+| | Edit Details | ✅ | ❌ | Price, Notes, Service Type. |
+| | Start Job | ✅ | ✅ | Only if assigned (Staff). |
+| | Complete Job | ✅ | ✅ | Only if assigned (Staff). |
+| | Cancel Job | ✅ | ❌ | |
+| | Delete Job | ✅ | ❌ | |
+| **Invoicing** | Generate | ✅ | ❌ | |
+| **Settings** | Invite User | ✅ | ❌ | |
+| **Financials**| See Prices | ✅ | ❌ | Hidden in UI for Staff. |
+INNER_EOF
+
+# 4. Update Schema Reference (Add Business Logic)
+echo "📝 Updating docs/SCHEMA_REFERENCE.md..."
+cat << 'INNER_EOF' > docs/SCHEMA_REFERENCE.md
+# 🗄️ Firestore Schema & Business Logic
+
+## 🧠 Business Logic & Calculations
+
+### 1. Revenue Calculation
+* **Definition:** Sum of `price` for all jobs where `status === 'completed'`.
+* **Constraint:** Jobs that are 'scheduled' or 'in_progress' do NOT count towards revenue.
+* **Aggregation:** Performed Client-Side in `useDashboard.js`.
+
+### 2. Job Completion
+* **Trigger:** User clicks "Complete Job".
+* **Update:** Sets `status: 'completed'` AND `completedAt: serverTimestamp()`.
+* **Note:** `completedAt` is used for Monthly Grouping in charts.
+
+---
+
+## 📂 Collection Reference
+
+### `organizations/{orgId}`
+* **name** (string): Display name.
+* **settings** (map): `{ currency, geoFenceRadius }`.
+* **plan** (string): Subscription tier.
+
+### `users/{userId}`
+* **email** (string)
+* **fullName** (string)
+* **orgId** (string): **CRITICAL**. Links user to tenant.
+* **role** (string): `'admin'` | `'staff'`.
+
+### `clients/{clientId}`
+* **orgId** (string)
+* **name** (string)
+* **email** (string)
+* **phone** (string)
+* **address** (string): Text address.
+* **coordinates** (map): `{ lat: number, lng: number }`. Used for Maps.
+
+### `jobs/{jobId}`
+* **orgId** (string)
+* **clientId** (string): Ref to `clients`.
+* **assignedTo** (array): List of `userId` strings.
+* **status** (string): `'scheduled'` | `'in_progress'` | `'completed'` | `'cancelled'`.
+* **serviceType** (string): `'standard'` | `'deep'` | etc.
+* **price** (number): Estimated cost.
+* **scheduledDate** (timestamp): When the job is.
+* **startedAt** (timestamp): When status changed to in_progress.
+* **completedAt** (timestamp): Used for Revenue Reports.
+* **invoiceNumber** (string): Generated ID (e.g., "2026-4821").
+* **invoicedAt** (timestamp): When PDF was generated.
+INNER_EOF
+
+# 5. Update Changelog
+echo "📝 Updating docs/CHANGELOG.md..."
+cat << 'INNER_EOF' > docs/CHANGELOG.md
+# 📜 Changelog
+
+## [v0.6.0] - 2026-01-14
+### Added
+* **Revenue Dashboard:** Admin view with Total Revenue, Jobs Completed, and Avg Ticket KPIs.
+* **Visualizations:** Monthly Revenue Bar Chart using `recharts` with horizontal scrolling for mobile.
+* **Staff Dashboard:** Restricted view showing only assigned upcoming jobs.
+* **Security:** Implemented Client-Side role checks to prevent data leaks.
+
+## [v0.5.1] - 2026-01-12
+### Fixed
+* **Mobile Invoicing:** Added responsive HTML preview for mobile devices to bypass PDF iframe limitations.
+* **UI:** Added "Generate Invoice" button to Mobile Job Card.
+
+## [v0.5.0] - 2026-01-12
+### Added
+* **Invoicing Module:** Client-side PDF generation using `@react-pdf/renderer`.
+* **Tracking:** `invoicedAt` and `invoiceNumber` fields added to Job Schema.
+INNER_EOF
+
+# 6. Commit Updates
+echo "🌿 Committing Documentation Suite..."
+git add README.md docs/
+git commit -m "docs: finalize phase 5 revenue dashboard documentation"
+git push origin main
+
+echo "✅ Documentation Suite Updated."
+
+```
+---
+
+## FILE: scripts/fix_mobile_pdf.sh
+```sh
+#!/bin/bash
+
+echo "🔧 Applying Hotfix: Mobile PDF Rendering..."
+
+echo "📝 Updating src/components/invoicing/InvoiceModal.jsx..."
+cat << 'INNER_EOF' > src/components/invoicing/InvoiceModal.jsx
+import React, { useEffect, useState } from 'react';
+import { X, CheckCircle, Download, FileText, ExternalLink } from 'lucide-react';
+import { PDFViewer, PDFDownloadLink } from '@react-pdf/renderer';
+import InvoiceDocument from './InvoiceDocument';
+
+const InvoiceModal = ({ isOpen, onClose, job, client, onMarkInvoiced }) => {
+  const [isClientReady, setIsClientReady] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Check if mobile (simple width check)
+  useEffect(() => {
+    setIsClientReady(true);
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  if (!isOpen || !job || !client) return null;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
-        <p className="text-slate-500 text-sm">Manage your team and organization</p>
-      </div>
-
-      {/* Staff List Card */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl h-[90vh] flex flex-col overflow-hidden">
+        
+        {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-          <h3 className="font-bold text-slate-800 flex items-center gap-2">
-            <User size={20} className="text-brand-500" />
-            Team Members
-          </h3>
-        </div>
-        
-        <div className="divide-y divide-gray-100">
-          {staffLoading ? (
-            <div className="p-6 text-center text-slate-400">Loading staff...</div>
-          ) : staff.map((member) => (
-            <div key={member.id} className="p-4 flex items-center justify-between hover:bg-gray-50">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-brand-100 rounded-full flex items-center justify-center text-brand-600 font-bold">
-                  {member.email[0].toUpperCase()}
-                </div>
-                <div>
-                  <p className="font-medium text-slate-900">{member.fullName || 'Unnamed User'}</p>
-                  <p className="text-xs text-slate-500">{member.email}</p>
-                </div>
-              </div>
-              <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${
-                member.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
-              }`}>
-                {member.role}
-              </span>
+          <div className="flex items-center gap-3">
+            <div className="bg-brand-100 p-2 rounded-lg text-brand-600">
+              <FileText size={20} />
             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Invite Form Card */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
-          <h3 className="font-bold text-slate-800 flex items-center gap-2">
-            <Mail size={20} className="text-brand-500" />
-            Invite New Member
-          </h3>
-        </div>
-        <form onSubmit={handleInvite} className="p-6 flex flex-col md:flex-row gap-4 items-end">
-          <div className="flex-1 w-full">
-            <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
-            <input 
-              type="email" 
-              required
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
-              placeholder="colleague@freshnest.com"
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
-            />
+            <div>
+              <h3 className="font-bold text-lg text-slate-800">Invoice Preview</h3>
+              <p className="text-xs text-slate-500">Client: {client.name}</p>
+            </div>
           </div>
-          <div className="w-full md:w-48">
-            <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
-            <select 
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none bg-white"
-              value={inviteRole}
-              onChange={(e) => setInviteRole(e.target.value)}
-            >
-              <option value="staff">Staff</option>
-              <option value="admin">Admin</option>
-            </select>
-          </div>
-          <button 
-            type="submit" 
-            disabled={inviteLoading}
-            className="w-full md:w-auto px-6 py-2 bg-brand-600 text-white rounded-lg font-medium hover:bg-brand-700 disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            {inviteLoading ? <Loader className="animate-spin" size={18} /> : <Plus size={18} />}
-            Send Invite
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X size={24} />
           </button>
-        </form>
-      </div>
-    </div>
-  );
-};
+        </div>
 
-export default SettingsPage;
-EOF
+        {/* CONTENT AREA */}
+        <div className="flex-1 bg-gray-100 p-4 flex flex-col items-center justify-center">
+          {isClientReady ? (
+            isMobile ? (
+              // --- MOBILE VIEW (No Iframe) ---
+              <div className="text-center space-y-4 p-6 bg-white rounded-xl shadow-sm max-w-sm">
+                <div className="w-16 h-16 bg-brand-50 text-brand-500 rounded-full flex items-center justify-center mx-auto mb-2">
+                  <FileText size={32} />
+                </div>
+                <h4 className="font-bold text-slate-800">PDF Ready</h4>
+                <p className="text-sm text-slate-500">
+                  Mobile browsers cannot embed PDF previews. Please download the file to view it.
+                </p>
+                <PDFDownloadLink
+                  document={<InvoiceDocument job={job} client={client} />}
+                  fileName={`Invoice_${client.name.replace(/\s+/g, '_')}.pdf`}
+                  className="block w-full py-3 bg-brand-600 text-white rounded-lg font-bold hover:bg-brand-700 transition-colors"
+                >
+                  {({ loading }) => (loading ? 'Preparing...' : 'Download / Open PDF')}
+                </PDFDownloadLink>
+              </div>
+            ) : (
+              // --- DESKTOP VIEW (Embed) ---
+              <PDFViewer width="100%" height="100%" className="rounded-lg border border-gray-200 shadow-inner">
+                <InvoiceDocument job={job} client={client} />
+              </PDFViewer>
+            )
+          ) : (
+            <div className="flex items-center justify-center h-full text-slate-400">
+              Loading PDF Engine...
+            </div>
+          )}
+        </div>
 
-# 2. Register Route in App.jsx
-echo "📝 Updating src/App.jsx to include Settings route..."
-cat << 'EOF' > src/App.jsx
-import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import AppLayout from './components/layout/AppLayout';
-import AuthGuard from './components/layout/AuthGuard';
-import LoginPage from './features/auth/LoginPage';
-import ClientsPage from './pages/ClientsPage';
-import JobsPage from './pages/JobsPage';
-import SchedulePage from './pages/SchedulePage';
-import SettingsPage from './pages/SettingsPage'; // ✨ Imported
-import DebugClaims from './components/debug/DebugClaims';
+        {/* Footer Controls */}
+        <div className="px-6 py-4 border-t border-gray-100 bg-white flex flex-col md:flex-row justify-between items-center gap-4">
+          <div className="text-sm text-slate-500 w-full md:w-auto text-center md:text-left">
+            Status: {job.invoicedAt ? (
+              <span className="text-green-600 font-medium flex items-center justify-center md:justify-start gap-1">
+                <CheckCircle size={14} /> Invoiced ({job.invoiceNumber})
+              </span>
+            ) : (
+              <span className="text-amber-600 font-medium">Draft (Not Sent)</span>
+            )}
+          </div>
 
-// Placeholder Pages
-const Dashboard = () => (
-  <div>
-    <h2 className="text-2xl font-bold mb-4">Dashboard</h2>
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-        <h3 className="text-gray-500 text-sm font-medium">Jobs Today</h3>
-        <p className="text-2xl font-bold text-slate-800">0</p>
-      </div>
-    </div>
-    <DebugClaims />
-  </div>
-);
+          <div className="flex gap-3 w-full md:w-auto">
+            {/* Mark as Invoiced Button */}
+            {!job.invoicedAt && (
+              <button
+                onClick={() => onMarkInvoiced(job.id)}
+                className="flex-1 md:flex-none px-4 py-2 text-slate-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
+              >
+                <CheckCircle size={18} />
+                <span className="md:inline">Mark Invoiced</span>
+              </button>
+            )}
 
-function App() {
-  return (
-    <BrowserRouter>
-      <Routes>
-        {/* Public Route */}
-        <Route path="/login" element={<LoginPage />} />
-
-        {/* Protected Routes */}
-        <Route path="/" element={
-          <AuthGuard>
-            <AppLayout />
-          </AuthGuard>
-        }>
-          <Route index element={<Dashboard />} />
-          <Route path="jobs" element={<JobsPage />} />
-          <Route path="schedule" element={<SchedulePage />} />
-          <Route path="clients" element={<ClientsPage />} />
-          <Route path="settings" element={<SettingsPage />} /> {/* ✨ Added Route */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
-  );
-}
-
-export default App;
-EOF
-
-echo "✅ Settings Page restored and route registered."
-```
----
-
-## FILE: scripts/fix_staff_org.cjs
-```cjs
-const admin = require('firebase-admin');
-const serviceAccount = require('./service-account.json'); // Uses DEV key
-
-const ADMIN_EMAIL = "rpdouglas@gmail.com";
-const STAFF_EMAIL = "staff@freshnest.com";
-
-if (!admin.apps.length) {
-  admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
-}
-const db = admin.firestore();
-const auth = admin.auth();
-
-async function fixOrg() {
-  try {
-    console.log(`🔧 Fixing Org Mismatch...`);
-
-    // 1. Get Admin's Org ID (The Source of Truth)
-    const adminAuth = await auth.getUserByEmail(ADMIN_EMAIL);
-    const adminDoc = await db.collection('users').doc(adminAuth.uid).get();
-    
-    if (!adminDoc.exists) {
-      console.error("❌ Admin profile not found. Cannot proceed.");
-      return;
-    }
-
-    const correctOrgId = adminDoc.data().orgId;
-    console.log(`✅ Admin Org ID: ${correctOrgId}`);
-
-    // 2. Get Staff User
-    const staffAuth = await auth.getUserByEmail(STAFF_EMAIL);
-    const staffRef = db.collection('users').doc(staffAuth.uid);
-
-    // 3. Force Update Staff
-    await staffRef.set({
-      orgId: correctOrgId
-    }, { merge: true }); // 'merge: true' keeps other fields like email/role intact
-
-    console.log(`✅ SUCCESS! Moved ${STAFF_EMAIL} into Org: ${correctOrgId}`);
-    console.log("👉 Refresh your browser. You should see them in Settings now.");
-
-  } catch (error) {
-    console.error("❌ Error:", error.message);
-  }
-}
-
-fixOrg();
-
-```
----
-
-## FILE: scripts/fix_syntax.sh
-```sh
-#!/bin/bash
-
-echo "🔧 Repairing Syntax Errors in Maps Feature..."
-
-# 1. Fix src/lib/maps.js
-# Removing extra backslashes from template literals
-echo "📝 Repairing src/lib/maps.js..."
-cat << 'INNER_JS' > src/lib/maps.js
-// Utility to handle Google Maps Geocoding
-const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-
-export const geocodeAddress = async (address) => {
-  if (!address || !API_KEY) return null;
-
-  try {
-    // CORRECTED: No backslash before the backtick or ${
-    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${API_KEY}`;
-    const response = await fetch(url);
-    const data = await response.json();
-
-    if (data.status === 'OK' && data.results.length > 0) {
-      const location = data.results[0].geometry.location;
-      return {
-        lat: location.lat,
-        lng: location.lng
-      };
-    } else {
-      console.warn("Geocoding failed:", data.status);
-      return null;
-    }
-  } catch (error) {
-    console.error("Geocoding error:", error);
-    return null;
-  }
-};
-INNER_JS
-
-# 2. Fix src/pages/SchedulePage.jsx
-# Removing extra backslashes from className template literals
-echo "📝 Repairing src/pages/SchedulePage.jsx..."
-cat << 'INNER_JSX' > src/pages/SchedulePage.jsx
-import React, { useState } from 'react';
-import { startOfWeek, endOfWeek, isSameDay } from 'date-fns';
-import { Map, List } from 'lucide-react';
-import { useSchedule } from '../hooks/useSchedule';
-import { useClients } from '../hooks/useClients';
-import DateStrip from '../components/schedule/DateStrip';
-import DailyAgenda from '../components/schedule/DailyAgenda';
-import MapComponent from '../components/map/MapComponent';
-
-const SchedulePage = () => {
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [viewMode, setViewMode] = useState('list'); // 'list' | 'map'
-
-  const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 }); 
-  const weekEnd = endOfWeek(selectedDate, { weekStartsOn: 1 });      
-
-  const { jobs, loading: scheduleLoading, error, role: userRole } = useSchedule(weekStart, weekEnd);
-  const { clients, loading: clientsLoading } = useClients();
-
-  const todaysJobs = jobs.filter(job => 
-    job.scheduledDate && isSameDay(job.scheduledDate, selectedDate)
-  );
-
-  return (
-    <div className="bg-gray-50 min-h-full pb-20">
-      <div className="sticky top-0 z-10 bg-white border-b border-gray-200">
-        <DateStrip 
-          selectedDate={selectedDate} 
-          onSelectDate={setSelectedDate} 
-        />
-        
-        {/* View Toggle Bar */}
-        <div className="flex justify-center p-2 bg-gray-50 border-b border-gray-200">
-          <div className="bg-white p-1 rounded-lg border border-gray-200 flex shadow-sm">
-            <button
-              onClick={() => setViewMode('list')}
-              // CORRECTED: No backslashes here
-              className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                viewMode === 'list' ? 'bg-brand-50 text-brand-700' : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              <List size={16} /> List
-            </button>
-            <button
-              onClick={() => setViewMode('map')}
-              // CORRECTED: No backslashes here
-              className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                viewMode === 'map' ? 'bg-brand-50 text-brand-700' : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              <Map size={16} /> Map
-            </button>
+            {/* Desktop Download Button (Hidden on Mobile since we have the big button above) */}
+            {!isMobile && isClientReady && (
+              <PDFDownloadLink
+                document={<InvoiceDocument job={job} client={client} />}
+                fileName={`Invoice_${client.name.replace(/\s+/g, '_')}.pdf`}
+                className="px-6 py-2 bg-brand-600 text-white rounded-lg font-bold hover:bg-brand-700 flex items-center gap-2 transition-colors shadow-sm"
+              >
+                {({ loading }) => (
+                  <>
+                    <Download size={18} />
+                    {loading ? 'Preparing...' : 'Download'}
+                  </>
+                )}
+              </PDFDownloadLink>
+            )}
           </div>
         </div>
+
       </div>
-
-      <main className="p-4 max-w-3xl mx-auto">
-        {error && (
-          <div className="p-4 mb-4 bg-red-50 text-red-600 rounded-lg text-sm text-center">
-            {error}
-          </div>
-        )}
-
-        {viewMode === 'list' ? (
-          <DailyAgenda 
-            jobs={todaysJobs} 
-            clients={clients} 
-            loading={scheduleLoading || clientsLoading} 
-            selectedDate={selectedDate}
-            userRole={userRole} 
-          />
-        ) : (
-          <MapComponent 
-            jobs={todaysJobs}
-            clients={clients}
-          />
-        )}
-      </main>
     </div>
   );
 };
 
-export default SchedulePage;
-INNER_JSX
+export default InvoiceModal;
+INNER_EOF
 
-echo "✅ Syntax Repairs Complete."
+echo "✅ Hotfix Applied: Responsive PDF Modal."
 
 ```
 ---
@@ -4131,393 +4855,990 @@ bootstrap();
 #!/bin/bash
 
 # ====================================================
-# FRESH NEST: GOOGLE MAPS INSTALLER
-# Feature: Geocoding & Map Visualization
-# Approach: Frontend Geocoding + Google Maps JS API
+# FRESH NEST: INVOICING INSTALLER
+# Feature: PDF Generation & Tracking
+# Approach: Client-Side Renderer (@react-pdf/renderer)
 # ====================================================
 
-echo "🚀 Installing Google Maps & Geocoding Features..."
+echo "🚀 Installing Invoicing Feature..."
 
 # 0. Install Dependencies
-# We use the official react wrapper for Google Maps
-echo "📦 Installing @react-google-maps/api..."
-npm install @react-google-maps/api
+echo "📦 Installing @react-pdf/renderer..."
+npm install @react-pdf/renderer
 
-# 1. Create Maps Utility Library
-# Handles the direct API calls to Google
-echo "📝 Creating src/lib/maps.js..."
-mkdir -p src/lib
-cat << 'INNER_EOF' > src/lib/maps.js
-// Utility to handle Google Maps Geocoding
-const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+# 1. Update useJobs Hook (Add Invoicing Logic)
+# We add a function to "seal" the invoice in the database
+echo "📝 Updating src/hooks/useJobs.js..."
+cat << 'INNER_EOF' > src/hooks/useJobs.js
+import { useState, useEffect } from 'react';
+import { 
+  collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, 
+  serverTimestamp, orderBy, Timestamp, doc, getDoc 
+} from 'firebase/firestore';
+import { auth, db } from '../lib/firebase';
 
-export const geocodeAddress = async (address) => {
-  if (!address || !API_KEY) return null;
+export const useJobs = () => {
+  const [jobs, setJobs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [currentOrgId, setCurrentOrgId] = useState(null);
+  const [userRole, setUserRole] = useState(null);
 
-  try {
-    const url = \`https://maps.googleapis.com/maps/api/geocode/json?address=\${encodeURIComponent(address)}&key=\${API_KEY}\`;
-    const response = await fetch(url);
-    const data = await response.json();
-
-    if (data.status === 'OK' && data.results.length > 0) {
-      const location = data.results[0].geometry.location;
-      return {
-        lat: location.lat,
-        lng: location.lng
-      };
-    } else {
-      console.warn("Geocoding failed:", data.status);
-      return null;
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) {
+      setLoading(false);
+      return;
     }
-  } catch (error) {
-    console.error("Geocoding error:", error);
-    return null;
-  }
+
+    const fetchOrgAndSubscribe = async () => {
+      try {
+        const userDocRef = doc(db, 'users', user.uid);
+        const userDoc = await getDoc(userDocRef);
+        
+        if (!userDoc.exists()) {
+          setLoading(false);
+          return;
+        }
+
+        const userData = userDoc.data();
+        const orgId = userData.orgId;
+        const role = userData.role;
+
+        setCurrentOrgId(orgId);
+        setUserRole(role);
+
+        if (!orgId) {
+          setError("Organization ID missing.");
+          setLoading(false);
+          return;
+        }
+
+        // Constraints
+        let constraints = [
+          where('orgId', '==', orgId),
+          orderBy('scheduledDate', 'asc')
+        ];
+
+        if (role === 'staff') {
+          constraints.push(where('assignedTo', 'array-contains', user.uid));
+        }
+
+        const q = query(collection(db, 'jobs'), ...constraints);
+
+        return onSnapshot(q, (snapshot) => {
+          const jobData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            scheduledDate: doc.data().scheduledDate?.toDate(),
+            invoicedAt: doc.data().invoicedAt?.toDate()
+          }));
+          setJobs(jobData);
+          setLoading(false);
+        }, (err) => {
+          console.error("Error fetching jobs:", err);
+          setError("Failed to load jobs.");
+          setLoading(false);
+        });
+      } catch (err) {
+        console.error(err);
+        setLoading(false);
+      }
+    };
+
+    const unsubscribePromise = fetchOrgAndSubscribe();
+    return () => { unsubscribePromise.then(unsub => unsub && unsub()); };
+  }, []);
+
+  // --- MUTATIONS ---
+
+  const addJob = async (jobData) => {
+    if (!currentOrgId) throw new Error("No Org ID.");
+    if (userRole !== 'admin') throw new Error("Unauthorized.");
+
+    const timestampDate = new Date(jobData.scheduledDate);
+    const assignedTo = jobData.assignedStaffId ? [jobData.assignedStaffId] : [];
+
+    await addDoc(collection(db, 'jobs'), {
+      clientId: jobData.clientId,
+      serviceType: jobData.serviceType,
+      price: Number(jobData.price),
+      notes: jobData.notes,
+      assignedTo: assignedTo,
+      status: 'scheduled',
+      scheduledDate: Timestamp.fromDate(timestampDate),
+      orgId: currentOrgId, 
+      createdAt: serverTimestamp(),
+      createdBy: auth.currentUser.uid
+    });
+  };
+
+  const updateJob = async (jobId, jobData) => {
+    if (userRole !== 'admin') throw new Error("Unauthorized.");
+
+    const timestampDate = new Date(jobData.scheduledDate);
+    const assignedTo = jobData.assignedStaffId ? [jobData.assignedStaffId] : [];
+
+    const jobRef = doc(db, 'jobs', jobId);
+    await updateDoc(jobRef, {
+      clientId: jobData.clientId,
+      serviceType: jobData.serviceType,
+      price: Number(jobData.price),
+      notes: jobData.notes,
+      assignedTo: assignedTo,
+      scheduledDate: Timestamp.fromDate(timestampDate),
+      updatedAt: serverTimestamp()
+    });
+  };
+
+  const deleteJob = async (jobId) => {
+    if (userRole !== 'admin') throw new Error("Unauthorized.");
+    const jobRef = doc(db, 'jobs', jobId);
+    await deleteDoc(jobRef);
+  };
+
+  const markAsInvoiced = async (jobId) => {
+    if (userRole !== 'admin') throw new Error("Unauthorized.");
+    
+    // Simple ID gen: Year + Random 4 digits (e.g. 2026-4821)
+    const invoiceNumber = `${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    
+    const jobRef = doc(db, 'jobs', jobId);
+    await updateDoc(jobRef, {
+      invoicedAt: serverTimestamp(),
+      invoiceNumber: invoiceNumber,
+      updatedAt: serverTimestamp()
+    });
+  };
+
+  return { jobs, loading, error, addJob, updateJob, deleteJob, markAsInvoiced, role: userRole };
 };
 INNER_EOF
 
-# 2. Create Map Component
-# Renders the actual Google Map with markers
-echo "📝 Creating src/components/map/MapComponent.jsx..."
-mkdir -p src/components/map
-cat << 'INNER_EOF' > src/components/map/MapComponent.jsx
-import React, { useState, useCallback } from 'react';
-import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
+# 2. Create the PDF Document Layout
+# Defines the visual structure of the Invoice
+echo "📝 Creating src/components/invoicing/InvoiceDocument.jsx..."
+mkdir -p src/components/invoicing
+cat << 'INNER_EOF' > src/components/invoicing/InvoiceDocument.jsx
+import React from 'react';
+import { Page, Text, View, Document, StyleSheet } from '@react-pdf/renderer';
 import { format } from 'date-fns';
 
-const containerStyle = {
-  width: '100%',
-  height: '500px',
-  borderRadius: '0.75rem'
-};
-
-// Default center (e.g., New York) - overridden if jobs exist
-const defaultCenter = {
-  lat: 40.7128,
-  lng: -74.0060
-};
-
-const MapComponent = ({ jobs, clients }) => {
-  const { isLoaded } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY
-  });
-
-  const [map, setMap] = useState(null);
-  const [selectedJob, setSelectedJob] = useState(null);
-
-  const onLoad = useCallback(function callback(map) {
-    // Fit bounds to show all markers
-    const bounds = new window.google.maps.LatLngBounds();
-    let hasPoints = false;
-
-    validJobs.forEach(job => {
-      const client = clients.find(c => c.id === job.clientId);
-      if (client?.coordinates) {
-        bounds.extend(client.coordinates);
-        hasPoints = true;
-      }
-    });
-
-    if (hasPoints) {
-      map.fitBounds(bounds);
-    } else {
-      map.setCenter(defaultCenter);
-      map.setZoom(10);
-    }
-    
-    setMap(map);
-  }, [jobs, clients]);
-
-  const onUnmount = useCallback(function callback(map) {
-    setMap(null);
-  }, []);
-
-  // Filter jobs that actually have valid client coordinates
-  const validJobs = jobs.filter(job => {
-    const client = clients.find(c => c.id === job.clientId);
-    return client && client.coordinates && client.coordinates.lat;
-  });
-
-  if (!isLoaded) {
-    return <div className="h-64 bg-gray-100 animate-pulse rounded-xl flex items-center justify-center text-gray-400">Loading Map...</div>;
+// Define styles
+const styles = StyleSheet.create({
+  page: {
+    padding: 40,
+    fontSize: 12,
+    fontFamily: 'Helvetica',
+    color: '#333'
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 40,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+    paddingBottom: 20
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#0ea5e9' // Brand Blue
+  },
+  section: {
+    marginBottom: 20
+  },
+  label: {
+    fontSize: 10,
+    color: '#666',
+    marginBottom: 4,
+    textTransform: 'uppercase'
+  },
+  value: {
+    fontSize: 12,
+    marginBottom: 8
+  },
+  table: {
+    marginTop: 40,
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
+    paddingBottom: 8
+  },
+  total: {
+    marginTop: 20,
+    textAlign: 'right',
+    fontSize: 18,
+    fontWeight: 'bold'
+  },
+  footer: {
+    position: 'absolute',
+    bottom: 30,
+    left: 40,
+    right: 40,
+    fontSize: 10,
+    textAlign: 'center',
+    color: '#999'
   }
+});
+
+const InvoiceDocument = ({ job, client }) => {
+  const invoiceNum = job.invoiceNumber || 'DRAFT';
+  const date = job.invoicedAt ? format(job.invoicedAt, 'MMM d, yyyy') : format(new Date(), 'MMM d, yyyy');
 
   return (
-    <div className="rounded-xl overflow-hidden shadow-sm border border-gray-200">
-      <GoogleMap
-        mapContainerStyle={containerStyle}
-        center={defaultCenter}
-        zoom={10}
-        onLoad={onLoad}
-        onUnmount={onUnmount}
-        options={{
-          streetViewControl: false,
-          mapTypeControl: false,
-        }}
-      >
-        {validJobs.map(job => {
-          const client = clients.find(c => c.id === job.clientId);
-          
-          return (
-            <Marker
-              key={job.id}
-              position={client.coordinates}
-              onClick={() => setSelectedJob({ job, client })}
-              // Different icon colors based on status could go here
-            />
-          );
-        })}
+    <Document>
+      <Page size="A4" style={styles.page}>
+        
+        {/* HEADER */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.title}>INVOICE</Text>
+            <Text style={styles.label}>#{invoiceNum}</Text>
+          </View>
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={{ fontSize: 16, fontWeight: 'bold' }}>Fresh Nest</Text>
+            <Text style={styles.label}>Date: {date}</Text>
+          </View>
+        </View>
 
-        {selectedJob && (
-          <InfoWindow
-            position={selectedJob.client.coordinates}
-            onCloseClick={() => setSelectedJob(null)}
-          >
-            <div className="p-1">
-              <h3 className="font-bold text-slate-800">{selectedJob.client.name}</h3>
-              <p className="text-xs text-slate-500 mb-2">{selectedJob.client.address}</p>
-              <div className="text-xs font-medium text-brand-600 bg-brand-50 px-2 py-1 rounded inline-block">
-                {format(selectedJob.job.scheduledDate, 'h:mm a')} - {selectedJob.job.serviceType}
-              </div>
-            </div>
-          </InfoWindow>
-        )}
-      </GoogleMap>
-    </div>
+        {/* BILL TO */}
+        <View style={styles.section}>
+          <Text style={styles.label}>Bill To:</Text>
+          <Text style={{ fontSize: 14, fontWeight: 'bold' }}>{client.name}</Text>
+          <Text style={styles.value}>{client.email}</Text>
+          <Text style={styles.value}>{client.address}</Text>
+        </View>
+
+        {/* DETAILS */}
+        <View style={styles.table}>
+          <Text style={{ width: '60%' }}>Description</Text>
+          <Text style={{ width: '20%', textAlign: 'right' }}>Date</Text>
+          <Text style={{ width: '20%', textAlign: 'right' }}>Amount</Text>
+        </View>
+
+        <View style={{ flexDirection: 'row', paddingTop: 10 }}>
+          <Text style={{ width: '60%' }}>
+            {job.serviceType.charAt(0).toUpperCase() + job.serviceType.slice(1)} Cleaning Service
+          </Text>
+          <Text style={{ width: '20%', textAlign: 'right' }}>
+            {job.scheduledDate ? format(job.scheduledDate, 'MMM d') : ''}
+          </Text>
+          <Text style={{ width: '20%', textAlign: 'right' }}>
+            ${job.price?.toFixed(2)}
+          </Text>
+        </View>
+
+        {/* TOTAL */}
+        <Text style={styles.total}>
+          Total Due: ${job.price?.toFixed(2)}
+        </Text>
+
+        {/* FOOTER */}
+        <Text style={styles.footer}>
+          Thank you for choosing Fresh Nest! Please pay within 30 days.
+        </Text>
+      </Page>
+    </Document>
   );
 };
 
-export default React.memo(MapComponent);
+export default InvoiceDocument;
 INNER_EOF
 
-# 3. Update ClientFormModal to Geocode on Save
-echo "📝 Updating src/components/clients/ClientFormModal.jsx..."
-cat << 'INNER_EOF' > src/components/clients/ClientFormModal.jsx
-import React, { useState } from 'react';
-import { X, Save, Loader, MapPin } from 'lucide-react';
-import { geocodeAddress } from '../../lib/maps';
+# 3. Create Invoice Preview Modal
+# Allows admin to see the PDF before downloading/marking as sent
+echo "📝 Creating src/components/invoicing/InvoiceModal.jsx..."
+cat << 'INNER_EOF' > src/components/invoicing/InvoiceModal.jsx
+import React, { useEffect, useState } from 'react';
+import { X, CheckCircle, Download, FileText } from 'lucide-react';
+import { PDFViewer, PDFDownloadLink } from '@react-pdf/renderer';
+import InvoiceDocument from './InvoiceDocument';
 
-const ClientFormModal = ({ isOpen, onClose, onSave }) => {
-  const [loading, setLoading] = useState(false);
-  const [geoStatus, setGeoStatus] = useState(null); // 'success', 'error', null
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    address: ''
-  });
+const InvoiceModal = ({ isOpen, onClose, job, client, onMarkInvoiced }) => {
+  const [isClientReady, setIsClientReady] = useState(false);
 
-  if (!isOpen) return null;
+  // React-PDF requires client-side mounting
+  useEffect(() => {
+    setIsClientReady(true);
+  }, []);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setGeoStatus(null);
-
-    try {
-      // 1. Attempt Geocoding
-      let coordinates = null;
-      if (formData.address) {
-        coordinates = await geocodeAddress(formData.address);
-        if (!coordinates) {
-          const confirmSave = window.confirm("⚠️ We couldn't find this address on the map. Save anyway?");
-          if (!confirmSave) {
-            setLoading(false);
-            return;
-          }
-        }
-      }
-
-      // 2. Save Client with Coords
-      await onSave({ ...formData, coordinates });
-      
-      // 3. Reset & Close
-      setFormData({ name: '', email: '', phone: '', address: '' });
-      onClose();
-    } catch (error) {
-      console.error(error);
-      alert("Failed to save client. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  if (!isOpen || !job || !client) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden">
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl h-[90vh] flex flex-col overflow-hidden">
         
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-          <h3 className="font-bold text-lg text-slate-800">Add New Client</h3>
+          <div className="flex items-center gap-3">
+            <div className="bg-brand-100 p-2 rounded-lg text-brand-600">
+              <FileText size={20} />
+            </div>
+            <div>
+              <h3 className="font-bold text-lg text-slate-800">Invoice Preview</h3>
+              <p className="text-xs text-slate-500">Client: {client.name}</p>
+            </div>
+          </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X size={24} />
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Client Name *</label>
-            <input
-              type="text"
-              required
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
-              value={formData.name}
-              onChange={(e) => setFormData({...formData, name: e.target.value})}
-            />
+        {/* PDF Viewer (Main Content) */}
+        <div className="flex-1 bg-gray-100 p-4">
+          {isClientReady ? (
+            <PDFViewer width="100%" height="100%" className="rounded-lg border border-gray-200 shadow-inner">
+              <InvoiceDocument job={job} client={client} />
+            </PDFViewer>
+          ) : (
+            <div className="flex items-center justify-center h-full text-slate-400">
+              Loading PDF Engine...
+            </div>
+          )}
+        </div>
+
+        {/* Footer Controls */}
+        <div className="px-6 py-4 border-t border-gray-100 bg-white flex justify-between items-center">
+          <div className="text-sm text-slate-500">
+            Status: {job.invoicedAt ? (
+              <span className="text-green-600 font-medium flex items-center gap-1">
+                <CheckCircle size={14} /> Invoiced ({job.invoiceNumber})
+              </span>
+            ) : (
+              <span className="text-amber-600 font-medium">Draft (Not Sent)</span>
+            )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-              <input
-                type="email"
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
-                value={formData.email}
-                onChange={(e) => setFormData({...formData, email: e.target.value})}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
-              <input
-                type="tel"
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
-                value={formData.phone}
-                onChange={(e) => setFormData({...formData, phone: e.target.value})}
-              />
-            </div>
-          </div>
+          <div className="flex gap-3">
+            {/* Mark as Invoiced Button */}
+            {!job.invoicedAt && (
+              <button
+                onClick={() => onMarkInvoiced(job.id)}
+                className="px-4 py-2 text-slate-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium flex items-center gap-2 transition-colors"
+              >
+                <CheckCircle size={18} />
+                Mark as Invoiced
+              </button>
+            )}
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Address (For Map)</label>
-            <div className="relative">
-              <MapPin className="absolute left-3 top-2.5 text-slate-400" size={18} />
-              <textarea
-                className="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
-                rows="2"
-                placeholder="123 Main St, City, Province"
-                value={formData.address}
-                onChange={(e) => setFormData({...formData, address: e.target.value})}
-              ></textarea>
-            </div>
-            <p className="text-xs text-slate-500 mt-1">We will try to auto-locate this on the map.</p>
+            {/* Download Button (Native PDF Link) */}
+            {isClientReady && (
+              <PDFDownloadLink
+                document={<InvoiceDocument job={job} client={client} />}
+                fileName={`Invoice_${client.name.replace(/\s+/g, '_')}.pdf`}
+                className="px-6 py-2 bg-brand-600 text-white rounded-lg font-bold hover:bg-brand-700 flex items-center gap-2 transition-colors shadow-sm"
+              >
+                {({ loading }) => (
+                  <>
+                    <Download size={18} />
+                    {loading ? 'Preparing...' : 'Download PDF'}
+                  </>
+                )}
+              </PDFDownloadLink>
+            )}
           </div>
+        </div>
 
-          <div className="flex justify-end gap-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-4 py-2 bg-brand-600 text-white rounded-lg font-medium hover:bg-brand-700 flex items-center gap-2 disabled:opacity-50"
-            >
-              {loading ? <Loader className="animate-spin" size={18} /> : <Save size={18} />}
-              Save Client
-            </button>
-          </div>
-        </form>
       </div>
     </div>
   );
 };
 
-export default ClientFormModal;
+export default InvoiceModal;
 INNER_EOF
 
-# 4. Update SchedulePage to Include Map View
-echo "📝 Updating src/pages/SchedulePage.jsx..."
-cat << 'INNER_EOF' > src/pages/SchedulePage.jsx
-import React, { useState } from 'react';
-import { startOfWeek, endOfWeek, isSameDay } from 'date-fns';
-import { Map, List } from 'lucide-react'; // Icons for toggle
-import { useSchedule } from '../hooks/useSchedule';
-import { useClients } from '../hooks/useClients';
-import DateStrip from '../components/schedule/DateStrip';
-import DailyAgenda from '../components/schedule/DailyAgenda';
-import MapComponent from '../components/map/MapComponent';
+# 4. Update JobRowDesktop (Add "Generate Invoice" Action)
+echo "📝 Updating src/components/jobs/JobRowDesktop.jsx..."
+cat << 'INNER_EOF' > src/components/jobs/JobRowDesktop.jsx
+import React, { useState, useRef, useEffect } from 'react';
+import { MoreHorizontal, Calendar, Clock, MapPin, User, Edit, Trash2, Play, CheckCircle, XCircle, FileText } from 'lucide-react';
+import { format } from 'date-fns';
+import { useJobWorkflow } from '../../hooks/useJobWorkflow';
 
-const SchedulePage = () => {
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [viewMode, setViewMode] = useState('list'); // 'list' | 'map'
+const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit, onDelete, onInvoice }) => {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuRef = useRef(null);
+  
+  const { startJob, completeJob, cancelJob, canStart, canComplete, canCancel, loading } = useJobWorkflow(job, userRole);
 
-  const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 }); 
-  const weekEnd = endOfWeek(selectedDate, { weekStartsOn: 1 });      
+  const client = getClient(job.clientId);
+  const assignedName = getAssignedStaffName(job.assignedTo);
+  const isUnassigned = !job.assignedTo || job.assignedTo.length === 0;
 
-  const { jobs, loading: scheduleLoading, error, role: userRole } = useSchedule(weekStart, weekEnd);
-  const { clients, loading: clientsLoading } = useClients();
+  // Status Badge Logic
+  const getStatusBadge = (s) => {
+    const baseClasses = "text-xs font-bold px-2 py-1 rounded-full uppercase";
+    switch(s) {
+      case 'completed': return <span className={`${baseClasses} bg-green-100 text-green-700`}>{s}</span>;
+      case 'in_progress': return <span className={`${baseClasses} bg-blue-100 text-blue-700`}>In Progress</span>;
+      case 'cancelled': return <span className={`${baseClasses} bg-red-100 text-red-700`}>{s}</span>;
+      default: return <span className={`${baseClasses} bg-yellow-100 text-yellow-700`}>{s}</span>;
+    }
+  };
 
-  const todaysJobs = jobs.filter(job => 
-    job.scheduledDate && isSameDay(job.scheduledDate, selectedDate)
-  );
+  // Close menu on outside click
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setIsMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleAction = async (actionFn) => {
+    await actionFn();
+    setIsMenuOpen(false);
+  };
 
   return (
-    <div className="bg-gray-50 min-h-full pb-20">
-      <div className="sticky top-0 z-10 bg-white border-b border-gray-200">
-        <DateStrip 
-          selectedDate={selectedDate} 
-          onSelectDate={setSelectedDate} 
-        />
+    <tr className="hover:bg-gray-50 transition-colors relative">
+      <td className="px-6 py-4">
+        <div className="flex items-center gap-2 font-medium text-slate-900">
+          <Calendar size={16} className="text-brand-500" />
+          {job.scheduledDate ? format(job.scheduledDate, 'MMM d, yyyy') : 'TBD'}
+        </div>
+        <div className="flex items-center gap-2 text-xs text-slate-500 mt-1 pl-6">
+          <Clock size={12} />
+          {job.scheduledDate ? format(job.scheduledDate, 'h:mm a') : ''}
+        </div>
+      </td>
+      <td className="px-6 py-4">
+        <div className="font-medium text-slate-900">{client.name || 'Unknown'}</div>
+        <div className="flex items-center gap-1 text-xs text-slate-400 mt-0.5">
+          <MapPin size={12} />
+          <span className="truncate max-w-[150px]">{client.address || 'No address'}</span>
+        </div>
+      </td>
+      <td className="px-6 py-4">
+        <div className={`flex items-center gap-2 text-sm ${isUnassigned ? 'text-slate-400 italic' : 'text-slate-700'}`}>
+          <User size={14} />
+          {assignedName}
+        </div>
+      </td>
+      <td className="px-6 py-4">
+        <span className="capitalize text-sm text-slate-700">{job.serviceType}</span>
+        {userRole !== 'staff' && job.price > 0 && (
+          <div className="text-xs text-slate-400">${job.price}</div>
+        )}
+      </td>
+      <td className="px-6 py-4">
+        {getStatusBadge(job.status)}
+        {job.invoicedAt && userRole === 'admin' && (
+          <div className="mt-1 text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded inline-block">
+            Invoiced
+          </div>
+        )}
+      </td>
+      
+      {/* ACTIONS */}
+      <td className="px-6 py-4 text-right relative">
+        <button 
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsMenuOpen(!isMenuOpen);
+          }}
+          className={`p-2 rounded-full transition-colors ${isMenuOpen ? 'bg-brand-50 text-brand-600' : 'text-slate-400 hover:text-brand-600 hover:bg-gray-100'}`}
+        >
+          <MoreHorizontal size={20} />
+        </button>
+
+        {isMenuOpen && (
+          <div 
+            ref={menuRef}
+            className="absolute right-8 top-8 w-48 bg-white rounded-lg shadow-xl border border-gray-100 z-50 overflow-hidden text-left animate-in fade-in zoom-in duration-200"
+          >
+            {/* WORKFLOW ACTIONS */}
+            {canStart && (
+              <button 
+                onClick={() => handleAction(startJob)}
+                disabled={loading}
+                className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-gray-50 flex items-center gap-2 transition-colors font-medium"
+              >
+                <Play size={16} className="text-green-500" /> Start Job
+              </button>
+            )}
+            
+            {canComplete && (
+              <button 
+                onClick={() => handleAction(completeJob)}
+                disabled={loading}
+                className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-gray-50 flex items-center gap-2 transition-colors font-medium"
+              >
+                <CheckCircle size={16} className="text-blue-500" /> Complete Job
+              </button>
+            )}
+
+            {/* ADMIN ACTIONS */}
+            {userRole === 'admin' && (
+              <>
+                {/* INVOICE ACTION */}
+                {job.status === 'completed' && (
+                  <button 
+                    onClick={() => { setIsMenuOpen(false); onInvoice(job); }}
+                    className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-purple-50 flex items-center gap-2 transition-colors border-t border-gray-50 font-medium"
+                  >
+                    <FileText size={16} className="text-purple-500" /> 
+                    {job.invoicedAt ? 'View Invoice' : 'Generate Invoice'}
+                  </button>
+                )}
+
+                <button 
+                  onClick={() => { setIsMenuOpen(false); onEdit(job); }}
+                  className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
+                >
+                  <Edit size={16} className="text-slate-400" /> Edit Details
+                </button>
+
+                <div className="border-t border-gray-100">
+                  {canCancel && (
+                    <button 
+                      onClick={() => handleAction(cancelJob)}
+                      className="w-full px-4 py-3 text-sm text-amber-600 hover:bg-amber-50 flex items-center gap-2 transition-colors"
+                    >
+                      <XCircle size={16} /> Cancel Job
+                    </button>
+                  )}
+                  <button 
+                    onClick={() => { setIsMenuOpen(false); onDelete(job.id); }}
+                    className="w-full px-4 py-3 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors"
+                  >
+                    <Trash2 size={16} /> Delete
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </td>
+    </tr>
+  );
+};
+
+export default JobRowDesktop;
+INNER_EOF
+
+# 5. Update JobsPage (Wiring the Modal)
+echo "📝 Updating src/pages/JobsPage.jsx..."
+cat << 'INNER_EOF' > src/pages/JobsPage.jsx
+import React, { useState } from 'react';
+import { Plus, Search } from 'lucide-react';
+import { useJobs } from '../hooks/useJobs';
+import { useClients } from '../hooks/useClients';
+import { useStaff } from '../hooks/useStaff';
+import JobListMobile from '../components/jobs/JobListMobile';
+import JobTableDesktop from '../components/jobs/JobTableDesktop';
+import JobFormModal from '../components/jobs/JobFormModal';
+import InvoiceModal from '../components/invoicing/InvoiceModal';
+
+const JobsPage = () => {
+  const { jobs, loading: jobsLoading, error: jobsError, addJob, updateJob, deleteJob, markAsInvoiced, role: userRole } = useJobs();
+  const { clients, loading: clientsLoading } = useClients(); 
+  const { staff, loading: staffLoading } = useStaff();
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingJob, setEditingJob] = useState(null);
+  
+  // Invoice State
+  const [invoicingJob, setInvoicingJob] = useState(null);
+  
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const loading = jobsLoading || clientsLoading || staffLoading;
+
+  const filteredJobs = jobs.filter(job => {
+    const clientName = clients.find(c => c.id === job.clientId)?.name?.toLowerCase() || '';
+    return clientName.includes(searchTerm.toLowerCase());
+  });
+
+  // --- Handlers ---
+
+  const handleCreateOpen = () => {
+    setEditingJob(null);
+    setIsModalOpen(true);
+  };
+
+  const handleEditOpen = (job) => {
+    setEditingJob(job);
+    setIsModalOpen(true);
+  };
+
+  const handleInvoiceOpen = (job) => {
+    setInvoicingJob(job);
+  };
+
+  const handleSave = async (formData) => {
+    if (editingJob) {
+      await updateJob(editingJob.id, formData);
+    } else {
+      await addJob(formData);
+    }
+  };
+
+  const handleDelete = async (jobId) => {
+    if (window.confirm("Are you sure you want to delete this job? This cannot be undone.")) {
+      await deleteJob(jobId);
+    }
+  };
+
+  const handleMarkInvoiced = async (jobId) => {
+    await markAsInvoiced(jobId);
+    // Note: We don't close the modal automatically so they can download the now-finalized invoice
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Job Management</h1>
+          <p className="text-slate-500 text-sm">Schedule and track cleaning appointments</p>
+        </div>
         
-        {/* View Toggle Bar */}
-        <div className="flex justify-center p-2 bg-gray-50 border-b border-gray-200">
-          <div className="bg-white p-1 rounded-lg border border-gray-200 flex shadow-sm">
-            <button
-              onClick={() => setViewMode('list')}
-              className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-colors \${
-                viewMode === 'list' ? 'bg-brand-50 text-brand-700' : 'text-slate-500 hover:text-slate-700'
-              }`}
+        <div className="flex gap-3">
+          <div className="relative flex-1 md:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+            <input 
+              type="text"
+              placeholder="Search by client..."
+              className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          {/* Only Admin can add jobs */}
+          {userRole === 'admin' && (
+            <button 
+              onClick={handleCreateOpen}
+              className="bg-brand-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-brand-700 flex items-center gap-2 shadow-sm whitespace-nowrap"
             >
-              <List size={16} /> List
+              <Plus size={20} />
+              <span className="hidden md:inline">New Job</span>
+              <span className="md:hidden">New</span>
             </button>
-            <button
-              onClick={() => setViewMode('map')}
-              className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-colors \${
-                viewMode === 'map' ? 'bg-brand-50 text-brand-700' : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              <Map size={16} /> Map
-            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Content */}
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div>
+        </div>
+      ) : jobsError ? (
+        <div className="bg-red-50 text-red-600 p-4 rounded-lg border border-red-100">
+          Error: {jobsError}
+        </div>
+      ) : (
+        <>
+          <JobListMobile 
+            jobs={filteredJobs} 
+            clients={clients} 
+            staff={staff} 
+            userRole={userRole} 
+            onEdit={handleEditOpen} 
+          />
+          <JobTableDesktop 
+            jobs={filteredJobs} 
+            clients={clients} 
+            staff={staff} 
+            userRole={userRole} 
+            onEdit={handleEditOpen}
+            onDelete={handleDelete}
+            onInvoice={handleInvoiceOpen}
+          />
+        </>
+      )}
+
+      {/* Modals */}
+      <JobFormModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        onSave={handleSave} 
+        clients={clients} 
+        staff={staff}
+        initialData={editingJob}
+      />
+
+      <InvoiceModal 
+        isOpen={!!invoicingJob}
+        onClose={() => setInvoicingJob(null)}
+        job={invoicingJob}
+        client={invoicingJob ? clients.find(c => c.id === invoicingJob.clientId) : null}
+        onMarkInvoiced={handleMarkInvoiced}
+      />
+    </div>
+  );
+};
+
+export default JobsPage;
+INNER_EOF
+
+# 6. Update JobTableDesktop to pass onInvoice
+echo "📝 Updating src/components/jobs/JobTableDesktop.jsx..."
+cat << 'INNER_EOF' > src/components/jobs/JobTableDesktop.jsx
+import React from 'react';
+import JobRowDesktop from './JobRowDesktop';
+
+const JobTableDesktop = ({ jobs, clients, staff, userRole, onEdit, onDelete, onInvoice }) => {
+  const getClient = (id) => clients.find(c => c.id === id) || {};
+  
+  const getAssignedStaffName = (staffIds) => {
+    if (!staffIds || staffIds.length === 0) return 'Unassigned';
+    const member = staff.find(s => s.id === staffIds[0]);
+    return member ? (member.fullName || member.email) : 'Unknown';
+  };
+
+  if (jobs.length === 0) {
+    return (
+      <div className="hidden md:block bg-white p-12 text-center rounded-xl border border-gray-200">
+        <p className="text-gray-500">No jobs found.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="hidden md:block bg-white rounded-xl shadow-sm border border-gray-200 overflow-visible min-h-[300px]">
+      <table className="w-full text-left border-collapse">
+        <thead>
+          <tr className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold">
+            <th className="px-6 py-4">Scheduled Date</th>
+            <th className="px-6 py-4">Client</th>
+            <th className="px-6 py-4">Assigned Staff</th>
+            <th className="px-6 py-4">Service</th>
+            <th className="px-6 py-4">Status</th>
+            <th className="px-6 py-4 text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {jobs.map((job) => (
+            <JobRowDesktop 
+              key={job.id} 
+              job={job}
+              getClient={getClient}
+              getAssignedStaffName={getAssignedStaffName}
+              userRole={userRole}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onInvoice={onInvoice}
+            />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+export default JobTableDesktop;
+INNER_EOF
+
+echo "✅ SUCCESS! Invoicing features installed."
+
+```
+---
+
+## FILE: scripts/install_mobile_invoice.sh
+```sh
+#!/bin/bash
+
+# ====================================================
+# FRESH NEST: MOBILE INVOICE PREVIEW FIX
+# Approach: Responsive HTML Preview for Mobile
+# ====================================================
+
+echo "🚀 Installing HTML Invoice Preview..."
+
+# 1. Create the HTML Preview Component
+# This mimics the PDF layout but uses standard Tailwind HTML for instant mobile rendering
+echo "📝 Creating src/components/invoicing/InvoiceHTMLPreview.jsx..."
+cat << 'INNER_EOF' > src/components/invoicing/InvoiceHTMLPreview.jsx
+import React from 'react';
+import { format } from 'date-fns';
+
+const InvoiceHTMLPreview = ({ job, client }) => {
+  const invoiceNum = job.invoiceNumber || 'DRAFT';
+  const date = job.invoicedAt ? format(job.invoicedAt, 'MMM d, yyyy') : format(new Date(), 'MMM d, yyyy');
+
+  return (
+    <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 text-sm h-full overflow-y-auto">
+      {/* Header */}
+      <div className="flex justify-between items-start border-b border-gray-100 pb-4 mb-4">
+        <div>
+          <h2 className="text-xl font-bold text-brand-600">INVOICE</h2>
+          <p className="text-slate-500 font-mono text-xs mt-1">#{invoiceNum}</p>
+        </div>
+        <div className="text-right">
+          <h3 className="font-bold text-slate-800">Fresh Nest</h3>
+          <p className="text-slate-500 text-xs">{date}</p>
+        </div>
+      </div>
+
+      {/* Bill To */}
+      <div className="mb-6">
+        <h4 className="text-xs font-bold text-slate-400 uppercase mb-2">Bill To</h4>
+        <div className="text-slate-800 font-medium">{client.name}</div>
+        <div className="text-slate-600 text-xs">{client.email}</div>
+        <div className="text-slate-600 text-xs mt-1 max-w-[200px]">{client.address}</div>
+      </div>
+
+      {/* Line Items */}
+      <div className="mb-6">
+        <div className="flex justify-between text-xs font-bold text-slate-400 border-b border-gray-100 pb-2 mb-2">
+          <span>Description</span>
+          <span>Amount</span>
+        </div>
+        
+        <div className="flex justify-between items-start py-2">
+          <div>
+            <div className="font-medium text-slate-800 capitalize">
+              {job.serviceType} Cleaning Service
+            </div>
+            <div className="text-xs text-slate-500">
+              Date: {job.scheduledDate ? format(job.scheduledDate, 'MMM d, yyyy') : 'N/A'}
+            </div>
+          </div>
+          <div className="font-medium text-slate-800">
+            ${job.price?.toFixed(2)}
           </div>
         </div>
       </div>
 
-      <main className="p-4 max-w-3xl mx-auto">
-        {error && (
-          <div className="p-4 mb-4 bg-red-50 text-red-600 rounded-lg text-sm text-center">
-            {error}
-          </div>
-        )}
+      {/* Total */}
+      <div className="flex justify-end border-t border-gray-200 pt-4 mb-8">
+        <div className="text-right">
+          <span className="text-slate-500 text-xs mr-4">Total Due:</span>
+          <span className="text-xl font-bold text-brand-600">${job.price?.toFixed(2)}</span>
+        </div>
+      </div>
 
-        {viewMode === 'list' ? (
-          <DailyAgenda 
-            jobs={todaysJobs} 
-            clients={clients} 
-            loading={scheduleLoading || clientsLoading} 
-            selectedDate={selectedDate}
-            userRole={userRole} 
-          />
-        ) : (
-          <MapComponent 
-            jobs={todaysJobs}
-            clients={clients}
-          />
-        )}
-      </main>
+      {/* Footer */}
+      <div className="text-center text-xs text-slate-400 mt-auto pt-8 border-t border-gray-50">
+        <p>Thank you for choosing Fresh Nest!</p>
+        <p>Please pay within 30 days.</p>
+      </div>
     </div>
   );
 };
 
-export default SchedulePage;
+export default InvoiceHTMLPreview;
 INNER_EOF
 
-echo "✅ SUCCESS! Maps & Geocoding installed."
-echo "👉 Make sure you have VITE_GOOGLE_MAPS_API_KEY in your .env file!"
+# 2. Update InvoiceModal to use HTML on Mobile
+echo "📝 Updating src/components/invoicing/InvoiceModal.jsx..."
+cat << 'INNER_EOF' > src/components/invoicing/InvoiceModal.jsx
+import React, { useEffect, useState } from 'react';
+import { X, CheckCircle, Download, FileText } from 'lucide-react';
+import { PDFViewer, PDFDownloadLink } from '@react-pdf/renderer';
+import InvoiceDocument from './InvoiceDocument';
+import InvoiceHTMLPreview from './InvoiceHTMLPreview';
+
+const InvoiceModal = ({ isOpen, onClose, job, client, onMarkInvoiced }) => {
+  const [isClientReady, setIsClientReady] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    setIsClientReady(true);
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  if (!isOpen || !job || !client) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl h-[90vh] flex flex-col overflow-hidden">
+        
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+          <div className="flex items-center gap-3">
+            <div className="bg-brand-100 p-2 rounded-lg text-brand-600">
+              <FileText size={20} />
+            </div>
+            <div>
+              <h3 className="font-bold text-lg text-slate-800">Invoice Preview</h3>
+              <p className="text-xs text-slate-500">Client: {client.name}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X size={24} />
+          </button>
+        </div>
+
+        {/* CONTENT AREA */}
+        <div className="flex-1 bg-gray-100 p-4 overflow-hidden relative">
+          {isClientReady ? (
+            isMobile ? (
+              // --- MOBILE VIEW (HTML Preview) ---
+              <div className="h-full overflow-y-auto">
+                <InvoiceHTMLPreview job={job} client={client} />
+              </div>
+            ) : (
+              // --- DESKTOP VIEW (PDF Embed) ---
+              <PDFViewer width="100%" height="100%" className="rounded-lg border border-gray-200 shadow-inner">
+                <InvoiceDocument job={job} client={client} />
+              </PDFViewer>
+            )
+          ) : (
+            <div className="flex items-center justify-center h-full text-slate-400">
+              Loading Preview...
+            </div>
+          )}
+        </div>
+
+        {/* Footer Controls */}
+        <div className="px-6 py-4 border-t border-gray-100 bg-white flex flex-col md:flex-row justify-between items-center gap-4">
+          <div className="text-sm text-slate-500 w-full md:w-auto text-center md:text-left">
+            Status: {job.invoicedAt ? (
+              <span className="text-green-600 font-medium flex items-center justify-center md:justify-start gap-1">
+                <CheckCircle size={14} /> Invoiced ({job.invoiceNumber})
+              </span>
+            ) : (
+              <span className="text-amber-600 font-medium">Draft (Not Sent)</span>
+            )}
+          </div>
+
+          <div className="flex gap-3 w-full md:w-auto">
+            {!job.invoicedAt && (
+              <button
+                onClick={() => onMarkInvoiced(job.id)}
+                className="flex-1 md:flex-none px-4 py-2 text-slate-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
+              >
+                <CheckCircle size={18} />
+                <span className="md:inline">Mark Invoiced</span>
+              </button>
+            )}
+
+            {/* DOWNLOAD BUTTON (Visible on BOTH Mobile & Desktop) */}
+            {isClientReady && (
+              <PDFDownloadLink
+                document={<InvoiceDocument job={job} client={client} />}
+                fileName={`Invoice_${client.name.replace(/\s+/g, '_')}.pdf`}
+                className="flex-1 md:flex-none px-6 py-2 bg-brand-600 text-white rounded-lg font-bold hover:bg-brand-700 flex items-center justify-center gap-2 transition-colors shadow-sm"
+              >
+                {({ loading }) => (
+                  <>
+                    <Download size={18} />
+                    {loading ? 'Preparing...' : 'Download PDF'}
+                  </>
+                )}
+              </PDFDownloadLink>
+            )}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+};
+
+export default InvoiceModal;
+INNER_EOF
+
+echo "✅ SUCCESS! Mobile HTML Preview installed."
 
 ```
 ---
@@ -4549,7 +5870,7 @@ git push origin dev
 # 4. Return to feature branch
 git checkout "$current_branch"
 
-echo "✅ Merged and Pushed! GitHub Action is now deploying to Fresh-Nest-Dev."
+echo "✅ Merged and Pushed! GitHub Action is naw deploying to Fresh-Nest-Dev."
 echo "👉 Check status here: https://github.com/rpdouglas/fresh-nest/actions"
 
 ```
@@ -4663,6 +5984,454 @@ async function resetPassword() {
 }
 
 resetPassword();
+
+```
+---
+
+## FILE: scripts/restore_dashboard.sh
+```sh
+#!/bin/bash
+
+# ====================================================
+# FRESH NEST: REVENUE DASHBOARD RESTORATION
+# Feature: Analytics & Reporting (with Fixes)
+# Approach: Client-Side Aggregation + Recharts
+# ====================================================
+
+echo "🚀 Restoring Revenue Dashboard..."
+
+# 0. Install Dependencies
+echo "📦 Installing recharts..."
+npm install recharts
+
+# 1. Create the Aggregation Hook
+echo "📝 Creating src/hooks/useDashboard.js..."
+cat << 'INNER_EOF' > src/hooks/useDashboard.js
+import { useState, useEffect } from 'react';
+import { 
+  collection, query, where, onSnapshot, orderBy, doc, getDoc, limit 
+} from 'firebase/firestore';
+import { auth, db } from '../lib/firebase';
+import { format, subMonths, isSameMonth } from 'date-fns';
+
+export const useDashboard = () => {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [stats, setStats] = useState({
+    totalRevenue: 0,
+    jobsCompleted: 0,
+    avgTicket: 0,
+    revenueByMonth: [],
+    recentActivity: []
+  });
+  const [role, setRole] = useState(null);
+
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const init = async () => {
+      try {
+        // 1. Get Role & Org
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        if (!userDoc.exists()) throw new Error("User profile not found");
+        
+        const { orgId, role: userRole } = userDoc.data();
+        setRole(userRole);
+
+        if (!orgId) throw new Error("No Org ID");
+
+        // 2. Define Query based on Role
+        let q;
+        if (userRole === 'admin') {
+          // Admin: Get all jobs for calculation (Limit to 500 for MVP safety)
+          q = query(
+            collection(db, 'jobs'),
+            where('orgId', '==', orgId),
+            orderBy('scheduledDate', 'desc'),
+            limit(500)
+          );
+        } else {
+          // Staff: Only get their recent jobs
+          q = query(
+            collection(db, 'jobs'),
+            where('orgId', '==', orgId),
+            where('assignedTo', 'array-contains', user.uid),
+            orderBy('scheduledDate', 'desc'),
+            limit(10)
+          );
+        }
+
+        // 3. Real-time Listener
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+          const jobs = snapshot.docs.map(d => ({ 
+            id: d.id, 
+            ...d.data(),
+            scheduledDate: d.data().scheduledDate?.toDate(),
+            completedAt: d.data().completedAt?.toDate()
+          }));
+
+          if (userRole === 'admin') {
+            processAdminStats(jobs);
+          } else {
+            processStaffStats(jobs);
+          }
+          setLoading(false);
+        }, (err) => {
+          console.error(err);
+          setError("Failed to load dashboard data.");
+          setLoading(false);
+        });
+
+        return unsubscribe;
+
+      } catch (err) {
+        console.error(err);
+        setError(err.message);
+        setLoading(false);
+      }
+    };
+
+    const unsubPromise = init();
+    return () => { unsubPromise && unsubPromise.then(fn => fn && fn()); };
+  }, []);
+
+  // --- Aggregation Logic (Admin) ---
+  const processAdminStats = (jobs) => {
+    const completedJobs = jobs.filter(j => j.status === 'completed');
+    
+    // KPI: Totals
+    const totalRevenue = completedJobs.reduce((sum, job) => sum + (Number(job.price) || 0), 0);
+    const jobsCompleted = completedJobs.length;
+    const avgTicket = jobsCompleted > 0 ? totalRevenue / jobsCompleted : 0;
+
+    // Chart: Last 6 Months
+    const last6Months = Array.from({ length: 6 }).map((_, i) => {
+      const d = subMonths(new Date(), i); 
+      return {
+        date: d,
+        label: format(d, 'MMM'),
+        revenue: 0
+      };
+    }).reverse();
+
+    completedJobs.forEach(job => {
+      if (!job.completedAt) return;
+      const monthBucket = last6Months.find(m => isSameMonth(m.date, job.completedAt));
+      if (monthBucket) {
+        monthBucket.revenue += (Number(job.price) || 0);
+      }
+    });
+
+    setStats({
+      totalRevenue,
+      jobsCompleted,
+      avgTicket,
+      revenueByMonth: last6Months,
+      recentActivity: jobs.slice(0, 5) // Last 5 jobs regardless of status
+    });
+  };
+
+  // --- Aggregation Logic (Staff) ---
+  const processStaffStats = (jobs) => {
+    setStats({
+      recentActivity: jobs
+    });
+  };
+
+  return { stats, role, loading, error };
+};
+INNER_EOF
+
+# 2. Create Reusable KPI Card
+echo "📝 Creating src/components/dashboard/KPICard.jsx..."
+mkdir -p src/components/dashboard
+cat << 'INNER_EOF' > src/components/dashboard/KPICard.jsx
+import React from 'react';
+
+const KPICard = ({ title, value, icon: Icon, colorClass = "bg-brand-50 text-brand-600" }) => {
+  return (
+    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-start justify-between">
+      <div>
+        <p className="text-sm font-medium text-slate-500 mb-1">{title}</p>
+        <h3 className="text-2xl font-bold text-slate-800">{value}</h3>
+      </div>
+      <div className={`p-3 rounded-lg ${colorClass}`}>
+        <Icon size={24} />
+      </div>
+    </div>
+  );
+};
+
+export default KPICard;
+INNER_EOF
+
+# 3. Create Revenue Chart (Responsive)
+echo "📝 Creating src/components/dashboard/RevenueChart.jsx..."
+cat << 'INNER_EOF' > src/components/dashboard/RevenueChart.jsx
+import React from 'react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+
+const RevenueChart = ({ data }) => {
+  if (!data || data.length === 0) return null;
+
+  return (
+    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-96 flex flex-col">
+      <h3 className="text-lg font-bold text-slate-800 mb-6">Revenue Trend</h3>
+      
+      {/* Mobile Scroll Wrapper */}
+      <div className="flex-1 min-w-0 overflow-x-auto">
+        <div className="min-w-[500px] h-full"> 
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <XAxis 
+                dataKey="label" 
+                axisLine={false} 
+                tickLine={false} 
+                tick={{ fill: '#64748b', fontSize: 12 }} 
+                dy={10}
+              />
+              <YAxis 
+                axisLine={false} 
+                tickLine={false} 
+                tick={{ fill: '#64748b', fontSize: 12 }}
+                tickFormatter={(value) => `$${value}`}
+              />
+              <Tooltip 
+                cursor={{ fill: '#f8fafc' }}
+                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                formatter={(value) => [`$${value.toFixed(2)}`, 'Revenue']}
+              />
+              <Bar 
+                dataKey="revenue" 
+                fill="#0ea5e9" 
+                radius={[4, 4, 0, 0]} 
+                barSize={40}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default RevenueChart;
+INNER_EOF
+
+# 4. Create Staff Dashboard (With Client Name Fix)
+echo "📝 Creating src/components/dashboard/StaffDashboard.jsx..."
+cat << 'INNER_EOF' > src/components/dashboard/StaffDashboard.jsx
+import React from 'react';
+import { Calendar, MapPin, CheckCircle, User } from 'lucide-react';
+import { format } from 'date-fns';
+
+const StaffDashboard = ({ jobs, clients }) => {
+  
+  // Helper to find name from ID
+  const getClientName = (id) => {
+    if (!clients) return 'Loading...';
+    const client = clients.find(c => c.id === id);
+    return client ? client.name : 'Unknown Client';
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-brand-600 text-white p-6 rounded-2xl shadow-lg">
+        <h1 className="text-2xl font-bold">Welcome Back!</h1>
+        <p className="text-brand-100 opacity-90">Here are your assigned jobs.</p>
+      </div>
+
+      <div className="space-y-4">
+        <h2 className="font-bold text-slate-800 text-lg">Upcoming Jobs</h2>
+        {jobs.length === 0 ? (
+          <div className="bg-white p-8 text-center rounded-xl border border-gray-100 text-slate-500">
+            No jobs assigned right now.
+          </div>
+        ) : (
+          jobs.map(job => (
+            <div key={job.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-start gap-4">
+              <div className="bg-brand-50 p-3 rounded-lg text-brand-600 shrink-0">
+                <Calendar size={20} />
+              </div>
+              <div>
+                <div className="font-bold text-slate-900">
+                  {job.scheduledDate ? format(job.scheduledDate, 'MMM d, h:mm a') : 'TBD'}
+                </div>
+                
+                <div className="flex items-center gap-1 text-sm text-slate-600 mt-1">
+                  <User size={14} />
+                  {getClientName(job.clientId)}
+                </div>
+
+                <div className="mt-2">
+                  <span className={`text-[10px] uppercase font-bold px-2 py-1 rounded-full ${
+                    job.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-blue-50 text-blue-700'
+                  }`}>
+                    {job.status}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default StaffDashboard;
+INNER_EOF
+
+# 5. Create Admin Dashboard (Main View)
+echo "📝 Creating src/components/dashboard/AdminDashboard.jsx..."
+cat << 'INNER_EOF' > src/components/dashboard/AdminDashboard.jsx
+import React from 'react';
+import { DollarSign, Briefcase, TrendingUp, CheckCircle } from 'lucide-react';
+import KPICard from './KPICard';
+import RevenueChart from './RevenueChart';
+
+const AdminDashboard = ({ stats }) => {
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
+
+      {/* KPI GRID */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <KPICard 
+          title="Total Revenue" 
+          value={`$${stats.totalRevenue.toFixed(2)}`} 
+          icon={DollarSign}
+          colorClass="bg-green-50 text-green-600"
+        />
+        <KPICard 
+          title="Jobs Completed" 
+          value={stats.jobsCompleted} 
+          icon={CheckCircle}
+          colorClass="bg-blue-50 text-blue-600"
+        />
+        <KPICard 
+          title="Avg. Ticket" 
+          value={`$${stats.avgTicket.toFixed(2)}`} 
+          icon={TrendingUp}
+          colorClass="bg-purple-50 text-purple-600"
+        />
+      </div>
+
+      {/* CHART SECTION */}
+      <RevenueChart data={stats.revenueByMonth} />
+
+      {/* RECENT ACTIVITY */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100">
+          <h3 className="font-bold text-slate-800">Recent Jobs</h3>
+        </div>
+        <div className="divide-y divide-gray-100">
+          {stats.recentActivity.map(job => (
+            <div key={job.id} className="px-6 py-3 flex justify-between items-center text-sm">
+              <div>
+                <span className="font-medium text-slate-900 capitalize">{job.serviceType}</span>
+                <span className="text-slate-400 mx-2">•</span>
+                <span className="text-slate-500">{job.status}</span>
+              </div>
+              <div className="font-medium text-slate-900">
+                ${Number(job.price || 0).toFixed(2)}
+              </div>
+            </div>
+          ))}
+          {stats.recentActivity.length === 0 && (
+            <div className="p-6 text-center text-slate-400">No activity yet.</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default AdminDashboard;
+INNER_EOF
+
+# 6. Create Dashboard Page (With Client Fetching Fix)
+echo "📝 Creating src/pages/DashboardPage.jsx..."
+cat << 'INNER_EOF' > src/pages/DashboardPage.jsx
+import React from 'react';
+import { useDashboard } from '../hooks/useDashboard';
+import { useClients } from '../hooks/useClients';
+import AdminDashboard from '../components/dashboard/AdminDashboard';
+import StaffDashboard from '../components/dashboard/StaffDashboard';
+
+const DashboardPage = () => {
+  const { stats, role, loading: dashboardLoading, error } = useDashboard();
+  const { clients, loading: clientsLoading } = useClients();
+
+  if (dashboardLoading || clientsLoading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-4 bg-red-50 text-red-600 rounded-lg">
+        Error loading dashboard: {error}
+      </div>
+    );
+  }
+
+  return role === 'admin' 
+    ? <AdminDashboard stats={stats} /> 
+    : <StaffDashboard jobs={stats.recentActivity} clients={clients} />;
+};
+
+export default DashboardPage;
+INNER_EOF
+
+# 7. Update App.jsx Routing
+echo "📝 Updating src/App.jsx..."
+cat << 'INNER_EOF' > src/App.jsx
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import AppLayout from './components/layout/AppLayout';
+import AuthGuard from './components/layout/AuthGuard';
+import LoginPage from './features/auth/LoginPage';
+import ClientsPage from './pages/ClientsPage';
+import JobsPage from './pages/JobsPage';
+import SchedulePage from './pages/SchedulePage';
+import SettingsPage from './pages/SettingsPage';
+import DashboardPage from './pages/DashboardPage';
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        {/* Public Route */}
+        <Route path="/login" element={<LoginPage />} />
+
+        {/* Protected Routes */}
+        <Route path="/" element={
+          <AuthGuard>
+            <AppLayout />
+          </AuthGuard>
+        }>
+          <Route index element={<DashboardPage />} />
+          <Route path="jobs" element={<JobsPage />} />
+          <Route path="schedule" element={<SchedulePage />} />
+          <Route path="clients" element={<ClientsPage />} />
+          <Route path="settings" element={<SettingsPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+export default App;
+INNER_EOF
+
+echo "✅ SUCCESS! Revenue Dashboard Restored (with fixes)."
 
 ```
 ---
@@ -4872,6 +6641,51 @@ git checkout -b "$branch_name"
 
 echo ""
 echo "✅ Ready to code! You are now on branch: $branch_name"
+
+```
+---
+
+## FILE: scripts/sync_indexes.sh
+```sh
+#!/bin/bash
+
+# ====================================================
+# FRESH NEST: FIRESTORE INDEX SYNCHRONIZER
+# Goal: Pull indexes from DEV (Source of Truth) and promote them.
+# ====================================================
+
+# 1. Pull from DEV
+echo "⬇️  Fetching Indexes from 'fresh-nest-dev'..."
+npx firebase firestore:indexes --project fresh-nest-dev > firestore.indexes.json
+
+if [ $? -eq 0 ]; then
+  echo "✅ Indexes saved to firestore.indexes.json"
+else
+  echo "❌ Failed to fetch indexes. Check your internet or permissions."
+  exit 1
+fi
+
+# 2. Review (Optional Pause)
+echo ""
+echo "👀 Content of firestore.indexes.json (First 10 lines):"
+head -n 10 firestore.indexes.json
+echo "..."
+echo ""
+
+# 3. Deploy to UAT
+echo "🚀 Deploying Indexes to UAT (fresh-nest-uat)..."
+npx firebase deploy --only firestore:indexes --project fresh-nest-uat
+
+# 4. Deploy to PROD (Optional - Uncomment to auto-deploy to prod)
+# echo "🚀 Deploying Indexes to PROD (fresh-nest-prod)..."
+# npx firebase deploy --only firestore:indexes --project fresh-nest-prod
+
+# 5. Commit to Git
+echo "🌿 Committing updated index definitions..."
+git add firestore.indexes.json
+git commit -m "chore: sync firestore indexes from dev cloud"
+
+echo "🎉 Indexes Synced!"
 
 ```
 ---

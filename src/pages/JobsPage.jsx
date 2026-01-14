@@ -7,6 +7,7 @@ import JobListMobile from '../components/jobs/JobListMobile';
 import JobTableDesktop from '../components/jobs/JobTableDesktop';
 import JobFormModal from '../components/jobs/JobFormModal';
 import InvoiceModal from '../components/invoicing/InvoiceModal';
+import ExportButton from '../components/common/ExportButton';
 
 const JobsPage = () => {
   const { jobs, loading: jobsLoading, error: jobsError, addJob, updateJob, deleteJob, markAsInvoiced, role: userRole } = useJobs();
@@ -16,7 +17,6 @@ const JobsPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingJobId, setEditingJobId] = useState(null);
   const [invoicingJobId, setInvoicingJobId] = useState(null);
-  
   const [searchTerm, setSearchTerm] = useState('');
 
   const loading = jobsLoading || clientsLoading || staffLoading;
@@ -25,6 +25,34 @@ const JobsPage = () => {
     const clientName = clients.find(c => c.id === job.clientId)?.name?.toLowerCase() || '';
     return clientName.includes(searchTerm.toLowerCase());
   });
+
+  // Prepare data for export (Flattening)
+  const exportData = filteredJobs.map(job => {
+    const client = clients.find(c => c.id === job.clientId);
+    const assignedMember = job.assignedTo?.[0] ? staff.find(s => s.id === job.assignedTo[0]) : null;
+    
+    return {
+      ...job,
+      clientName: client ? client.name : 'Unknown',
+      clientAddress: client ? client.address : '',
+      assignedToName: assignedMember ? assignedMember.fullName : 'Unassigned',
+      // Format timestamps for CSV
+      scheduledDate: job.scheduledDate, 
+      completedAt: job.completedAt
+    };
+  });
+
+  const exportHeaders = [
+    { key: 'invoiceNumber', label: 'Invoice #' },
+    { key: 'clientName', label: 'Client' },
+    { key: 'clientAddress', label: 'Address' },
+    { key: 'serviceType', label: 'Service' },
+    { key: 'price', label: 'Price' },
+    { key: 'status', label: 'Status' },
+    { key: 'scheduledDate', label: 'Scheduled' },
+    { key: 'completedAt', label: 'Completed' },
+    { key: 'assignedToName', label: 'Staff' }
+  ];
 
   const editingJob = editingJobId ? jobs.find(j => j.id === editingJobId) : null;
   const invoicingJob = invoicingJobId ? jobs.find(j => j.id === invoicingJobId) : null;
@@ -80,6 +108,14 @@ const JobsPage = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
+
+          <ExportButton 
+            role={userRole}
+            data={exportData}
+            filename="Jobs"
+            headers={exportHeaders}
+          />
+
           {userRole === 'admin' && (
             <button 
               onClick={handleCreateOpen}
@@ -109,7 +145,7 @@ const JobsPage = () => {
             staff={staff} 
             userRole={userRole} 
             onEdit={handleEditOpen}
-            onInvoice={handleInvoiceOpen} // <--- ADDED THIS PROP
+            onInvoice={handleInvoiceOpen}
           />
           <JobTableDesktop 
             jobs={filteredJobs} 
