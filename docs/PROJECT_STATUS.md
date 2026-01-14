@@ -1,25 +1,17 @@
 # 📌 Project Status: Fresh Nest
 
-**Current Phase:** Phase 4 - Revenue & Reporting
+**Current Phase:** Phase 6 - Data Export & Polish
 **Last Updated:** $(date +%Y-%m-%d)
+**Latest Version:** v0.6.0 (Revenue Dashboard)
 
 ## ✅ Completed Features
 * **Core:** Project Setup, Auth, Multi-Tenancy.
 * **Clients:** CRUD, Filtering, Geocoding.
 * **Jobs:** Scheduling, CRUD, Workflow, Maps.
-* **Invoicing:** PDF Generation, Status Tracking (Invoiced/Draft).
+* **Invoicing:** PDF Generation, Mobile Parity.
+* **Dashboard:** Admin KPIs, Revenue Charts, Staff Restrictions.
 * **DevOps:** 3-Environment CI/CD, Firestore Indexes.
 
 ## 🚧 In Progress / Next Up
-* [ ] **Revenue Dashboard:** Visual charts for Earnings (Daily/Monthly).
-* [ ] **Data Export:** CSV export for accounting.
-
-## 🗄️ Database Schema
-* `organizations/{orgId}`
-* `users/{userId}`: { role: 'admin'|'staff', orgId, ... }
-* `jobs/{jobId}`: 
-    - `status`: 'scheduled'|'in_progress'|'completed'|'cancelled'
-    - `invoiceNumber`: String
-    - `invoicedAt`: Timestamp
-    - `price`: Number
-* `clients/{clientId}`: { name, address, coordinates, ... }
+* [ ] **Data Export:** CSV export for accounting (Quickbooks/Xero support).
+* [ ] **Final Polish:** UX consistency check.
