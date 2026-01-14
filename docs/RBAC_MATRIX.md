@@ -19,5 +19,6 @@
 | | Cancel Job | ✅ | ❌ | |
 | | Delete Job | ✅ | ❌ | |
 | **Invoicing** | Generate | ✅ | ❌ | |
+| **Data Export** | Download CSV | ✅ | ❌ | Prevent data theft. |
 | **Settings** | Invite User | ✅ | ❌ | |
 | **Financials**| See Prices | ✅ | ❌ | Hidden in UI for Staff. |

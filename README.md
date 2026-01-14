@@ -1,7 +1,7 @@
 # 🧹 Fresh Nest
 
 **Fresh Nest** is a Lean SaaS Field Service Management (FSM) platform built for cleaning businesses.
-It features Multi-Tenancy, Role-Based Access Control, Geolocation, and Financial Analytics.
+It features Multi-Tenancy, Role-Based Access Control, Geolocation, Financial Analytics, and Data Export.
 
 ## 🚀 Quick Start
 
@@ -28,3 +28,4 @@ It features Multi-Tenancy, Role-Based Access Control, Geolocation, and Financial
 * **Maps:** Google Maps Javascript API
 * **Invoicing:** @react-pdf/renderer (Client-side)
 * **Analytics:** Recharts (Client-side aggregation)
+* **Export:** Custom CSV Utility (No heavy dependencies)
