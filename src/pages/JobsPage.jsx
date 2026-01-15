@@ -3,6 +3,7 @@ import { Plus, Search } from 'lucide-react';
 import { useJobs } from '../hooks/useJobs';
 import { useClients } from '../hooks/useClients';
 import { useStaff } from '../hooks/useStaff';
+import { useFinancials } from '../hooks/useFinancials'; 
 import JobListMobile from '../components/jobs/JobListMobile';
 import JobTableDesktop from '../components/jobs/JobTableDesktop';
 import JobFormModal from '../components/jobs/JobFormModal';
@@ -13,6 +14,9 @@ const JobsPage = () => {
   const { jobs, loading: jobsLoading, error: jobsError, addJob, updateJob, deleteJob, markAsInvoiced, role: userRole } = useJobs();
   const { clients, loading: clientsLoading } = useClients(); 
   const { staff, loading: staffLoading } = useStaff();
+  
+  // 1. FETCH FINANCIALS
+  const financialData = useFinancials();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingJobId, setEditingJobId] = useState(null);
@@ -26,17 +30,14 @@ const JobsPage = () => {
     return clientName.includes(searchTerm.toLowerCase());
   });
 
-  // Prepare data for export (Flattening)
   const exportData = filteredJobs.map(job => {
     const client = clients.find(c => c.id === job.clientId);
     const assignedMember = job.assignedTo?.[0] ? staff.find(s => s.id === job.assignedTo[0]) : null;
-    
     return {
       ...job,
       clientName: client ? client.name : 'Unknown',
       clientAddress: client ? client.address : '',
       assignedToName: assignedMember ? assignedMember.fullName : 'Unassigned',
-      // Format timestamps for CSV
       scheduledDate: job.scheduledDate, 
       completedAt: job.completedAt
     };
@@ -54,40 +55,20 @@ const JobsPage = () => {
     { key: 'assignedToName', label: 'Staff' }
   ];
 
-  const editingJob = editingJobId ? jobs.find(j => j.id === editingJobId) : null;
-  const invoicingJob = invoicingJobId ? jobs.find(j => j.id === invoicingJobId) : null;
-
-  const handleCreateOpen = () => {
-    setEditingJobId(null);
-    setIsModalOpen(true);
-  };
-
-  const handleEditOpen = (job) => {
-    setEditingJobId(job.id);
-    setIsModalOpen(true);
-  };
-
-  const handleInvoiceOpen = (job) => {
-    setInvoicingJobId(job.id);
-  };
+  const handleCreateOpen = () => { setEditingJobId(null); setIsModalOpen(true); };
+  const handleEditOpen = (job) => { setEditingJobId(job.id); setIsModalOpen(true); };
+  const handleInvoiceOpen = (job) => { setInvoicingJobId(job.id); };
 
   const handleSave = async (formData) => {
-    if (editingJobId) {
-      await updateJob(editingJobId, formData);
-    } else {
-      await addJob(formData);
-    }
+    if (editingJobId) { await updateJob(editingJobId, formData); } 
+    else { await addJob(formData); }
   };
 
   const handleDelete = async (jobId) => {
-    if (window.confirm("Are you sure you want to delete this job? This cannot be undone.")) {
-      await deleteJob(jobId);
-    }
+    if (window.confirm("Delete job?")) { await deleteJob(jobId); }
   };
 
-  const handleMarkInvoiced = async (jobId) => {
-    await markAsInvoiced(jobId);
-  };
+  const handleMarkInvoiced = async (jobId) => { await markAsInvoiced(jobId); };
 
   return (
     <div className="space-y-6">
@@ -96,83 +77,59 @@ const JobsPage = () => {
           <h1 className="text-2xl font-bold text-slate-900">Job Management</h1>
           <p className="text-slate-500 text-sm">Schedule and track cleaning appointments</p>
         </div>
-        
         <div className="flex gap-3">
           <div className="relative flex-1 md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
             <input 
-              type="text"
-              placeholder="Search by client..."
-              className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              type="text" placeholder="Search..." 
+              className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none"
+              value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-
-          <ExportButton 
-            role={userRole}
-            data={exportData}
-            filename="Jobs"
-            headers={exportHeaders}
-          />
-
+          <ExportButton role={userRole} data={exportData} filename="Jobs" headers={exportHeaders} />
           {userRole === 'admin' && (
-            <button 
-              onClick={handleCreateOpen}
-              className="bg-brand-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-brand-700 flex items-center gap-2 shadow-sm whitespace-nowrap"
-            >
-              <Plus size={20} />
-              <span className="hidden md:inline">New Job</span>
-              <span className="md:hidden">New</span>
+            <button onClick={handleCreateOpen} className="bg-brand-600 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2">
+              <Plus size={20} /> <span className="hidden md:inline">New Job</span>
             </button>
           )}
         </div>
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div>
-        </div>
-      ) : jobsError ? (
-        <div className="bg-red-50 text-red-600 p-4 rounded-lg border border-red-100">
-          Error: {jobsError}
-        </div>
+        <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div></div>
       ) : (
         <>
           <JobListMobile 
             jobs={filteredJobs} 
             clients={clients} 
-            staff={staff} 
-            userRole={userRole} 
+            staff={staff}
+            userRole={userRole}
             onEdit={handleEditOpen}
             onInvoice={handleInvoiceOpen}
+            financialData={financialData} 
           />
+          {/* UPDATED: Passing financialData to Desktop Table */}
           <JobTableDesktop 
             jobs={filteredJobs} 
             clients={clients} 
             staff={staff} 
-            userRole={userRole} 
-            onEdit={handleEditOpen}
-            onDelete={handleDelete}
+            userRole={userRole}
+            onEdit={handleEditOpen} 
+            onDelete={handleDelete} 
             onInvoice={handleInvoiceOpen}
+            financialData={financialData}
           />
         </>
       )}
 
       <JobFormModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        onSave={handleSave} 
-        clients={clients} 
-        staff={staff}
-        initialData={editingJob}
+        isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={handleSave} 
+        clients={clients} staff={staff} initialData={editingJobId ? jobs.find(j => j.id === editingJobId) : null}
       />
-
       <InvoiceModal 
-        isOpen={!!invoicingJob}
-        onClose={() => setInvoicingJobId(null)}
-        job={invoicingJob}
-        client={invoicingJob ? clients.find(c => c.id === invoicingJob.clientId) : null}
+        isOpen={!!invoicingJobId} onClose={() => setInvoicingJobId(null)} 
+        job={invoicingJobId ? jobs.find(j => j.id === invoicingJobId) : null} 
+        client={invoicingJobId ? clients.find(c => c.id === jobs.find(j => j.id === invoicingJobId).clientId) : null}
         onMarkInvoiced={handleMarkInvoiced}
       />
     </div>

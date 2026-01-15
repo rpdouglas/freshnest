@@ -1,7 +1,7 @@
 import React from 'react';
 import JobCardMobile from './JobCardMobile';
 
-const JobListMobile = ({ jobs, clients, staff, userRole, onEdit, onInvoice }) => {
+const JobListMobile = ({ jobs, clients, staff, userRole, onEdit, onInvoice, financialData }) => {
   const getClientName = (id) => clients.find(c => c.id === id)?.name || 'Unknown Client';
   const getClientAddress = (id) => clients.find(c => c.id === id)?.address;
   
@@ -12,11 +12,7 @@ const JobListMobile = ({ jobs, clients, staff, userRole, onEdit, onInvoice }) =>
   };
 
   if (jobs.length === 0) {
-    return (
-      <div className="md:hidden text-center py-10 bg-white rounded-xl border border-gray-100">
-        <p className="text-gray-500">No jobs found.</p>
-      </div>
-    );
+    return <div className="text-center py-10 bg-white rounded-xl border border-gray-100 text-gray-500">No jobs found.</div>;
   }
 
   return (
@@ -30,7 +26,9 @@ const JobListMobile = ({ jobs, clients, staff, userRole, onEdit, onInvoice }) =>
           getAssignedStaffName={getAssignedStaffName}
           userRole={userRole}
           onEdit={onEdit}
-          onInvoice={onInvoice} // <--- ADDED THIS PROP
+          onInvoice={onInvoice}
+          // 3. PASS DOWN PROP
+          financialData={financialData} 
         />
       ))}
     </div>

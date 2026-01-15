@@ -1,8 +1,11 @@
 import React from 'react';
-import { Calendar, MapPin, CheckCircle, User } from 'lucide-react';
+import { Calendar, User } from 'lucide-react';
 import { format } from 'date-fns';
+import { useFinancials } from '../../hooks/useFinancials';
+import FinancialProgress from './FinancialProgress';
 
 const StaffDashboard = ({ jobs, clients }) => {
+  const { currentEarnings, limit, percentUsed, mode, loading: finLoading } = useFinancials();
   
   // Helper to find name from ID
   const getClientName = (id) => {
@@ -15,8 +18,18 @@ const StaffDashboard = ({ jobs, clients }) => {
     <div className="space-y-6">
       <div className="bg-brand-600 text-white p-6 rounded-2xl shadow-lg">
         <h1 className="text-2xl font-bold">Welcome Back!</h1>
-        <p className="text-brand-100 opacity-90">Here are your assigned jobs.</p>
+        <p className="text-brand-100 opacity-90">Here is your updated schedule.</p>
       </div>
+
+      {/* Financial Guardrail Visualization */}
+      {!finLoading && (
+        <FinancialProgress 
+          current={currentEarnings} 
+          limit={limit} 
+          percent={percentUsed} 
+          mode={mode} 
+        />
+      )}
 
       <div className="space-y-4">
         <h2 className="font-bold text-slate-800 text-lg">Upcoming Jobs</h2>
