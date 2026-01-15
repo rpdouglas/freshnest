@@ -1,21 +1,12 @@
 # 📜 Changelog
 
-## [v1.0.0] - 2026-01-14 (MVP Gold Master)
+## [v0.1.1] - 2026-01-14
 ### Added
-* **Data Export:** Admins can now export Client and Job lists to CSV using a custom robust utility.
-* **Security:** Role-based restrictions applied to Export buttons (Admin only).
-* **Mobile Parity:** Export buttons hidden on mobile to preserve UI density.
+* **Smart Profile:** A dedicated settings view for workers to manage constraints.
+* **Financial Safety:** Input for Monthly Earning Caps (ODSP support).
+* **Recovery Support:** Blocked Window selector for recurring unavailability.
+* **Transport Mode:** Icon-based toggle for Public Transit vs Personal Vehicle.
+* **Versioning:** Automated semantic versioning in CI/CD pipeline.
 
-## [v0.6.0] - 2026-01-14
-### Added
-* **Revenue Dashboard:** Admin view with Total Revenue, Jobs Completed, and Avg Ticket KPIs.
-* **Visualizations:** Monthly Revenue Bar Chart using `recharts`.
-* **Staff Dashboard:** Restricted view showing only assigned upcoming jobs.
-
-## [v0.5.1] - 2026-01-12
-### Fixed
-* **Mobile Invoicing:** Added responsive HTML preview for mobile devices.
-
-## [v0.5.0] - 2026-01-12
-### Added
-* **Invoicing Module:** Client-side PDF generation.
+## [v0.1.0] - 2026-01-14
+* **MVP Gold Master:** Core functionality (Jobs, Clients, Invoicing).
