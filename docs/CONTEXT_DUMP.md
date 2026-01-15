@@ -1,23 +1,21 @@
 # Fresh Nest: Context Dump
 **Stack:** React + Vite + Firebase + Tailwind CSS
-**Architecture:** Multi-Tenant SaaS.
+**Location:** Cornwall, Ontario, Canada
+**Mission:** Worker Support Platform (Safety First).
+
+## 🧠 The "Prime Directive"
+We build for **Personas**, not just Users. 
+* Before building a feature, check **`docs/PERSONAS.md`**.
+* **Safety > Efficiency.** It is better to block a shift claim than to let Carla lose her benefits.
 
 ## Documentation References
+* **Personas:** See `docs/PERSONAS.md` (CRITICAL)
 * **Schema:** See `docs/SCHEMA_REFERENCE.md`
-* **Security/RBAC:** See `docs/RBAC_MATRIX.md`
-* **DevOps:** See `docs/DEVOPS_MANUAL.md`
+* **Security:** See `docs/RBAC_MATRIX.md`
 
 ## Architecture Rules (STRICT)
-1. **NO PLACEHOLDERS:** Provide COMPLETE FILES only.
+1. **NO PLACEHOLDERS:** Complete files only.
 2. **Icons:** Use `lucide-react`.
 3. **Tailwind:** Mobile-first (`block md:flex`).
-4. **Security & Data Access (CRITICAL):**
-   - **NEVER use `request.auth.token.orgId`.** Fetch `users/{uid}`.
-   - All queries must filter by `.where("orgId", "==", currentOrgId)`.
-   - All writes MUST include `orgId`.
-5. **State Management:**
-   - Prefer deriving state from lists (e.g. `jobs.find(id)`) over storing object snapshots.
-6. **Analytics & Export:**
-   - **Charts:** Use `recharts` (Client-side aggregation).
-   - **CSV Export:** Use `src/lib/csv.js` (Custom utility). Do NOT install `papaparse`.
-   - **PDF:** Use `@react-pdf/renderer` inside `InvoiceModal`.
+4. **Security:** Use Profile-based RBAC (`users/{uid}`).
+5. **Logic:** Client-side aggregation for Dashboards is acceptable for MVP.

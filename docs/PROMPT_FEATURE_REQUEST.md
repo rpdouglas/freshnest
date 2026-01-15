@@ -1,4 +1,4 @@
-# 📝 AI Feature Request Prompt (Architectural Mode)
+# 📝 AI Feature Request Prompt (Persona-Driven Mode)
 
 **Instructions:**
 1.  Run `scripts/generate-context.sh` to copy your current codebase to your clipboard.
@@ -10,47 +10,52 @@
 
 ### **Prompt Template**
 
-**Role:** You are the Senior Lead Developer for "Fresh Nest".
-**Task:** Analyze the codebase provided below and propose an architecture for a new feature.
+**Role:** You are the **Worker Support Architect** for "Fresh Nest," a platform designed to stabilize the cleaning industry in Cornwall, Ontario.
+**Task:** Analyze the codebase and design a feature that balances **Technical Robustness** with **Human Constraints**.
 
 **Feature Request:** [INSERT FEATURE NAME]
 
 **Context:**
-I need to add a module to "Fresh Nest" that allows [WHO] to [DO WHAT].
-*Current State:* [Briefly describe relevant existing code, e.g., "We have a Jobs List, but no way to change status."]
+I need to add a module that allows [WHO] to [DO WHAT].
+*Current State:* [Briefly describe relevant existing code.]
 
 **Core Requirements:**
 
-1.  **Data & Schema:**
-    * [What new collections or fields do we need?]
-    * [e.g., "Add 'coordinates' to 'clients' collection"]
+1.  **👥 The Persona Check (CRITICAL):**
+    * **Review:** Read `docs/PERSONAS.md`.
+    * **Validation:** specific check against:
+        * **Carla (ODSP):** Does this affect financial eligibility?
+        * **Ahmed (ESL):** Is the UI text-heavy or Icon-based?
+        * **Jasmine (Transit):** Does this respect travel buffers?
+        * **Sarah (Compliance):** Does this generate an audit trail?
 
-2.  **UI (Mobile First):**
-    * **Mobile:** [How does it look on phone? e.g., "Swipe to complete", "Big button"]
-    * **Desktop:** [How does it look on PC? e.g., "Table Action Menu"]
+2.  **Data & Schema:**
+    * **Audit Trail:** If this involves money or contracts, we MUST record a snapshot (e.g., `rateSnapshot`, `acceptedTermsVersion`).
+    * **Reference:** Check `docs/SCHEMA_REFERENCE.md`.
 
-3.  **Security & RBAC (Crucial):**
-    * **Admin:** [What permissions do they have?]
-    * **Staff:** [What are they RESTRICTED from?]
-    * *Constraint:* **NEVER** use `auth.token` or Custom Claims for roles. **ALWAYS** fetch the User Profile from Firestore (`users/{uid}`).
+3.  **UI (Accessibility & Field First):**
+    * **Mobile:** Design for a 375px screen with "Fat Finger" touch targets.
+    * **Cognitive Load:** Use **Icons** (Lucide) over text labels where possible.
+    * **Parity:** Is this feature *required* in the field? If so, it must be Mobile-First.
 
-4.  **Infrastructure & Config (New):**
-    * **Dependencies:** [Do we need new NPM packages? e.g., `react-pdf`, `@react-google-maps/api`]
-    * **Env Variables:** [Do we need new API Keys? e.g., `VITE_STRIPE_KEY`]
+4.  **Security & RBAC:**
+    * **Constraint:** **NEVER** use `auth.token`. Always fetch `users/{uid}` profile.
+    * **Permissions:** Check `docs/RBAC_MATRIX.md`.
 
 **🛑 STOP & THINK: Architectural Options**
-Before writing any code, please propose **3 Distinct Approaches** to implementing this feature:
+Before writing any code, please propose **3 Distinct Approaches**:
 
-1.  **The "Direct/Inline" Approach:** Logic inside components. Fast, but hard to test/reuse.
-2.  **The "Custom Hook" Approach (Recommended):** Logic extracted to `use[Feature]`. Handles DB subscriptions, loading states, and RBAC checks internally. Keeps UI clean.
-3.  **The "Complex/Global" Approach:** Uses global context providers or cloud functions for simple logic. Overkill?
+1.  **The "High-Safety" Approach:** Prioritizes validation, audit trails, and strict constraints (Best for Master Plan 9).
+2.  **The "Low-Friction" Approach:** Prioritizes speed and UI simplicity (Best for simple CRUD).
+3.  **The "Automation" Approach:** Uses Cloud Functions to handle logic server-side.
 
 **Your Task:**
-1.  **Analyze the Codebase:** Review the provided file dump to understand our patterns (Hooks, Firebase Auth, Tailwind).
-2.  **Compare Options:** Briefly describe the 3 approaches above (Pros/Cons).
-3.  **Recommendation:** Recommend the best approach for our "Lean SaaS" architecture.
-4.  **Specifications:** List exact **Schema Changes**, **New Dependencies**, and **New Files**.
-5.  **WAIT** for my confirmation before generating any code.
+1.  **Analyze Context:** Read `docs/PERSONAS.md` and `docs/CONTEXT_DUMP.md`.
+2.  **Persona Impact Statement:** Write 1-2 sentences on how this feature helps/protects a specific persona (e.g., "This helps Brenda trust the system by uploading photos").
+3.  **Compare Options:** Briefly describe the 3 approaches above.
+4.  **Recommendation:** Recommend the best approach for **Safety & Stability**.
+5.  **Specifications:** List exact **Schema Changes**, **New Dependencies**, and **New Files**.
+6.  **WAIT** for my confirmation before generating any code.
 
 ---
 

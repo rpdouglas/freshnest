@@ -1,5 +1,5 @@
 # FRESH NEST: CODEBASE DUMP
-**Date:** Mon Jan 12 19:00:14 EST 2026
+**Date:** Wed Jan 14 18:35:40 EST 2026
 **Description:** Complete codebase context.
 
 ## FILE: package.json
@@ -515,6 +515,38 @@ const ClientTableDesktop = ({ clients }) => {
 };
 
 export default ClientTableDesktop;
+
+```
+---
+
+## FILE: src/components/common/ExportButton.jsx
+```jsx
+import React from 'react';
+import { Download } from 'lucide-react';
+import { generateCSV, downloadCSV } from '../../lib/csv';
+
+const ExportButton = ({ data, filename, headers, role }) => {
+  // Security: Render nothing if not Admin
+  if (role !== 'admin') return null;
+
+  const handleExport = () => {
+    const csv = generateCSV(data, headers);
+    downloadCSV(csv, `${filename}_${new Date().toISOString().split('T')[0]}.csv`);
+  };
+
+  return (
+    <button
+      onClick={handleExport}
+      className="hidden md:flex items-center gap-2 px-4 py-2 border border-slate-300 text-slate-700 font-medium rounded-lg hover:bg-slate-50 transition-colors"
+      title="Export to CSV"
+    >
+      <Download size={18} />
+      <span>Export</span>
+    </button>
+  );
+};
+
+export default ExportButton;
 
 ```
 ---
@@ -2352,15 +2384,7 @@ export default LoginPage;
 ```js
 import { useState, useEffect } from 'react';
 import { 
-  collection, 
-  query, 
-  where, 
-  onSnapshot, 
-  addDoc, 
-  serverTimestamp, 
-  orderBy,
-  doc,
-  getDoc
+  collection, query, where, onSnapshot, addDoc, serverTimestamp, orderBy, doc, getDoc
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 
@@ -2369,6 +2393,7 @@ export const useClients = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [currentOrgId, setCurrentOrgId] = useState(null);
+  const [userRole, setUserRole] = useState(null); // Added role state
 
   useEffect(() => {
     const user = auth.currentUser;
@@ -2379,7 +2404,6 @@ export const useClients = () => {
 
     const fetchOrgAndSubscribe = async () => {
       try {
-        // 1. Fetch User Profile to get the REAL OrgId (Source of Truth)
         const userDocRef = doc(db, 'users', user.uid);
         const userDoc = await getDoc(userDocRef);
         
@@ -2389,16 +2413,19 @@ export const useClients = () => {
           return;
         }
 
-        const orgId = userDoc.data().orgId;
+        const userData = userDoc.data();
+        const orgId = userData.orgId;
+        const role = userData.role;
+
         setCurrentOrgId(orgId);
+        setUserRole(role); // Set Role
 
         if (!orgId) {
-          setError("Organization ID missing from user profile.");
+          setError("Organization ID missing.");
           setLoading(false);
           return;
         }
 
-        // 2. Subscribe ONLY to clients in this user's Org
         const q = query(
           collection(db, 'clients'),
           where('orgId', '==', orgId),
@@ -2408,7 +2435,10 @@ export const useClients = () => {
         const unsubscribe = onSnapshot(q, (snapshot) => {
           const clientData = snapshot.docs.map(doc => ({
             id: doc.id,
-            ...doc.data()
+            ...doc.data(),
+            // Extract lat/lng for flattening later if needed
+            lat: doc.data().coordinates?.lat || '',
+            lng: doc.data().coordinates?.lng || ''
           }));
           setClients(clientData);
           setLoading(false);
@@ -2433,8 +2463,6 @@ export const useClients = () => {
 
   const addClient = async (clientData) => {
     if (!currentOrgId) throw new Error("No Organization ID found.");
-
-    // SECURITY: Force attach orgId and server timestamp
     await addDoc(collection(db, 'clients'), {
       ...clientData,
       orgId: currentOrgId, 
@@ -2443,7 +2471,7 @@ export const useClients = () => {
     });
   };
 
-  return { clients, loading, error, addClient };
+  return { clients, loading, error, addClient, role: userRole };
 };
 
 ```
@@ -3018,6 +3046,70 @@ html, body, #root {
 ```
 ---
 
+## FILE: src/lib/csv.js
+```js
+import { format } from 'date-fns';
+
+/**
+ * Converts an array of objects to a CSV string.
+ * Automatically handles escaping of special characters.
+ */
+export const generateCSV = (data, headers) => {
+  if (!data || !data.length) return '';
+
+  const processRow = (row) => {
+    return headers.map(header => {
+      let value = row[header.key];
+      
+      // Formatting Logic
+      if (value === null || value === undefined) {
+        value = '';
+      } else if (value instanceof Date) {
+        value = format(value, 'yyyy-MM-dd HH:mm:ss');
+      } else if (typeof value === 'object') {
+        // Flatten simple objects if needed, or stringify
+        value = JSON.stringify(value);
+      } else {
+        value = String(value);
+      }
+
+      // Escape Logic: If value contains comma, newline, or quote, wrap in quotes
+      if (value.includes(',') || value.includes('\n') || value.includes('"')) {
+        value = `"${value.replace(/"/g, '""')}"`;
+      }
+
+      return value;
+    }).join(',');
+  };
+
+  const csvRows = [
+    headers.map(h => h.label).join(','), // Header Row
+    ...data.map(processRow)              // Data Rows
+  ];
+
+  return csvRows.join('\n');
+};
+
+/**
+ * Triggers a browser download of the CSV content
+ */
+export const downloadCSV = (csvContent, filename) => {
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  if (link.download !== undefined) {
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+};
+
+```
+---
+
 ## FILE: src/lib/firebase.js
 ```js
 import { initializeApp } from "firebase/app";
@@ -3104,21 +3196,29 @@ import { useClients } from '../hooks/useClients';
 import ClientListMobile from '../components/clients/ClientListMobile';
 import ClientTableDesktop from '../components/clients/ClientTableDesktop';
 import ClientFormModal from '../components/clients/ClientFormModal';
+import ExportButton from '../components/common/ExportButton';
 
 const ClientsPage = () => {
-  const { clients, loading, error, addClient } = useClients();
+  const { clients, loading, error, addClient, role } = useClients();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Client-side filtering
   const filteredClients = clients.filter(c => 
     c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     c.email?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const exportHeaders = [
+    { key: 'name', label: 'Client Name' },
+    { key: 'email', label: 'Email' },
+    { key: 'phone', label: 'Phone' },
+    { key: 'address', label: 'Address' },
+    { key: 'lat', label: 'Latitude' },
+    { key: 'lng', label: 'Longitude' }
+  ];
+
   return (
     <div className="space-y-6">
-      {/* Header & Actions */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Clients</h1>
@@ -3136,6 +3236,14 @@ const ClientsPage = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
+
+          <ExportButton 
+            role={role} 
+            data={filteredClients} 
+            filename="Clients" 
+            headers={exportHeaders} 
+          />
+
           <button 
             onClick={() => setIsModalOpen(true)}
             className="bg-brand-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-brand-700 flex items-center gap-2 shadow-sm whitespace-nowrap"
@@ -3147,7 +3255,6 @@ const ClientsPage = () => {
         </div>
       </div>
 
-      {/* Content */}
       {loading ? (
         <div className="flex justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div>
@@ -3163,7 +3270,6 @@ const ClientsPage = () => {
         </>
       )}
 
-      {/* Modals */}
       <ClientFormModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
@@ -3227,6 +3333,7 @@ import JobListMobile from '../components/jobs/JobListMobile';
 import JobTableDesktop from '../components/jobs/JobTableDesktop';
 import JobFormModal from '../components/jobs/JobFormModal';
 import InvoiceModal from '../components/invoicing/InvoiceModal';
+import ExportButton from '../components/common/ExportButton';
 
 const JobsPage = () => {
   const { jobs, loading: jobsLoading, error: jobsError, addJob, updateJob, deleteJob, markAsInvoiced, role: userRole } = useJobs();
@@ -3236,7 +3343,6 @@ const JobsPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingJobId, setEditingJobId] = useState(null);
   const [invoicingJobId, setInvoicingJobId] = useState(null);
-  
   const [searchTerm, setSearchTerm] = useState('');
 
   const loading = jobsLoading || clientsLoading || staffLoading;
@@ -3245,6 +3351,34 @@ const JobsPage = () => {
     const clientName = clients.find(c => c.id === job.clientId)?.name?.toLowerCase() || '';
     return clientName.includes(searchTerm.toLowerCase());
   });
+
+  // Prepare data for export (Flattening)
+  const exportData = filteredJobs.map(job => {
+    const client = clients.find(c => c.id === job.clientId);
+    const assignedMember = job.assignedTo?.[0] ? staff.find(s => s.id === job.assignedTo[0]) : null;
+    
+    return {
+      ...job,
+      clientName: client ? client.name : 'Unknown',
+      clientAddress: client ? client.address : '',
+      assignedToName: assignedMember ? assignedMember.fullName : 'Unassigned',
+      // Format timestamps for CSV
+      scheduledDate: job.scheduledDate, 
+      completedAt: job.completedAt
+    };
+  });
+
+  const exportHeaders = [
+    { key: 'invoiceNumber', label: 'Invoice #' },
+    { key: 'clientName', label: 'Client' },
+    { key: 'clientAddress', label: 'Address' },
+    { key: 'serviceType', label: 'Service' },
+    { key: 'price', label: 'Price' },
+    { key: 'status', label: 'Status' },
+    { key: 'scheduledDate', label: 'Scheduled' },
+    { key: 'completedAt', label: 'Completed' },
+    { key: 'assignedToName', label: 'Staff' }
+  ];
 
   const editingJob = editingJobId ? jobs.find(j => j.id === editingJobId) : null;
   const invoicingJob = invoicingJobId ? jobs.find(j => j.id === invoicingJobId) : null;
@@ -3300,6 +3434,14 @@ const JobsPage = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
+
+          <ExportButton 
+            role={userRole}
+            data={exportData}
+            filename="Jobs"
+            headers={exportHeaders}
+          />
+
           {userRole === 'admin' && (
             <button 
               onClick={handleCreateOpen}
@@ -3329,7 +3471,7 @@ const JobsPage = () => {
             staff={staff} 
             userRole={userRole} 
             onEdit={handleEditOpen}
-            onInvoice={handleInvoiceOpen} // <--- ADDED THIS PROP
+            onInvoice={handleInvoiceOpen}
           />
           <JobTableDesktop 
             jobs={filteredJobs} 
@@ -3590,35 +3732,56 @@ export default SettingsPage;
 ```
 ---
 
+## FILE: docs/CHANGELOG.md
+```md
+# 📜 Changelog
+
+## [v1.0.0] - 2026-01-14 (MVP Gold Master)
+### Added
+* **Data Export:** Admins can now export Client and Job lists to CSV using a custom robust utility.
+* **Security:** Role-based restrictions applied to Export buttons (Admin only).
+* **Mobile Parity:** Export buttons hidden on mobile to preserve UI density.
+
+## [v0.6.0] - 2026-01-14
+### Added
+* **Revenue Dashboard:** Admin view with Total Revenue, Jobs Completed, and Avg Ticket KPIs.
+* **Visualizations:** Monthly Revenue Bar Chart using `recharts`.
+* **Staff Dashboard:** Restricted view showing only assigned upcoming jobs.
+
+## [v0.5.1] - 2026-01-12
+### Fixed
+* **Mobile Invoicing:** Added responsive HTML preview for mobile devices.
+
+## [v0.5.0] - 2026-01-12
+### Added
+* **Invoicing Module:** Client-side PDF generation.
+
+```
+---
+
 ## FILE: docs/CONTEXT_DUMP.md
 ```md
 # Fresh Nest: Context Dump
 **Stack:** React + Vite + Firebase + Tailwind CSS
-**Architecture:** Multi-Tenant SaaS.
+**Location:** Cornwall, Ontario, Canada
+**Mission:** Worker Support Platform (Safety First).
 
-## Schema (Implemented)
-- **organizations/{orgId}**: { name, settings }
-- **users/{userId}**: { email, orgId, role, fullName }
-- **jobs/{jobId}**: 
-    - `assignedTo`: [userId]
-    - `status`: 'scheduled' | 'in_progress' | 'completed' | 'cancelled'
-    - `invoiceNumber`: String (e.g. "2026-1023")
-    - `invoicedAt`: Timestamp
-    - `price`: Number
-- **clients/{clientId}**: { coordinates: { lat, lng }, ... }
+## 🧠 The "Prime Directive"
+We build for **Personas**, not just Users. 
+* Before building a feature, check **`docs/PERSONAS.md`**.
+* **Safety > Efficiency.** It is better to block a shift claim than to let Carla lose her benefits.
 
-## Rules for AI (STRICT)
-1. **NO PLACEHOLDERS:** Provide COMPLETE FILES only.
+## Documentation References
+* **Personas:** See `docs/PERSONAS.md` (CRITICAL)
+* **Schema:** See `docs/SCHEMA_REFERENCE.md`
+* **Security:** See `docs/RBAC_MATRIX.md`
+
+## Architecture Rules (STRICT)
+1. **NO PLACEHOLDERS:** Complete files only.
 2. **Icons:** Use `lucide-react`.
 3. **Tailwind:** Mobile-first (`block md:flex`).
-4. **Security & Data Access (CRITICAL):**
-   - **NEVER use `request.auth.token.orgId`.** Fetch `users/{uid}`.
-   - All queries must filter by `.where("orgId", "==", currentOrgId)`.
-   - All writes MUST include `orgId`.
-5. **PDF Generation Strategy:**
-   - **Desktop:** Use `@react-pdf/renderer` inside a `PDFViewer` (iframe).
-   - **Mobile:** Do **NOT** use iframes. Render a semantic HTML/Tailwind preview component (`InvoiceHTMLPreview`) and provide a `PDFDownloadLink`.
-   - **State:** Always use Live Data (IDs) for modals to prevent stale state bugs.
+4. **Security:** Use Profile-based RBAC (`users/{uid}`).
+5. **Logic:** Client-side aggregation for Dashboards is acceptable for MVP.
 
 ```
 ---
@@ -3658,32 +3821,122 @@ If creating a new environment (e.g., Staging), you MUST:
 ```
 ---
 
+## FILE: docs/PERSONAS.md
+```md
+# 👥 Fresh Nest Personas (Technical Constraints)
+
+These are not just user stories. These are **System Constraints**. Every feature must be validated against these realities.
+
+## 1. Carla - The "Financial Anchor" (ODSP)
+* **Context:** Single mother, relies on Ontario Disability Support Program (ODSP).
+* **Hard Constraint:** **Earnings Cap.** She *cannot* earn more than her allowable limit (e.g., $1,000/mo) without triggering a clawback mechanism that destabilizes her housing.
+* **Tech Requirement:** * `user.financials.limit`: Hard integer limit.
+    * **Pre-Claim Check:** System must block a shift claim if `(currentMonthEarnings + shiftPrice) > limit`.
+    * **Visuals:** "Safe to Earn" progress bar.
+
+## 2. Jasmine - The "Transit Rider"
+* **Context:** No vehicle. Relies on Cornwall Transit.
+* **Hard Constraint:** **Travel Time Buffers.** She cannot teleport. A 1:00 PM job across town after a 12:00 PM job is physically impossible.
+* **Tech Requirement:**
+    * `user.constraints.transport`: 'transit'.
+    * **Conflict Engine:** Auto-calculate travel time via Google Maps Transit API (future) or enforce 60-min buffers between sites.
+
+## 3. Mike - The "Recovery Worker"
+* **Context:** Re-entering workforce. Attends mandatory support meetings (e.g., AA) every Tuesday at 7 PM.
+* **Hard Constraint:** **Blocked Windows.**
+* **Tech Requirement:**
+    * `user.constraints.blockedWindows`: Array of recurring time slots.
+    * **Visibility Filter:** Shifts overlapping these windows must be strictly hidden from his view.
+
+## 4. Ahmed - The "Newcomer" (ESL)
+* **Context:** Recent immigrant. High work ethic, low English literacy.
+* **Hard Constraint:** **Cognitive Load.** Text-heavy instructions result in errors.
+* **Tech Requirement:**
+    * **Icon-First UI:** Tasks must use visual icons (Mop, Key, Trash).
+    * **Language Toggle:** One-tap switch between English/French/Arabic.
+
+## 5. Brenda - The "Visual Verifier"
+* **Context:** Detail-oriented, anxious about "he said/she said" disputes.
+* **Hard Constraint:** **Trust.** Needs proof she did the job right.
+* **Tech Requirement:**
+    * **Photo Uploads:** Mandatory "Before" and "After" photos for specific high-value items (e.g., Stove).
+    * **Metadata:** Photos must be timestamped and geo-tagged.
+
+## 6. Sarah - The "Owner" (Compliance)
+* **Context:** Business owner. Terrified of labor board audits and liability.
+* **Hard Constraint:** **Audit Trail.**
+* **Tech Requirement:**
+    * **Version Control:** `acceptedTermsVersion` stored on every user profile.
+    * **Rate Snapshots:** Every shift record must freeze the pay rate at the time of claim.
+
+
+```
+---
+
 ## FILE: docs/PROJECT_STATUS.md
 ```md
-# 📌 Project Status: Fresh Nest
+# 📌 Project Status: Fresh Nest (Worker Support Platform)
 
-**Current Phase:** Phase 5 - Revenue & Reporting
+**Current Phase:** Phase 1 - Identity, Safety & Compliance
+**Current Version:** v1.0.0 (Core Infrastructure Live)
+**Context:** Cornwall, Ontario Socioeconomic Deployment
 **Last Updated:** $(date +%Y-%m-%d)
-**Latest Version:** v0.5.1 (Mobile Invoicing Patch)
 
-## ✅ Completed Features
-* **Core:** Project Setup, Auth, Multi-Tenancy.
-* **Clients:** CRUD, Filtering, Geocoding.
-* **Jobs:** Scheduling, CRUD, Workflow, Maps.
-* **Invoicing:** * PDF Generation (@react-pdf/renderer).
-    * Invoice Status Tracking.
-    * **Mobile Parity:** HTML Preview for mobile devices (iframe workaround).
-* **DevOps:** 3-Environment CI/CD, Firestore Indexes.
+> **Mission:** To transform the cleaning industry into a system of stability for marginalized workers while maintaining enterprise-grade reliability.
 
-## 🚧 In Progress / Next Up
-* [ ] **Revenue Dashboard:** Visual charts for Earnings (Daily/Monthly).
-* [ ] **Data Export:** CSV export for accounting.
+## 🎯 Current Sprint: The "Smart Profile" (Sprint 1)
+We are upgrading the User Schema to support the complex realities of our workforce (ODSP limits, Transit reliance, Single parenthood).
 
-## 🗄️ Database Schema
-* `organizations/{orgId}`
-* `users/{userId}`: { role: 'admin'|'staff', orgId, ... }
-* `jobs/{jobId}`: { invoiceNumber, invoicedAt, price, status, ... }
-* `clients/{clientId}`: { name, address, coordinates, ... }
+* [ ] **User Schema Expansion:**
+    * Add `financials.limit` (for "Carla" - ODSP).
+    * Add `constraints.transport` (for "Jasmine" - Bus routes).
+    * Add `constraints.blockedWindows` (for "Mike" - AA Meetings).
+* [ ] **Profile Wizard:**
+    * Self-onboarding flow for staff to set their own constraints.
+    * **Legal:** Mandatory `acceptedTermsVersion` checkbox[cite: 117].
+* [ ] **Localization Base:**
+    * Prepare app for English/French toggle (for "Ahmed").
+
+## 📋 Product Backlog (Master Plan 9)
+
+### Phase 1: Safety & Constraints
+* **The Conflict Engine:** Logic to auto-hide shifts that conflict with school runs (Emily) or recovery meetings (Mike)[cite: 46].
+* **Financial Guardrails:** Hard system lock if `Current Earnings + Shift Price > ODSP Cap`[cite: 53].
+
+### Phase 2: Field Operations
+* **Visual Interface:** Replace text-heavy lists with Icon-based tasks (Mop, Toilet) for ESL accessibility[cite: 68].
+* **Job Evidence:** Photo uploads to specific sub-collections for client verification (Brenda)[cite: 93].
+* **Inventory Reports:** specific inputs for Airbnb supplies (Sophie)[cite: 102].
+
+### Phase 3: Support & Scale
+* **Crisis Protocol:** "SOS" button logic to swap shifts instantly[cite: 38].
+* **Impact Dashboard:** Report on "Hours created for ODSP workers" for City Hall contracts (Sarah)[cite: 80].
+
+---
+
+## ✅ Version History
+
+### v1.0.0 - Infrastructure Core (Completed)
+* **Architecture:** Multi-Tenant SaaS (Firebase/React).
+* **Security:** Role-Based Access Control (Admin/Staff).
+* **Financials:** Admin Revenue Dashboard (Recharts).
+* **DevOps:** CI/CD Pipelines (Dev/UAT/Prod).
+
+---
+
+## 🗄️ Database Schema Snapshot (Target State)
+
+### `users/{userId}` [cite: 180]
+* `profile`: { name, language, transport, acceptedTermsVersion }
+* `financials`: { mode: 'cap', limit: number, currentMonthAccrued: number }
+* `constraints`: { heavyLifting: boolean, blockedWindows: array }
+* `stats`: { reliabilityScore: number }
+
+### `shifts/{shiftId}` [cite: 205]
+* `status`: 'open' | 'claimed' | 'completed'
+* `contractLedger`: { claimedBy, claimedAt, rateSnapshot }
+* `requirements`: { photoEvidence: array }
+
 
 ```
 ---
@@ -3786,7 +4039,7 @@ Provide the complete, executable bash script. Do not execute it yourself; just p
 
 ## FILE: docs/PROMPT_FEATURE_REQUEST.md
 ```md
-# 📝 AI Feature Request Prompt (Architectural Mode)
+# 📝 AI Feature Request Prompt (Persona-Driven Mode)
 
 **Instructions:**
 1.  Run `scripts/generate-context.sh` to copy your current codebase to your clipboard.
@@ -3798,47 +4051,52 @@ Provide the complete, executable bash script. Do not execute it yourself; just p
 
 ### **Prompt Template**
 
-**Role:** You are the Senior Lead Developer for "Fresh Nest".
-**Task:** Analyze the codebase provided below and propose an architecture for a new feature.
+**Role:** You are the **Worker Support Architect** for "Fresh Nest," a platform designed to stabilize the cleaning industry in Cornwall, Ontario.
+**Task:** Analyze the codebase and design a feature that balances **Technical Robustness** with **Human Constraints**.
 
 **Feature Request:** [INSERT FEATURE NAME]
 
 **Context:**
-I need to add a module to "Fresh Nest" that allows [WHO] to [DO WHAT].
-*Current State:* [Briefly describe relevant existing code, e.g., "We have a Jobs List, but no way to change status."]
+I need to add a module that allows [WHO] to [DO WHAT].
+*Current State:* [Briefly describe relevant existing code.]
 
 **Core Requirements:**
 
-1.  **Data & Schema:**
-    * [What new collections or fields do we need?]
-    * [e.g., "Add 'coordinates' to 'clients' collection"]
+1.  **👥 The Persona Check (CRITICAL):**
+    * **Review:** Read `docs/PERSONAS.md`.
+    * **Validation:** specific check against:
+        * **Carla (ODSP):** Does this affect financial eligibility?
+        * **Ahmed (ESL):** Is the UI text-heavy or Icon-based?
+        * **Jasmine (Transit):** Does this respect travel buffers?
+        * **Sarah (Compliance):** Does this generate an audit trail?
 
-2.  **UI (Mobile First):**
-    * **Mobile:** [How does it look on phone? e.g., "Swipe to complete", "Big button"]
-    * **Desktop:** [How does it look on PC? e.g., "Table Action Menu"]
+2.  **Data & Schema:**
+    * **Audit Trail:** If this involves money or contracts, we MUST record a snapshot (e.g., `rateSnapshot`, `acceptedTermsVersion`).
+    * **Reference:** Check `docs/SCHEMA_REFERENCE.md`.
 
-3.  **Security & RBAC (Crucial):**
-    * **Admin:** [What permissions do they have?]
-    * **Staff:** [What are they RESTRICTED from?]
-    * *Constraint:* **NEVER** use `auth.token` or Custom Claims for roles. **ALWAYS** fetch the User Profile from Firestore (`users/{uid}`).
+3.  **UI (Accessibility & Field First):**
+    * **Mobile:** Design for a 375px screen with "Fat Finger" touch targets.
+    * **Cognitive Load:** Use **Icons** (Lucide) over text labels where possible.
+    * **Parity:** Is this feature *required* in the field? If so, it must be Mobile-First.
 
-4.  **Infrastructure & Config (New):**
-    * **Dependencies:** [Do we need new NPM packages? e.g., `react-pdf`, `@react-google-maps/api`]
-    * **Env Variables:** [Do we need new API Keys? e.g., `VITE_STRIPE_KEY`]
+4.  **Security & RBAC:**
+    * **Constraint:** **NEVER** use `auth.token`. Always fetch `users/{uid}` profile.
+    * **Permissions:** Check `docs/RBAC_MATRIX.md`.
 
 **🛑 STOP & THINK: Architectural Options**
-Before writing any code, please propose **3 Distinct Approaches** to implementing this feature:
+Before writing any code, please propose **3 Distinct Approaches**:
 
-1.  **The "Direct/Inline" Approach:** Logic inside components. Fast, but hard to test/reuse.
-2.  **The "Custom Hook" Approach (Recommended):** Logic extracted to `use[Feature]`. Handles DB subscriptions, loading states, and RBAC checks internally. Keeps UI clean.
-3.  **The "Complex/Global" Approach:** Uses global context providers or cloud functions for simple logic. Overkill?
+1.  **The "High-Safety" Approach:** Prioritizes validation, audit trails, and strict constraints (Best for Master Plan 9).
+2.  **The "Low-Friction" Approach:** Prioritizes speed and UI simplicity (Best for simple CRUD).
+3.  **The "Automation" Approach:** Uses Cloud Functions to handle logic server-side.
 
 **Your Task:**
-1.  **Analyze the Codebase:** Review the provided file dump to understand our patterns (Hooks, Firebase Auth, Tailwind).
-2.  **Compare Options:** Briefly describe the 3 approaches above (Pros/Cons).
-3.  **Recommendation:** Recommend the best approach for our "Lean SaaS" architecture.
-4.  **Specifications:** List exact **Schema Changes**, **New Dependencies**, and **New Files**.
-5.  **WAIT** for my confirmation before generating any code.
+1.  **Analyze Context:** Read `docs/PERSONAS.md` and `docs/CONTEXT_DUMP.md`.
+2.  **Persona Impact Statement:** Write 1-2 sentences on how this feature helps/protects a specific persona (e.g., "This helps Brenda trust the system by uploading photos").
+3.  **Compare Options:** Briefly describe the 3 approaches above.
+4.  **Recommendation:** Recommend the best approach for **Safety & Stability**.
+5.  **Specifications:** List exact **Schema Changes**, **New Dependencies**, and **New Files**.
+6.  **WAIT** for my confirmation before generating any code.
 
 ---
 
@@ -3884,6 +4142,78 @@ Before writing any code, please propose **3 Distinct Approaches** to implementin
 [PASTE_FULL_CODEBASE_CONTEXT_HERE]
 
 **Reply "Context Received. Ready for instructions." if you understand.**
+
+```
+---
+
+## FILE: docs/RBAC_MATRIX.md
+```md
+# 🛡️ Role-Based Access Control (RBAC) Matrix
+
+**Roles:** `admin` (Owner), `staff` (Worker)
+**Enforcement:** 1. **Frontend:** UI Hiding via `useJobWorkflow` / `userRole`.
+2. **Backend:** Firestore Security Rules (checks `resource.data.orgId`).
+
+| Feature | Action | Admin | Staff | Notes |
+| :--- | :--- | :---: | :---: | :--- |
+| **Dashboard** | View KPIs | ✅ | ❌ | Revenue, Avg Ticket, Total Jobs. |
+| | View Charts | ✅ | ❌ | Monthly Revenue Trends. |
+| | View "My Jobs"| ✅ | ✅ | Staff see their assigned list. |
+| **Clients** | View List | ✅ | ✅ | Staff see all clients in Org. |
+| | Create/Edit | ✅ | ❌ | |
+| **Jobs** | View List | ✅ | ⚠️ | Staff only see *assigned* jobs. |
+| | Create Job | ✅ | ❌ | |
+| | Edit Details | ✅ | ❌ | Price, Notes, Service Type. |
+| | Start Job | ✅ | ✅ | Only if assigned (Staff). |
+| | Complete Job | ✅ | ✅ | Only if assigned (Staff). |
+| | Cancel Job | ✅ | ❌ | |
+| | Delete Job | ✅ | ❌ | |
+| **Invoicing** | Generate | ✅ | ❌ | |
+| **Data Export** | Download CSV | ✅ | ❌ | Prevent data theft. |
+| **Settings** | Invite User | ✅ | ❌ | |
+| **Financials**| See Prices | ✅ | ❌ | Hidden in UI for Staff. |
+
+```
+---
+
+## FILE: docs/SCHEMA_REFERENCE.md
+```md
+# 🗄️ Firestore Schema & Business Logic
+
+## `users/{userId}`
+* **profile** (map):
+  * `name` (string)
+  * `language` (string): 'en', 'fr', etc. (For Ahmed)
+  * `transport` (string): 'transit' | 'vehicle' (For Jasmine)
+  * `acceptedTermsVersion` (string): e.g., "v1.0_2025" (For Sarah)
+* **financials** (map):
+  * `mode`: 'cap' | 'unlimited'
+  * `limit` (number): Monthly hard cap (For Carla)
+  * `currentMonthAccrued` (number): Real-time counter.
+* **constraints** (map):
+  * `blockedWindows` (array): Time slots (For Mike)
+  * `heavyLifting` (boolean)
+* **role** (string): 'admin' | 'staff' | 'care_coordinator'
+* **orgId** (string)
+
+## `jobs/{jobId}` (aka Shifts)
+* **status**: 'open' | 'claimed' | 'completed' | 'cancelled'
+* **contractLedger** (map): (Financial Audit Trail)
+  * `claimedBy`: userId
+  * `claimedAt`: timestamp
+  * `rateSnapshot`: number (Hourly/Fixed rate at time of claim)
+* **requirements** (map):
+  * `photos`: array of URLs (For Brenda)
+* **time**:
+  * `start`: timestamp
+  * `end`: timestamp
+* **location**:
+  * `address`: string
+  * `coordinates`: { lat, lng }
+
+## `clients/{clientId}`
+* **Standard fields**: name, address, etc.
+
 
 ```
 ---
@@ -4167,497 +4497,357 @@ debug();
 ```
 ---
 
-## FILE: scripts/finalize_phase3.sh
+## FILE: scripts/finalize_mvp_docs.sh
 ```sh
 #!/bin/bash
 
 # ====================================================
-# FRESH NEST: PHASE 3 CLOSE-OUT
-# Goal: Update Docs & Sync
+# FRESH NEST: FINAL MVP DOCUMENTATION SYNC
+# Goal: Mark project as v1.0.0 and document Export
 # ====================================================
 
-echo "📚 Updating Documentation for Phase 3 Completion..."
+echo "📚 Finalizing Documentation for v1.0.0 Release..."
 
-# 1. Update Project Status
+# 1. Update Root README (Feature Complete)
+echo "📝 Updating README.md..."
+cat << 'INNER_EOF' > README.md
+# 🧹 Fresh Nest
+
+**Fresh Nest** is a Lean SaaS Field Service Management (FSM) platform built for cleaning businesses.
+It features Multi-Tenancy, Role-Based Access Control, Geolocation, Financial Analytics, and Data Export.
+
+## 🚀 Quick Start
+
+1. **Install Dependencies:**
+   \`npm install\`
+
+2. **Environment Setup:**
+   Ensure you have \`.env.development\` with valid Firebase & Google Maps Keys.
+
+3. **Run Local Dev:**
+   \`npm run dev\`
+
+## 📂 Documentation Index
+
+* **[Project Status](./docs/PROJECT_STATUS.md):** Current phase and roadmap.
+* **[DevOps Manual](./docs/DEVOPS_MANUAL.md):** CI/CD, Secrets, and Infrastructure.
+* **[Context Dump](./docs/CONTEXT_DUMP.md):** High-level architecture rules for AI.
+* **[RBAC Matrix](./docs/RBAC_MATRIX.md):** Security permissions reference.
+* **[Schema Reference](./docs/SCHEMA_REFERENCE.md):** Firestore data model & Business Logic.
+
+## 🏗️ Architecture
+* **Frontend:** React + Vite + Tailwind CSS
+* **Backend:** Firebase (Auth, Firestore, Functions)
+* **Maps:** Google Maps Javascript API
+* **Invoicing:** @react-pdf/renderer (Client-side)
+* **Analytics:** Recharts (Client-side aggregation)
+* **Export:** Custom CSV Utility (No heavy dependencies)
+INNER_EOF
+
+# 2. Update Project Status (The Big Milestone)
 echo "📝 Updating docs/PROJECT_STATUS.md..."
 cat << 'INNER_EOF' > docs/PROJECT_STATUS.md
 # 📌 Project Status: Fresh Nest
 
-**Current Phase:** Phase 4 - Invoicing & Revenue
+**Current Phase:** ✅ MVP Complete (Maintenance Mode)
 **Last Updated:** $(date +%Y-%m-%d)
+**Latest Version:** v1.0.0
 
 ## ✅ Completed Features
 * **Core:** Project Setup, Auth, Multi-Tenancy.
-* **Clients:** CRUD, Filtering, Geocoding (Auto-Coordinates).
-* **Jobs:** Scheduling, CRUD, Workflow (Start/Complete/Cancel).
-* **Maps:** Interactive Schedule Map (Google Maps API).
-* **DevOps:** 3-Environment CI/CD, Firestore Indexes, Maps API Integration.
+* **Clients:** CRUD, Filtering, Geocoding.
+* **Jobs:** Scheduling, CRUD, Workflow, Maps.
+* **Invoicing:** PDF Generation, Mobile Parity.
+* **Dashboard:** Admin KPIs, Revenue Charts, Staff Restrictions.
+* **Data Export:** CSV downloads for Clients and Jobs (Admin only).
+* **DevOps:** 3-Environment CI/CD, Firestore Indexes.
 
-## 🚧 In Progress / Next Up
-* [ ] **Invoicing:** Generate PDF invoices for completed jobs.
-* [ ] **Revenue Reporting:** Basic dashboard for earnings.
+## 🚧 Future Roadmap (Post-MVP)
+* [ ] **Email Notifications:** Send invoices via SendGrid/Postmark.
+* [ ] **Client Portal:** Allow clients to book their own slots.
+* [ ] **Subscription Billing:** Stripe integration for SaaS fees.
 
 ## 🗄️ Database Schema
 * `organizations/{orgId}`
 * `users/{userId}`: { role: 'admin'|'staff', orgId, ... }
-* `jobs/{jobId}`: { status: 'scheduled'|'completed', price, startedAt, completedAt ... }
-* `clients/{clientId}`: { name, address, coordinates: { lat, lng }, ... }
+* `jobs/{jobId}`: { invoiceNumber, invoicedAt, price, status, ... }
+* `clients/{clientId}`: { name, address, coordinates, ... }
 INNER_EOF
 
-# 2. Update DevOps Manual (Add Maps Protocol)
-echo "📝 Updating docs/DEVOPS_MANUAL.md..."
-cat << 'INNER_EOF' > docs/DEVOPS_MANUAL.md
-# ☁️ DevOps & Infrastructure Manual
+# 3. Update RBAC Matrix (Add Export)
+echo "📝 Updating docs/RBAC_MATRIX.md..."
+cat << 'INNER_EOF' > docs/RBAC_MATRIX.md
+# 🛡️ Role-Based Access Control (RBAC) Matrix
 
-## 1. CI/CD Architecture
-We use **GitHub Actions** for "Full Stack" deployments.
-* **Workflows:** `.github/workflows/`
-* **Triggers:** `dev` (Dev), `release/*` (UAT), `main` (Prod).
+**Roles:** `admin` (Owner), `staff` (Worker)
+**Enforcement:** 1. **Frontend:** UI Hiding via `useJobWorkflow` / `userRole`.
+2. **Backend:** Firestore Security Rules (checks `resource.data.orgId`).
 
-## 2. Environment Management
-Scripts in `/scripts` handle data seeding. Always pass the env arg (e.g., `node scripts/init-org.cjs uat`).
-
-## 3. GitHub Secrets (Required)
-| Secret Name | Content |
-| :--- | :--- |
-| `FIREBASE_SERVICE_ACCOUNT_[ENV]` | JSON key for Firebase Admin |
-| `ENV_FILE_[ENV]` | Full contents of `.env` |
-
-## 4. Google Maps Setup (New Project)
-If creating a new environment (e.g., Staging), you MUST:
-1.  **GCP Console:** Enable "Maps JavaScript API" and "Geocoding API".
-2.  **Billing:** Link the project to your Billing Account (Critical).
-3.  **Credentials:** Create an API Key.
-4.  **Secrets:** Add `VITE_GOOGLE_MAPS_API_KEY=...` to the `ENV_FILE_[ENV]` GitHub Secret.
-
-## 5. Troubleshooting
-**"Billing Not Setup" on Map:**
-* Go to GCP Console -> Billing -> Link the project to your account.
-
-**"Missing Permissions" in CI/CD:**
-* Grant `firebase-adminsdk` Service Account "Editor" or "Cloud Datastore User" roles.
+| Feature | Action | Admin | Staff | Notes |
+| :--- | :--- | :---: | :---: | :--- |
+| **Dashboard** | View KPIs | ✅ | ❌ | Revenue, Avg Ticket, Total Jobs. |
+| | View Charts | ✅ | ❌ | Monthly Revenue Trends. |
+| | View "My Jobs"| ✅ | ✅ | Staff see their assigned list. |
+| **Clients** | View List | ✅ | ✅ | Staff see all clients in Org. |
+| | Create/Edit | ✅ | ❌ | |
+| **Jobs** | View List | ✅ | ⚠️ | Staff only see *assigned* jobs. |
+| | Create Job | ✅ | ❌ | |
+| | Edit Details | ✅ | ❌ | Price, Notes, Service Type. |
+| | Start Job | ✅ | ✅ | Only if assigned (Staff). |
+| | Complete Job | ✅ | ✅ | Only if assigned (Staff). |
+| | Cancel Job | ✅ | ❌ | |
+| | Delete Job | ✅ | ❌ | |
+| **Invoicing** | Generate | ✅ | ❌ | |
+| **Data Export** | Download CSV | ✅ | ❌ | Prevent data theft. |
+| **Settings** | Invite User | ✅ | ❌ | |
+| **Financials**| See Prices | ✅ | ❌ | Hidden in UI for Staff. |
 INNER_EOF
 
-# 3. Update Context Dump (Refine Rules)
+# 4. Update Context Dump (Add CSV Rule)
 echo "📝 Updating docs/CONTEXT_DUMP.md..."
 cat << 'INNER_EOF' > docs/CONTEXT_DUMP.md
 # Fresh Nest: Context Dump
 **Stack:** React + Vite + Firebase + Tailwind CSS
 **Architecture:** Multi-Tenant SaaS.
 
-## Schema (Implemented)
-- **organizations/{orgId}**: { name, settings }
-- **users/{userId}**: { email, orgId, role, fullName }
-- **jobs/{jobId}**: 
-    - `assignedTo`: [userId]
-    - `status`: 'scheduled' | 'in_progress' | 'completed' | 'cancelled'
-    - `startedAt`, `completedAt`: Timestamps
-- **clients/{clientId}**: 
-    - `coordinates`: { lat: number, lng: number }
+## Documentation References
+* **Schema:** See `docs/SCHEMA_REFERENCE.md`
+* **Security/RBAC:** See `docs/RBAC_MATRIX.md`
+* **DevOps:** See `docs/DEVOPS_MANUAL.md`
 
-## Rules for AI (STRICT)
+## Architecture Rules (STRICT)
 1. **NO PLACEHOLDERS:** Provide COMPLETE FILES only.
 2. **Icons:** Use `lucide-react`.
 3. **Tailwind:** Mobile-first (`block md:flex`).
 4. **Security & Data Access (CRITICAL):**
-   - **NEVER use `request.auth.token.orgId`.** Fetch `users/{uid}` from Firestore.
+   - **NEVER use `request.auth.token.orgId`.** Fetch `users/{uid}`.
    - All queries must filter by `.where("orgId", "==", currentOrgId)`.
-5. **Environment Variables:**
-   - ALWAYS use `import.meta.env.VITE_...` (Vite standard).
-   - NEVER use `process.env` in frontend code.
+   - All writes MUST include `orgId`.
+5. **State Management:**
+   - Prefer deriving state from lists (e.g. `jobs.find(id)`) over storing object snapshots.
+6. **Analytics & Export:**
+   - **Charts:** Use `recharts` (Client-side aggregation).
+   - **CSV Export:** Use `src/lib/csv.js` (Custom utility). Do NOT install `papaparse`.
+   - **PDF:** Use `@react-pdf/renderer` inside `InvoiceModal`.
 INNER_EOF
 
-# 4. Git Commit
-echo "🌿 Committing Documentation Updates..."
-git add .
-git commit -m "chore: finalize phase 3 docs and update devops manual"
+# 5. Update Changelog
+echo "📝 Updating docs/CHANGELOG.md..."
+cat << 'INNER_EOF' > docs/CHANGELOG.md
+# 📜 Changelog
+
+## [v1.0.0] - 2026-01-14 (MVP Gold Master)
+### Added
+* **Data Export:** Admins can now export Client and Job lists to CSV using a custom robust utility.
+* **Security:** Role-based restrictions applied to Export buttons (Admin only).
+* **Mobile Parity:** Export buttons hidden on mobile to preserve UI density.
+
+## [v0.6.0] - 2026-01-14
+### Added
+* **Revenue Dashboard:** Admin view with Total Revenue, Jobs Completed, and Avg Ticket KPIs.
+* **Visualizations:** Monthly Revenue Bar Chart using `recharts`.
+* **Staff Dashboard:** Restricted view showing only assigned upcoming jobs.
+
+## [v0.5.1] - 2026-01-12
+### Fixed
+* **Mobile Invoicing:** Added responsive HTML preview for mobile devices.
+
+## [v0.5.0] - 2026-01-12
+### Added
+* **Invoicing Module:** Client-side PDF generation.
+INNER_EOF
+
+# 6. Commit Updates
+echo "🌿 Committing Documentation Suite..."
+git add README.md docs/
+git commit -m "docs: finalize v1.0.0 mvp documentation"
 git push origin main
 
-echo "🎉 Phase 3 Maps & Geocoding Officially Closed!"
+echo "🎉 Documentation Updated. Fresh Nest is officially v1.0.0!"
 
 ```
 ---
 
-## FILE: scripts/fix_settings.sh
+## FILE: scripts/finalize_phase5_docs.sh
 ```sh
 #!/bin/bash
 
-echo "🔧 Fixing Settings Page Redirect..."
+# ====================================================
+# FRESH NEST: DOCUMENTATION SYNCHRONIZATION
+# Goal: Update all docs to reflect Phase 5 Completion
+# ====================================================
 
-# 1. Create the Settings Page Component
-# This restores the UI to view Staff and send Invites
-echo "📝 Creating src/pages/SettingsPage.jsx..."
-cat << 'EOF' > src/pages/SettingsPage.jsx
-import React, { useState } from 'react';
-import { Mail, User, Shield, Plus, Loader } from 'lucide-react';
-import { useStaff } from '../hooks/useStaff';
-import { auth, db } from '../lib/firebase';
-import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
+echo "📚 Synchronizing Documentation Suite..."
 
-const SettingsPage = () => {
-  const { staff, loading: staffLoading } = useStaff();
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState('staff');
-  const [inviteLoading, setInviteLoading] = useState(false);
+# 1. Create Root README.md (The Front Door)
+echo "📝 Creating README.md..."
+cat << 'INNER_EOF' > README.md
+# 🧹 Fresh Nest
 
-  const handleInvite = async (e) => {
-    e.preventDefault();
-    setInviteLoading(true);
-    try {
-      const user = auth.currentUser;
-      // Get Org ID
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      const orgId = userDoc.data().orgId;
+**Fresh Nest** is a Lean SaaS Field Service Management (FSM) platform built for cleaning businesses.
+It features Multi-Tenancy, Role-Based Access Control, Geolocation, and Financial Analytics.
 
-      // Create Invite Doc
-      await addDoc(collection(db, 'invites'), {
-        email: inviteEmail,
-        role: inviteRole,
-        orgId,
-        status: 'pending',
-        invitedBy: user.uid,
-        createdAt: serverTimestamp()
-      });
+## 🚀 Quick Start
 
-      alert(`Invite sent to ${inviteEmail}`);
-      setInviteEmail('');
-    } catch (error) {
-      console.error(error);
-      alert("Failed to send invite.");
-    } finally {
-      setInviteLoading(false);
-    }
-  };
+1. **Install Dependencies:**
+   \`npm install\`
 
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
-        <p className="text-slate-500 text-sm">Manage your team and organization</p>
-      </div>
+2. **Environment Setup:**
+   Ensure you have \`.env.development\` with valid Firebase & Google Maps Keys.
 
-      {/* Staff List Card */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-          <h3 className="font-bold text-slate-800 flex items-center gap-2">
-            <User size={20} className="text-brand-500" />
-            Team Members
-          </h3>
-        </div>
-        
-        <div className="divide-y divide-gray-100">
-          {staffLoading ? (
-            <div className="p-6 text-center text-slate-400">Loading staff...</div>
-          ) : staff.map((member) => (
-            <div key={member.id} className="p-4 flex items-center justify-between hover:bg-gray-50">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-brand-100 rounded-full flex items-center justify-center text-brand-600 font-bold">
-                  {member.email[0].toUpperCase()}
-                </div>
-                <div>
-                  <p className="font-medium text-slate-900">{member.fullName || 'Unnamed User'}</p>
-                  <p className="text-xs text-slate-500">{member.email}</p>
-                </div>
-              </div>
-              <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${
-                member.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
-              }`}>
-                {member.role}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
+3. **Run Local Dev:**
+   \`npm run dev\`
 
-      {/* Invite Form Card */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
-          <h3 className="font-bold text-slate-800 flex items-center gap-2">
-            <Mail size={20} className="text-brand-500" />
-            Invite New Member
-          </h3>
-        </div>
-        <form onSubmit={handleInvite} className="p-6 flex flex-col md:flex-row gap-4 items-end">
-          <div className="flex-1 w-full">
-            <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
-            <input 
-              type="email" 
-              required
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
-              placeholder="colleague@freshnest.com"
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
-            />
-          </div>
-          <div className="w-full md:w-48">
-            <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
-            <select 
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none bg-white"
-              value={inviteRole}
-              onChange={(e) => setInviteRole(e.target.value)}
-            >
-              <option value="staff">Staff</option>
-              <option value="admin">Admin</option>
-            </select>
-          </div>
-          <button 
-            type="submit" 
-            disabled={inviteLoading}
-            className="w-full md:w-auto px-6 py-2 bg-brand-600 text-white rounded-lg font-medium hover:bg-brand-700 disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            {inviteLoading ? <Loader className="animate-spin" size={18} /> : <Plus size={18} />}
-            Send Invite
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-};
+## 📂 Documentation Index
 
-export default SettingsPage;
-EOF
+* **[Project Status](./docs/PROJECT_STATUS.md):** Current phase and roadmap.
+* **[DevOps Manual](./docs/DEVOPS_MANUAL.md):** CI/CD, Secrets, and Infrastructure.
+* **[Context Dump](./docs/CONTEXT_DUMP.md):** High-level architecture rules for AI.
+* **[RBAC Matrix](./docs/RBAC_MATRIX.md):** Security permissions reference.
+* **[Schema Reference](./docs/SCHEMA_REFERENCE.md):** Firestore data model & Business Logic.
 
-# 2. Register Route in App.jsx
-echo "📝 Updating src/App.jsx to include Settings route..."
-cat << 'EOF' > src/App.jsx
-import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import AppLayout from './components/layout/AppLayout';
-import AuthGuard from './components/layout/AuthGuard';
-import LoginPage from './features/auth/LoginPage';
-import ClientsPage from './pages/ClientsPage';
-import JobsPage from './pages/JobsPage';
-import SchedulePage from './pages/SchedulePage';
-import SettingsPage from './pages/SettingsPage'; // ✨ Imported
-import DebugClaims from './components/debug/DebugClaims';
-
-// Placeholder Pages
-const Dashboard = () => (
-  <div>
-    <h2 className="text-2xl font-bold mb-4">Dashboard</h2>
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-        <h3 className="text-gray-500 text-sm font-medium">Jobs Today</h3>
-        <p className="text-2xl font-bold text-slate-800">0</p>
-      </div>
-    </div>
-    <DebugClaims />
-  </div>
-);
-
-function App() {
-  return (
-    <BrowserRouter>
-      <Routes>
-        {/* Public Route */}
-        <Route path="/login" element={<LoginPage />} />
-
-        {/* Protected Routes */}
-        <Route path="/" element={
-          <AuthGuard>
-            <AppLayout />
-          </AuthGuard>
-        }>
-          <Route index element={<Dashboard />} />
-          <Route path="jobs" element={<JobsPage />} />
-          <Route path="schedule" element={<SchedulePage />} />
-          <Route path="clients" element={<ClientsPage />} />
-          <Route path="settings" element={<SettingsPage />} /> {/* ✨ Added Route */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
-  );
-}
-
-export default App;
-EOF
-
-echo "✅ Settings Page restored and route registered."
-```
----
-
-## FILE: scripts/fix_staff_org.cjs
-```cjs
-const admin = require('firebase-admin');
-const serviceAccount = require('./service-account.json'); // Uses DEV key
-
-const ADMIN_EMAIL = "rpdouglas@gmail.com";
-const STAFF_EMAIL = "staff@freshnest.com";
-
-if (!admin.apps.length) {
-  admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
-}
-const db = admin.firestore();
-const auth = admin.auth();
-
-async function fixOrg() {
-  try {
-    console.log(`🔧 Fixing Org Mismatch...`);
-
-    // 1. Get Admin's Org ID (The Source of Truth)
-    const adminAuth = await auth.getUserByEmail(ADMIN_EMAIL);
-    const adminDoc = await db.collection('users').doc(adminAuth.uid).get();
-    
-    if (!adminDoc.exists) {
-      console.error("❌ Admin profile not found. Cannot proceed.");
-      return;
-    }
-
-    const correctOrgId = adminDoc.data().orgId;
-    console.log(`✅ Admin Org ID: ${correctOrgId}`);
-
-    // 2. Get Staff User
-    const staffAuth = await auth.getUserByEmail(STAFF_EMAIL);
-    const staffRef = db.collection('users').doc(staffAuth.uid);
-
-    // 3. Force Update Staff
-    await staffRef.set({
-      orgId: correctOrgId
-    }, { merge: true }); // 'merge: true' keeps other fields like email/role intact
-
-    console.log(`✅ SUCCESS! Moved ${STAFF_EMAIL} into Org: ${correctOrgId}`);
-    console.log("👉 Refresh your browser. You should see them in Settings now.");
-
-  } catch (error) {
-    console.error("❌ Error:", error.message);
-  }
-}
-
-fixOrg();
-
-```
----
-
-## FILE: scripts/fix_syntax.sh
-```sh
-#!/bin/bash
-
-echo "🔧 Repairing Syntax Errors in Maps Feature..."
-
-# 1. Fix src/lib/maps.js
-# Removing extra backslashes from template literals
-echo "📝 Repairing src/lib/maps.js..."
-cat << 'INNER_JS' > src/lib/maps.js
-// Utility to handle Google Maps Geocoding
-const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-
-export const geocodeAddress = async (address) => {
-  if (!address || !API_KEY) return null;
-
-  try {
-    // CORRECTED: No backslash before the backtick or ${
-    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${API_KEY}`;
-    const response = await fetch(url);
-    const data = await response.json();
-
-    if (data.status === 'OK' && data.results.length > 0) {
-      const location = data.results[0].geometry.location;
-      return {
-        lat: location.lat,
-        lng: location.lng
-      };
-    } else {
-      console.warn("Geocoding failed:", data.status);
-      return null;
-    }
-  } catch (error) {
-    console.error("Geocoding error:", error);
-    return null;
-  }
-};
-INNER_JS
-
-# 2. Fix src/pages/SchedulePage.jsx
-# Removing extra backslashes from className template literals
-echo "📝 Repairing src/pages/SchedulePage.jsx..."
-cat << 'INNER_JSX' > src/pages/SchedulePage.jsx
-import React, { useState } from 'react';
-import { startOfWeek, endOfWeek, isSameDay } from 'date-fns';
-import { Map, List } from 'lucide-react';
-import { useSchedule } from '../hooks/useSchedule';
-import { useClients } from '../hooks/useClients';
-import DateStrip from '../components/schedule/DateStrip';
-import DailyAgenda from '../components/schedule/DailyAgenda';
-import MapComponent from '../components/map/MapComponent';
-
-const SchedulePage = () => {
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [viewMode, setViewMode] = useState('list'); // 'list' | 'map'
-
-  const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 }); 
-  const weekEnd = endOfWeek(selectedDate, { weekStartsOn: 1 });      
-
-  const { jobs, loading: scheduleLoading, error, role: userRole } = useSchedule(weekStart, weekEnd);
-  const { clients, loading: clientsLoading } = useClients();
-
-  const todaysJobs = jobs.filter(job => 
-    job.scheduledDate && isSameDay(job.scheduledDate, selectedDate)
-  );
-
-  return (
-    <div className="bg-gray-50 min-h-full pb-20">
-      <div className="sticky top-0 z-10 bg-white border-b border-gray-200">
-        <DateStrip 
-          selectedDate={selectedDate} 
-          onSelectDate={setSelectedDate} 
-        />
-        
-        {/* View Toggle Bar */}
-        <div className="flex justify-center p-2 bg-gray-50 border-b border-gray-200">
-          <div className="bg-white p-1 rounded-lg border border-gray-200 flex shadow-sm">
-            <button
-              onClick={() => setViewMode('list')}
-              // CORRECTED: No backslashes here
-              className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                viewMode === 'list' ? 'bg-brand-50 text-brand-700' : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              <List size={16} /> List
-            </button>
-            <button
-              onClick={() => setViewMode('map')}
-              // CORRECTED: No backslashes here
-              className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                viewMode === 'map' ? 'bg-brand-50 text-brand-700' : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              <Map size={16} /> Map
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <main className="p-4 max-w-3xl mx-auto">
-        {error && (
-          <div className="p-4 mb-4 bg-red-50 text-red-600 rounded-lg text-sm text-center">
-            {error}
-          </div>
-        )}
-
-        {viewMode === 'list' ? (
-          <DailyAgenda 
-            jobs={todaysJobs} 
-            clients={clients} 
-            loading={scheduleLoading || clientsLoading} 
-            selectedDate={selectedDate}
-            userRole={userRole} 
-          />
-        ) : (
-          <MapComponent 
-            jobs={todaysJobs}
-            clients={clients}
-          />
-        )}
-      </main>
-    </div>
-  );
-};
-
-export default InvoiceModal;
+## 🏗️ Architecture
+* **Frontend:** React + Vite + Tailwind CSS
+* **Backend:** Firebase (Auth, Firestore, Functions)
+* **Maps:** Google Maps Javascript API
+* **Invoicing:** @react-pdf/renderer (Client-side)
+* **Analytics:** Recharts (Client-side aggregation)
 INNER_EOF
 
-echo "✅ Hotfix Applied: Responsive PDF Modal."
+# 2. Update Project Status
+echo "📝 Updating docs/PROJECT_STATUS.md..."
+cat << 'INNER_EOF' > docs/PROJECT_STATUS.md
+# 📌 Project Status: Fresh Nest
+
+**Current Phase:** Phase 6 - Data Export & Polish
+**Last Updated:** $(date +%Y-%m-%d)
+**Latest Version:** v0.6.0 (Revenue Dashboard)
+
+## ✅ Completed Features
+* **Core:** Project Setup, Auth, Multi-Tenancy.
+* **Clients:** CRUD, Filtering, Geocoding.
+* **Jobs:** Scheduling, CRUD, Workflow, Maps.
+* **Invoicing:** PDF Generation, Mobile Parity.
+* **Dashboard:** Admin KPIs, Revenue Charts, Staff Restrictions.
+* **DevOps:** 3-Environment CI/CD, Firestore Indexes.
+
+## 🚧 In Progress / Next Up
+* [ ] **Data Export:** CSV export for accounting (Quickbooks/Xero support).
+* [ ] **Final Polish:** UX consistency check.
+INNER_EOF
+
+# 3. Update RBAC Matrix (Add Dashboard Rules)
+echo "📝 Updating docs/RBAC_MATRIX.md..."
+cat << 'INNER_EOF' > docs/RBAC_MATRIX.md
+# 🛡️ Role-Based Access Control (RBAC) Matrix
+
+**Roles:** `admin` (Owner), `staff` (Worker)
+**Enforcement:** 1. **Frontend:** UI Hiding via `useJobWorkflow` / `userRole`.
+2. **Backend:** Firestore Security Rules (checks `resource.data.orgId`).
+
+| Feature | Action | Admin | Staff | Notes |
+| :--- | :--- | :---: | :---: | :--- |
+| **Dashboard** | View KPIs | ✅ | ❌ | Revenue, Avg Ticket, Total Jobs. |
+| | View Charts | ✅ | ❌ | Monthly Revenue Trends. |
+| | View "My Jobs"| ✅ | ✅ | Staff see their assigned list. |
+| **Clients** | View List | ✅ | ✅ | Staff see all clients in Org. |
+| | Create/Edit | ✅ | ❌ | |
+| **Jobs** | View List | ✅ | ⚠️ | Staff only see *assigned* jobs. |
+| | Create Job | ✅ | ❌ | |
+| | Edit Details | ✅ | ❌ | Price, Notes, Service Type. |
+| | Start Job | ✅ | ✅ | Only if assigned (Staff). |
+| | Complete Job | ✅ | ✅ | Only if assigned (Staff). |
+| | Cancel Job | ✅ | ❌ | |
+| | Delete Job | ✅ | ❌ | |
+| **Invoicing** | Generate | ✅ | ❌ | |
+| **Settings** | Invite User | ✅ | ❌ | |
+| **Financials**| See Prices | ✅ | ❌ | Hidden in UI for Staff. |
+INNER_EOF
+
+# 4. Update Schema Reference (Add Business Logic)
+echo "📝 Updating docs/SCHEMA_REFERENCE.md..."
+cat << 'INNER_EOF' > docs/SCHEMA_REFERENCE.md
+# 🗄️ Firestore Schema & Business Logic
+
+## 🧠 Business Logic & Calculations
+
+### 1. Revenue Calculation
+* **Definition:** Sum of `price` for all jobs where `status === 'completed'`.
+* **Constraint:** Jobs that are 'scheduled' or 'in_progress' do NOT count towards revenue.
+* **Aggregation:** Performed Client-Side in `useDashboard.js`.
+
+### 2. Job Completion
+* **Trigger:** User clicks "Complete Job".
+* **Update:** Sets `status: 'completed'` AND `completedAt: serverTimestamp()`.
+* **Note:** `completedAt` is used for Monthly Grouping in charts.
+
+---
+
+## 📂 Collection Reference
+
+### `organizations/{orgId}`
+* **name** (string): Display name.
+* **settings** (map): `{ currency, geoFenceRadius }`.
+* **plan** (string): Subscription tier.
+
+### `users/{userId}`
+* **email** (string)
+* **fullName** (string)
+* **orgId** (string): **CRITICAL**. Links user to tenant.
+* **role** (string): `'admin'` | `'staff'`.
+
+### `clients/{clientId}`
+* **orgId** (string)
+* **name** (string)
+* **email** (string)
+* **phone** (string)
+* **address** (string): Text address.
+* **coordinates** (map): `{ lat: number, lng: number }`. Used for Maps.
+
+### `jobs/{jobId}`
+* **orgId** (string)
+* **clientId** (string): Ref to `clients`.
+* **assignedTo** (array): List of `userId` strings.
+* **status** (string): `'scheduled'` | `'in_progress'` | `'completed'` | `'cancelled'`.
+* **serviceType** (string): `'standard'` | `'deep'` | etc.
+* **price** (number): Estimated cost.
+* **scheduledDate** (timestamp): When the job is.
+* **startedAt** (timestamp): When status changed to in_progress.
+* **completedAt** (timestamp): Used for Revenue Reports.
+* **invoiceNumber** (string): Generated ID (e.g., "2026-4821").
+* **invoicedAt** (timestamp): When PDF was generated.
+INNER_EOF
+
+# 5. Update Changelog
+echo "📝 Updating docs/CHANGELOG.md..."
+cat << 'INNER_EOF' > docs/CHANGELOG.md
+# 📜 Changelog
+
+## [v0.6.0] - 2026-01-14
+### Added
+* **Revenue Dashboard:** Admin view with Total Revenue, Jobs Completed, and Avg Ticket KPIs.
+* **Visualizations:** Monthly Revenue Bar Chart using `recharts` with horizontal scrolling for mobile.
+* **Staff Dashboard:** Restricted view showing only assigned upcoming jobs.
+* **Security:** Implemented Client-Side role checks to prevent data leaks.
+
+## [v0.5.1] - 2026-01-12
+### Fixed
+* **Mobile Invoicing:** Added responsive HTML preview for mobile devices to bypass PDF iframe limitations.
+* **UI:** Added "Generate Invoice" button to Mobile Job Card.
+
+## [v0.5.0] - 2026-01-12
+### Added
+* **Invoicing Module:** Client-side PDF generation using `@react-pdf/renderer`.
+* **Tracking:** `invoicedAt` and `invoiceNumber` fields added to Job Schema.
+INNER_EOF
+
+# 6. Commit Updates
+echo "🌿 Committing Documentation Suite..."
+git add README.md docs/
+git commit -m "docs: finalize phase 5 revenue dashboard documentation"
+git push origin main
+
+echo "✅ Documentation Suite Updated."
 
 ```
 ---
@@ -4828,88 +5018,132 @@ bootstrap();
 ```
 ---
 
-## FILE: scripts/init-org.js
-```js
-/**
- * scripts/init-org.js
- * USAGE: 
- * 1. Ensure service-account.json is in this folder (scripts/).
- * 2. Run: node scripts/init-org.cjs
- */
+## FILE: scripts/inject_personas.sh
+```sh
+#!/bin/bash
 
-const admin = require('firebase-admin');
-// Ensure this file exists! You downloaded it from Firebase Console -> Project Settings -> Service Accounts
-const serviceAccount = require('./service-account.json'); 
+echo "👥 Injecting Persona-Based Documentation..."
 
-// --- CONFIGURATION ---
-const TARGET_EMAIL = "FN_TEST_CLEANER@gmail.com"; // <--- The account you want to give a "Home" to
-const ORG_NAME = "Cleaner Test Org";              // <--- The name of their new Organization
-// ---------------------
+# 1. Create PERSONAS.md (The Source of Truth for Human Constraints)
+echo "📝 Creating docs/PERSONAS.md..."
+cat << 'INNER_EOF' > docs/PERSONAS.md
+# 👥 Fresh Nest Personas (Technical Constraints)
 
-// Initialize the Admin SDK
-// Check if already initialized to avoid hot-reload errors (though rare in scripts)
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount)
-  });
-}
+These are not just user stories. These are **System Constraints**. Every feature must be validated against these realities.
 
-const db = admin.firestore();
-const auth = admin.auth();
+## 1. Carla - The "Financial Anchor" (ODSP)
+* **Context:** Single mother, relies on Ontario Disability Support Program (ODSP).
+* **Hard Constraint:** **Earnings Cap.** She *cannot* earn more than her allowable limit (e.g., $1,000/mo) without triggering a clawback mechanism that destabilizes her housing.
+* **Tech Requirement:** * `user.financials.limit`: Hard integer limit.
+    * **Pre-Claim Check:** System must block a shift claim if `(currentMonthEarnings + shiftPrice) > limit`.
+    * **Visuals:** "Safe to Earn" progress bar.
 
-async function bootstrap() {
-  try {
-    console.log(`🚀 Starting bootstrap for: ${TARGET_EMAIL}`);
+## 2. Jasmine - The "Transit Rider"
+* **Context:** No vehicle. Relies on Cornwall Transit.
+* **Hard Constraint:** **Travel Time Buffers.** She cannot teleport. A 1:00 PM job across town after a 12:00 PM job is physically impossible.
+* **Tech Requirement:**
+    * `user.constraints.transport`: 'transit'.
+    * **Conflict Engine:** Auto-calculate travel time via Google Maps Transit API (future) or enforce 60-min buffers between sites.
 
-    // 1. Find the user
-    let user;
-    try {
-      user = await auth.getUserByEmail(TARGET_EMAIL);
-      console.log(`✅ Found User: ${user.uid}`);
-    } catch (e) {
-      console.error(`❌ User ${TARGET_EMAIL} not found in Auth. Did you sign up in the browser first?`);
-      process.exit(1);
-    }
+## 3. Mike - The "Recovery Worker"
+* **Context:** Re-entering workforce. Attends mandatory support meetings (e.g., AA) every Tuesday at 7 PM.
+* **Hard Constraint:** **Blocked Windows.**
+* **Tech Requirement:**
+    * `user.constraints.blockedWindows`: Array of recurring time slots.
+    * **Visibility Filter:** Shifts overlapping these windows must be strictly hidden from his view.
 
-    // 2. Create the Organization
-    const orgRef = await db.collection('organizations').add({
-      name: ORG_NAME,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      plan: 'basic', // Default plan for new orgs
-      settings: {
-        currency: 'USD',
-        geoFenceRadius: 200
-      }
-    });
-    console.log(`✅ Created Organization: ${orgRef.id} (${ORG_NAME})`);
+## 4. Ahmed - The "Newcomer" (ESL)
+* **Context:** Recent immigrant. High work ethic, low English literacy.
+* **Hard Constraint:** **Cognitive Load.** Text-heavy instructions result in errors.
+* **Tech Requirement:**
+    * **Icon-First UI:** Tasks must use visual icons (Mop, Key, Trash).
+    * **Language Toggle:** One-tap switch between English/French/Arabic.
 
-    // 3. Update the User Profile (Firestore)
-    // We create a public profile for this user so we can find them easily later
-    await db.collection('users').doc(user.uid).set({
-      email: user.email,
-      orgId: orgRef.id,
-      role: 'admin', // First user is always admin
-      fullName: 'Test User',
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
-    });
-    console.log(`✅ Created User Profile in Firestore`);
+## 5. Brenda - The "Visual Verifier"
+* **Context:** Detail-oriented, anxious about "he said/she said" disputes.
+* **Hard Constraint:** **Trust.** Needs proof she did the job right.
+* **Tech Requirement:**
+    * **Photo Uploads:** Mandatory "Before" and "After" photos for specific high-value items (e.g., Stove).
+    * **Metadata:** Photos must be timestamped and geo-tagged.
 
-    // 4. Set Custom Claims (The "Magic" Token)
-    // This allows the frontend to know their role without querying the DB
-    await auth.setCustomUserClaims(user.uid, {
-      orgId: orgRef.id,
-      role: 'admin'
-    });
-    console.log(`✅ Claims set on Auth Token!`);
+## 6. Sarah - The "Owner" (Compliance)
+* **Context:** Business owner. Terrified of labor board audits and liability.
+* **Hard Constraint:** **Audit Trail.**
+* **Tech Requirement:**
+    * **Version Control:** `acceptedTermsVersion` stored on every user profile.
+    * **Rate Snapshots:** Every shift record must freeze the pay rate at the time of claim.
 
-    console.log("\n🎉 SUCCESS! You MUST Sign Out and Sign In again on the app to refresh your token.");
+INNER_EOF
 
-  } catch (error) {
-    console.error("❌ Error during bootstrap:", error);
-  }
-}
+# 2. Update CONTEXT_DUMP to reference Personas
+echo "📝 Updating docs/CONTEXT_DUMP.md..."
+cat << 'INNER_EOF' > docs/CONTEXT_DUMP.md
+# Fresh Nest: Context Dump
+**Stack:** React + Vite + Firebase + Tailwind CSS
+**Location:** Cornwall, Ontario, Canada
+**Mission:** Worker Support Platform (Safety First).
 
-bootstrap();
+## 🧠 The "Prime Directive"
+We build for **Personas**, not just Users. 
+* Before building a feature, check **`docs/PERSONAS.md`**.
+* **Safety > Efficiency.** It is better to block a shift claim than to let Carla lose her benefits.
+
+## Documentation References
+* **Personas:** See `docs/PERSONAS.md` (CRITICAL)
+* **Schema:** See `docs/SCHEMA_REFERENCE.md`
+* **Security:** See `docs/RBAC_MATRIX.md`
+
+## Architecture Rules (STRICT)
+1. **NO PLACEHOLDERS:** Complete files only.
+2. **Icons:** Use `lucide-react`.
+3. **Tailwind:** Mobile-first (`block md:flex`).
+4. **Security:** Use Profile-based RBAC (`users/{uid}`).
+5. **Logic:** Client-side aggregation for Dashboards is acceptable for MVP.
+INNER_EOF
+
+# 3. Update SCHEMA_REFERENCE to match Master Plan 9
+echo "📝 Updating docs/SCHEMA_REFERENCE.md..."
+cat << 'INNER_EOF' > docs/SCHEMA_REFERENCE.md
+# 🗄️ Firestore Schema & Business Logic
+
+## `users/{userId}`
+* **profile** (map):
+  * `name` (string)
+  * `language` (string): 'en', 'fr', etc. (For Ahmed)
+  * `transport` (string): 'transit' | 'vehicle' (For Jasmine)
+  * `acceptedTermsVersion` (string): e.g., "v1.0_2025" (For Sarah)
+* **financials** (map):
+  * `mode`: 'cap' | 'unlimited'
+  * `limit` (number): Monthly hard cap (For Carla)
+  * `currentMonthAccrued` (number): Real-time counter.
+* **constraints** (map):
+  * `blockedWindows` (array): Time slots (For Mike)
+  * `heavyLifting` (boolean)
+* **role** (string): 'admin' | 'staff' | 'care_coordinator'
+* **orgId** (string)
+
+## `jobs/{jobId}` (aka Shifts)
+* **status**: 'open' | 'claimed' | 'completed' | 'cancelled'
+* **contractLedger** (map): (Financial Audit Trail)
+  * `claimedBy`: userId
+  * `claimedAt`: timestamp
+  * `rateSnapshot`: number (Hourly/Fixed rate at time of claim)
+* **requirements** (map):
+  * `photos`: array of URLs (For Brenda)
+* **time**:
+  * `start`: timestamp
+  * `end`: timestamp
+* **location**:
+  * `address`: string
+  * `coordinates`: { lat, lng }
+
+## `clients/{clientId}`
+* **Standard fields**: name, address, etc.
+
+INNER_EOF
+
+echo "✅ Persona System Injected into Documentation."
+
 ```
 ---
 
@@ -4918,34 +5152,127 @@ bootstrap();
 #!/bin/bash
 
 # ====================================================
-# FRESH NEST: INVOICING INSTALLER
-# Feature: PDF Generation & Tracking
-# Approach: Client-Side Renderer (@react-pdf/renderer)
+# FRESH NEST: DATA EXPORT INSTALLER
+# Feature: CSV Export for Admins
+# Approach: Custom "Robust" Utility (No heavy libs)
 # ====================================================
 
-echo "🚀 Installing Invoicing Feature..."
+echo "🚀 Installing Data Export Feature..."
 
-# 0. Install Dependencies
-echo "📦 Installing @react-pdf/renderer..."
-npm install @react-pdf/renderer
+# 1. Create the CSV Utility
+# Handles escaping (quotes, newlines, commas) to prevent corrupt files
+echo "📝 Creating src/lib/csv.js..."
+mkdir -p src/lib
+cat << 'INNER_EOF' > src/lib/csv.js
+import { format } from 'date-fns';
 
-# 1. Update useJobs Hook (Add Invoicing Logic)
-# We add a function to "seal" the invoice in the database
-echo "📝 Updating src/hooks/useJobs.js..."
-cat << 'INNER_EOF' > src/hooks/useJobs.js
+/**
+ * Converts an array of objects to a CSV string.
+ * Automatically handles escaping of special characters.
+ */
+export const generateCSV = (data, headers) => {
+  if (!data || !data.length) return '';
+
+  const processRow = (row) => {
+    return headers.map(header => {
+      let value = row[header.key];
+      
+      // Formatting Logic
+      if (value === null || value === undefined) {
+        value = '';
+      } else if (value instanceof Date) {
+        value = format(value, 'yyyy-MM-dd HH:mm:ss');
+      } else if (typeof value === 'object') {
+        // Flatten simple objects if needed, or stringify
+        value = JSON.stringify(value);
+      } else {
+        value = String(value);
+      }
+
+      // Escape Logic: If value contains comma, newline, or quote, wrap in quotes
+      if (value.includes(',') || value.includes('\n') || value.includes('"')) {
+        value = `"${value.replace(/"/g, '""')}"`;
+      }
+
+      return value;
+    }).join(',');
+  };
+
+  const csvRows = [
+    headers.map(h => h.label).join(','), // Header Row
+    ...data.map(processRow)              // Data Rows
+  ];
+
+  return csvRows.join('\n');
+};
+
+/**
+ * Triggers a browser download of the CSV content
+ */
+export const downloadCSV = (csvContent, filename) => {
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  if (link.download !== undefined) {
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+};
+INNER_EOF
+
+# 2. Create Reusable Export Button Component
+# Logic: Checks role, prepares data, handles download
+echo "📝 Creating src/components/common/ExportButton.jsx..."
+mkdir -p src/components/common
+cat << 'INNER_EOF' > src/components/common/ExportButton.jsx
+import React from 'react';
+import { Download } from 'lucide-react';
+import { generateCSV, downloadCSV } from '../../lib/csv';
+
+const ExportButton = ({ data, filename, headers, role }) => {
+  // Security: Render nothing if not Admin
+  if (role !== 'admin') return null;
+
+  const handleExport = () => {
+    const csv = generateCSV(data, headers);
+    downloadCSV(csv, `${filename}_${new Date().toISOString().split('T')[0]}.csv`);
+  };
+
+  return (
+    <button
+      onClick={handleExport}
+      className="hidden md:flex items-center gap-2 px-4 py-2 border border-slate-300 text-slate-700 font-medium rounded-lg hover:bg-slate-50 transition-colors"
+      title="Export to CSV"
+    >
+      <Download size={18} />
+      <span>Export</span>
+    </button>
+  );
+};
+
+export default ExportButton;
+INNER_EOF
+
+# 3. Update useClients to return Role
+# We need to know if the user is an Admin inside ClientsPage
+echo "📝 Updating src/hooks/useClients.js..."
+cat << 'INNER_EOF' > src/hooks/useClients.js
 import { useState, useEffect } from 'react';
 import { 
-  collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, 
-  serverTimestamp, orderBy, Timestamp, doc, getDoc 
+  collection, query, where, onSnapshot, addDoc, serverTimestamp, orderBy, doc, getDoc
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 
-export const useJobs = () => {
-  const [jobs, setJobs] = useState([]);
+export const useClients = () => {
+  const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [currentOrgId, setCurrentOrgId] = useState(null);
-  const [userRole, setUserRole] = useState(null);
+  const [userRole, setUserRole] = useState(null); // Added role state
 
   useEffect(() => {
     const user = auth.currentUser;
@@ -4960,6 +5287,7 @@ export const useJobs = () => {
         const userDoc = await getDoc(userDocRef);
         
         if (!userDoc.exists()) {
+          setError("User profile not found.");
           setLoading(false);
           return;
         }
@@ -4969,7 +5297,7 @@ export const useJobs = () => {
         const role = userData.role;
 
         setCurrentOrgId(orgId);
-        setUserRole(role);
+        setUserRole(role); // Set Role
 
         if (!orgId) {
           setError("Organization ID missing.");
@@ -4977,34 +5305,33 @@ export const useJobs = () => {
           return;
         }
 
-        // Constraints
-        let constraints = [
+        const q = query(
+          collection(db, 'clients'),
           where('orgId', '==', orgId),
-          orderBy('scheduledDate', 'asc')
-        ];
+          orderBy('createdAt', 'desc')
+        );
 
-        if (role === 'staff') {
-          constraints.push(where('assignedTo', 'array-contains', user.uid));
-        }
-
-        const q = query(collection(db, 'jobs'), ...constraints);
-
-        return onSnapshot(q, (snapshot) => {
-          const jobData = snapshot.docs.map(doc => ({
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+          const clientData = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data(),
-            scheduledDate: doc.data().scheduledDate?.toDate(),
-            invoicedAt: doc.data().invoicedAt?.toDate()
+            // Extract lat/lng for flattening later if needed
+            lat: doc.data().coordinates?.lat || '',
+            lng: doc.data().coordinates?.lng || ''
           }));
-          setJobs(jobData);
+          setClients(clientData);
           setLoading(false);
         }, (err) => {
-          console.error("Error fetching jobs:", err);
-          setError("Failed to load jobs.");
+          console.error("Error fetching clients:", err);
+          setError("Failed to load clients.");
           setLoading(false);
         });
+
+        return unsubscribe;
+
       } catch (err) {
         console.error(err);
+        setError("Error initializing client list.");
         setLoading(false);
       }
     };
@@ -5013,477 +5340,116 @@ export const useJobs = () => {
     return () => { unsubscribePromise.then(unsub => unsub && unsub()); };
   }, []);
 
-  // --- MUTATIONS ---
-
-  const addJob = async (jobData) => {
-    if (!currentOrgId) throw new Error("No Org ID.");
-    if (userRole !== 'admin') throw new Error("Unauthorized.");
-
-    const timestampDate = new Date(jobData.scheduledDate);
-    const assignedTo = jobData.assignedStaffId ? [jobData.assignedStaffId] : [];
-
-    await addDoc(collection(db, 'jobs'), {
-      clientId: jobData.clientId,
-      serviceType: jobData.serviceType,
-      price: Number(jobData.price),
-      notes: jobData.notes,
-      assignedTo: assignedTo,
-      status: 'scheduled',
-      scheduledDate: Timestamp.fromDate(timestampDate),
+  const addClient = async (clientData) => {
+    if (!currentOrgId) throw new Error("No Organization ID found.");
+    await addDoc(collection(db, 'clients'), {
+      ...clientData,
       orgId: currentOrgId, 
       createdAt: serverTimestamp(),
-      createdBy: auth.currentUser.uid
-    });
-  };
-
-  const updateJob = async (jobId, jobData) => {
-    if (userRole !== 'admin') throw new Error("Unauthorized.");
-
-    const timestampDate = new Date(jobData.scheduledDate);
-    const assignedTo = jobData.assignedStaffId ? [jobData.assignedStaffId] : [];
-
-    const jobRef = doc(db, 'jobs', jobId);
-    await updateDoc(jobRef, {
-      clientId: jobData.clientId,
-      serviceType: jobData.serviceType,
-      price: Number(jobData.price),
-      notes: jobData.notes,
-      assignedTo: assignedTo,
-      scheduledDate: Timestamp.fromDate(timestampDate),
       updatedAt: serverTimestamp()
     });
   };
 
-  const deleteJob = async (jobId) => {
-    if (userRole !== 'admin') throw new Error("Unauthorized.");
-    const jobRef = doc(db, 'jobs', jobId);
-    await deleteDoc(jobRef);
-  };
-
-  const markAsInvoiced = async (jobId) => {
-    if (userRole !== 'admin') throw new Error("Unauthorized.");
-    
-    // Simple ID gen: Year + Random 4 digits (e.g. 2026-4821)
-    const invoiceNumber = `${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
-    
-    const jobRef = doc(db, 'jobs', jobId);
-    await updateDoc(jobRef, {
-      invoicedAt: serverTimestamp(),
-      invoiceNumber: invoiceNumber,
-      updatedAt: serverTimestamp()
-    });
-  };
-
-  return { jobs, loading, error, addJob, updateJob, deleteJob, markAsInvoiced, role: userRole };
+  return { clients, loading, error, addClient, role: userRole };
 };
 INNER_EOF
 
-# 2. Create the PDF Document Layout
-# Defines the visual structure of the Invoice
-echo "📝 Creating src/components/invoicing/InvoiceDocument.jsx..."
-mkdir -p src/components/invoicing
-cat << 'INNER_EOF' > src/components/invoicing/InvoiceDocument.jsx
-import React from 'react';
-import { Page, Text, View, Document, StyleSheet } from '@react-pdf/renderer';
-import { format } from 'date-fns';
+# 4. Integrate Export Button into ClientsPage
+echo "📝 Updating src/pages/ClientsPage.jsx..."
+cat << 'INNER_EOF' > src/pages/ClientsPage.jsx
+import React, { useState } from 'react';
+import { Plus, Search } from 'lucide-react';
+import { useClients } from '../hooks/useClients';
+import ClientListMobile from '../components/clients/ClientListMobile';
+import ClientTableDesktop from '../components/clients/ClientTableDesktop';
+import ClientFormModal from '../components/clients/ClientFormModal';
+import ExportButton from '../components/common/ExportButton';
 
-// Define styles
-const styles = StyleSheet.create({
-  page: {
-    padding: 40,
-    fontSize: 12,
-    fontFamily: 'Helvetica',
-    color: '#333'
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 40,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-    paddingBottom: 20
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#0ea5e9' // Brand Blue
-  },
-  section: {
-    marginBottom: 20
-  },
-  label: {
-    fontSize: 10,
-    color: '#666',
-    marginBottom: 4,
-    textTransform: 'uppercase'
-  },
-  value: {
-    fontSize: 12,
-    marginBottom: 8
-  },
-  table: {
-    marginTop: 40,
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: '#333',
-    paddingBottom: 8
-  },
-  total: {
-    marginTop: 20,
-    textAlign: 'right',
-    fontSize: 18,
-    fontWeight: 'bold'
-  },
-  footer: {
-    position: 'absolute',
-    bottom: 30,
-    left: 40,
-    right: 40,
-    fontSize: 10,
-    textAlign: 'center',
-    color: '#999'
-  }
-});
+const ClientsPage = () => {
+  const { clients, loading, error, addClient, role } = useClients();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
 
-const InvoiceDocument = ({ job, client }) => {
-  const invoiceNum = job.invoiceNumber || 'DRAFT';
-  const date = job.invoicedAt ? format(job.invoicedAt, 'MMM d, yyyy') : format(new Date(), 'MMM d, yyyy');
-
-  return (
-    <Document>
-      <Page size="A4" style={styles.page}>
-        
-        {/* HEADER */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>INVOICE</Text>
-            <Text style={styles.label}>#{invoiceNum}</Text>
-          </View>
-          <View style={{ alignItems: 'flex-end' }}>
-            <Text style={{ fontSize: 16, fontWeight: 'bold' }}>Fresh Nest</Text>
-            <Text style={styles.label}>Date: {date}</Text>
-          </View>
-        </View>
-
-        {/* BILL TO */}
-        <View style={styles.section}>
-          <Text style={styles.label}>Bill To:</Text>
-          <Text style={{ fontSize: 14, fontWeight: 'bold' }}>{client.name}</Text>
-          <Text style={styles.value}>{client.email}</Text>
-          <Text style={styles.value}>{client.address}</Text>
-        </View>
-
-        {/* DETAILS */}
-        <View style={styles.table}>
-          <Text style={{ width: '60%' }}>Description</Text>
-          <Text style={{ width: '20%', textAlign: 'right' }}>Date</Text>
-          <Text style={{ width: '20%', textAlign: 'right' }}>Amount</Text>
-        </View>
-
-        <View style={{ flexDirection: 'row', paddingTop: 10 }}>
-          <Text style={{ width: '60%' }}>
-            {job.serviceType.charAt(0).toUpperCase() + job.serviceType.slice(1)} Cleaning Service
-          </Text>
-          <Text style={{ width: '20%', textAlign: 'right' }}>
-            {job.scheduledDate ? format(job.scheduledDate, 'MMM d') : ''}
-          </Text>
-          <Text style={{ width: '20%', textAlign: 'right' }}>
-            ${job.price?.toFixed(2)}
-          </Text>
-        </View>
-
-        {/* TOTAL */}
-        <Text style={styles.total}>
-          Total Due: ${job.price?.toFixed(2)}
-        </Text>
-
-        {/* FOOTER */}
-        <Text style={styles.footer}>
-          Thank you for choosing Fresh Nest! Please pay within 30 days.
-        </Text>
-      </Page>
-    </Document>
+  const filteredClients = clients.filter(c => 
+    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    c.email?.toLowerCase().includes(searchTerm.toLowerCase())
   );
-};
 
-export default InvoiceDocument;
-INNER_EOF
-
-# 3. Create Invoice Preview Modal
-# Allows admin to see the PDF before downloading/marking as sent
-echo "📝 Creating src/components/invoicing/InvoiceModal.jsx..."
-cat << 'INNER_EOF' > src/components/invoicing/InvoiceModal.jsx
-import React, { useEffect, useState } from 'react';
-import { X, CheckCircle, Download, FileText } from 'lucide-react';
-import { PDFViewer, PDFDownloadLink } from '@react-pdf/renderer';
-import InvoiceDocument from './InvoiceDocument';
-
-const InvoiceModal = ({ isOpen, onClose, job, client, onMarkInvoiced }) => {
-  const [isClientReady, setIsClientReady] = useState(false);
-
-  // React-PDF requires client-side mounting
-  useEffect(() => {
-    setIsClientReady(true);
-  }, []);
-
-  if (!isOpen || !job || !client) return null;
+  const exportHeaders = [
+    { key: 'name', label: 'Client Name' },
+    { key: 'email', label: 'Email' },
+    { key: 'phone', label: 'Phone' },
+    { key: 'address', label: 'Address' },
+    { key: 'lat', label: 'Latitude' },
+    { key: 'lng', label: 'Longitude' }
+  ];
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl h-[90vh] flex flex-col overflow-hidden">
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Clients</h1>
+          <p className="text-slate-500 text-sm">Manage your residential and commercial customers</p>
+        </div>
         
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-          <div className="flex items-center gap-3">
-            <div className="bg-brand-100 p-2 rounded-lg text-brand-600">
-              <FileText size={20} />
-            </div>
-            <div>
-              <h3 className="font-bold text-lg text-slate-800">Invoice Preview</h3>
-              <p className="text-xs text-slate-500">Client: {client.name}</p>
-            </div>
+        <div className="flex gap-3">
+          <div className="relative flex-1 md:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+            <input 
+              type="text"
+              placeholder="Search clients..."
+              className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            <X size={24} />
+
+          <ExportButton 
+            role={role} 
+            data={filteredClients} 
+            filename="Clients" 
+            headers={exportHeaders} 
+          />
+
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="bg-brand-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-brand-700 flex items-center gap-2 shadow-sm whitespace-nowrap"
+          >
+            <Plus size={20} />
+            <span className="hidden md:inline">Add Client</span>
+            <span className="md:hidden">Add</span>
           </button>
         </div>
-
-        {/* PDF Viewer (Main Content) */}
-        <div className="flex-1 bg-gray-100 p-4">
-          {isClientReady ? (
-            <PDFViewer width="100%" height="100%" className="rounded-lg border border-gray-200 shadow-inner">
-              <InvoiceDocument job={job} client={client} />
-            </PDFViewer>
-          ) : (
-            <div className="flex items-center justify-center h-full text-slate-400">
-              Loading PDF Engine...
-            </div>
-          )}
-        </div>
-
-        {/* Footer Controls */}
-        <div className="px-6 py-4 border-t border-gray-100 bg-white flex justify-between items-center">
-          <div className="text-sm text-slate-500">
-            Status: {job.invoicedAt ? (
-              <span className="text-green-600 font-medium flex items-center gap-1">
-                <CheckCircle size={14} /> Invoiced ({job.invoiceNumber})
-              </span>
-            ) : (
-              <span className="text-amber-600 font-medium">Draft (Not Sent)</span>
-            )}
-          </div>
-
-          <div className="flex gap-3">
-            {/* Mark as Invoiced Button */}
-            {!job.invoicedAt && (
-              <button
-                onClick={() => onMarkInvoiced(job.id)}
-                className="px-4 py-2 text-slate-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium flex items-center gap-2 transition-colors"
-              >
-                <CheckCircle size={18} />
-                Mark as Invoiced
-              </button>
-            )}
-
-            {/* Download Button (Native PDF Link) */}
-            {isClientReady && (
-              <PDFDownloadLink
-                document={<InvoiceDocument job={job} client={client} />}
-                fileName={`Invoice_${client.name.replace(/\s+/g, '_')}.pdf`}
-                className="px-6 py-2 bg-brand-600 text-white rounded-lg font-bold hover:bg-brand-700 flex items-center gap-2 transition-colors shadow-sm"
-              >
-                {({ loading }) => (
-                  <>
-                    <Download size={18} />
-                    {loading ? 'Preparing...' : 'Download PDF'}
-                  </>
-                )}
-              </PDFDownloadLink>
-            )}
-          </div>
-        </div>
-
       </div>
+
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div>
+        </div>
+      ) : error ? (
+        <div className="bg-red-50 text-red-600 p-4 rounded-lg border border-red-100">
+          Error: {error}
+        </div>
+      ) : (
+        <>
+          <ClientListMobile clients={filteredClients} />
+          <ClientTableDesktop clients={filteredClients} />
+        </>
+      )}
+
+      <ClientFormModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        onSave={addClient}
+      />
     </div>
   );
 };
 
-export default InvoiceModal;
+export default ClientsPage;
 INNER_EOF
 
-# 4. Update JobRowDesktop (Add "Generate Invoice" Action)
-echo "📝 Updating src/components/jobs/JobRowDesktop.jsx..."
-cat << 'INNER_EOF' > src/components/jobs/JobRowDesktop.jsx
-import React, { useState, useRef, useEffect } from 'react';
-import { MoreHorizontal, Calendar, Clock, MapPin, User, Edit, Trash2, Play, CheckCircle, XCircle, FileText } from 'lucide-react';
-import { format } from 'date-fns';
-import { useJobWorkflow } from '../../hooks/useJobWorkflow';
-
-const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit, onDelete, onInvoice }) => {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const menuRef = useRef(null);
-  
-  const { startJob, completeJob, cancelJob, canStart, canComplete, canCancel, loading } = useJobWorkflow(job, userRole);
-
-  const client = getClient(job.clientId);
-  const assignedName = getAssignedStaffName(job.assignedTo);
-  const isUnassigned = !job.assignedTo || job.assignedTo.length === 0;
-
-  // Status Badge Logic
-  const getStatusBadge = (s) => {
-    const baseClasses = "text-xs font-bold px-2 py-1 rounded-full uppercase";
-    switch(s) {
-      case 'completed': return <span className={`${baseClasses} bg-green-100 text-green-700`}>{s}</span>;
-      case 'in_progress': return <span className={`${baseClasses} bg-blue-100 text-blue-700`}>In Progress</span>;
-      case 'cancelled': return <span className={`${baseClasses} bg-red-100 text-red-700`}>{s}</span>;
-      default: return <span className={`${baseClasses} bg-yellow-100 text-yellow-700`}>{s}</span>;
-    }
-  };
-
-  // Close menu on outside click
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
-        setIsMenuOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const handleAction = async (actionFn) => {
-    await actionFn();
-    setIsMenuOpen(false);
-  };
-
-  return (
-    <tr className="hover:bg-gray-50 transition-colors relative">
-      <td className="px-6 py-4">
-        <div className="flex items-center gap-2 font-medium text-slate-900">
-          <Calendar size={16} className="text-brand-500" />
-          {job.scheduledDate ? format(job.scheduledDate, 'MMM d, yyyy') : 'TBD'}
-        </div>
-        <div className="flex items-center gap-2 text-xs text-slate-500 mt-1 pl-6">
-          <Clock size={12} />
-          {job.scheduledDate ? format(job.scheduledDate, 'h:mm a') : ''}
-        </div>
-      </td>
-      <td className="px-6 py-4">
-        <div className="font-medium text-slate-900">{client.name || 'Unknown'}</div>
-        <div className="flex items-center gap-1 text-xs text-slate-400 mt-0.5">
-          <MapPin size={12} />
-          <span className="truncate max-w-[150px]">{client.address || 'No address'}</span>
-        </div>
-      </td>
-      <td className="px-6 py-4">
-        <div className={`flex items-center gap-2 text-sm ${isUnassigned ? 'text-slate-400 italic' : 'text-slate-700'}`}>
-          <User size={14} />
-          {assignedName}
-        </div>
-      </td>
-      <td className="px-6 py-4">
-        <span className="capitalize text-sm text-slate-700">{job.serviceType}</span>
-        {userRole !== 'staff' && job.price > 0 && (
-          <div className="text-xs text-slate-400">${job.price}</div>
-        )}
-      </td>
-      <td className="px-6 py-4">
-        {getStatusBadge(job.status)}
-        {job.invoicedAt && userRole === 'admin' && (
-          <div className="mt-1 text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded inline-block">
-            Invoiced
-          </div>
-        )}
-      </td>
-      
-      {/* ACTIONS */}
-      <td className="px-6 py-4 text-right relative">
-        <button 
-          onClick={(e) => {
-            e.stopPropagation();
-            setIsMenuOpen(!isMenuOpen);
-          }}
-          className={`p-2 rounded-full transition-colors ${isMenuOpen ? 'bg-brand-50 text-brand-600' : 'text-slate-400 hover:text-brand-600 hover:bg-gray-100'}`}
-        >
-          <MoreHorizontal size={20} />
-        </button>
-
-        {isMenuOpen && (
-          <div 
-            ref={menuRef}
-            className="absolute right-8 top-8 w-48 bg-white rounded-lg shadow-xl border border-gray-100 z-50 overflow-hidden text-left animate-in fade-in zoom-in duration-200"
-          >
-            {/* WORKFLOW ACTIONS */}
-            {canStart && (
-              <button 
-                onClick={() => handleAction(startJob)}
-                disabled={loading}
-                className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-gray-50 flex items-center gap-2 transition-colors font-medium"
-              >
-                <Play size={16} className="text-green-500" /> Start Job
-              </button>
-            )}
-            
-            {canComplete && (
-              <button 
-                onClick={() => handleAction(completeJob)}
-                disabled={loading}
-                className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-gray-50 flex items-center gap-2 transition-colors font-medium"
-              >
-                <CheckCircle size={16} className="text-blue-500" /> Complete Job
-              </button>
-            )}
-
-            {/* ADMIN ACTIONS */}
-            {userRole === 'admin' && (
-              <>
-                {/* INVOICE ACTION */}
-                {job.status === 'completed' && (
-                  <button 
-                    onClick={() => { setIsMenuOpen(false); onInvoice(job); }}
-                    className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-purple-50 flex items-center gap-2 transition-colors border-t border-gray-50 font-medium"
-                  >
-                    <FileText size={16} className="text-purple-500" /> 
-                    {job.invoicedAt ? 'View Invoice' : 'Generate Invoice'}
-                  </button>
-                )}
-
-                <button 
-                  onClick={() => { setIsMenuOpen(false); onEdit(job); }}
-                  className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
-                >
-                  <Edit size={16} className="text-slate-400" /> Edit Details
-                </button>
-
-                <div className="border-t border-gray-100">
-                  {canCancel && (
-                    <button 
-                      onClick={() => handleAction(cancelJob)}
-                      className="w-full px-4 py-3 text-sm text-amber-600 hover:bg-amber-50 flex items-center gap-2 transition-colors"
-                    >
-                      <XCircle size={16} /> Cancel Job
-                    </button>
-                  )}
-                  <button 
-                    onClick={() => { setIsMenuOpen(false); onDelete(job.id); }}
-                    className="w-full px-4 py-3 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors"
-                  >
-                    <Trash2 size={16} /> Delete
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-      </td>
-    </tr>
-  );
-};
-
-export default JobRowDesktop;
-INNER_EOF
-
-# 5. Update JobsPage (Wiring the Modal)
+# 5. Integrate Export Button into JobsPage
 echo "📝 Updating src/pages/JobsPage.jsx..."
 cat << 'INNER_EOF' > src/pages/JobsPage.jsx
 import React, { useState } from 'react';
@@ -5495,6 +5461,7 @@ import JobListMobile from '../components/jobs/JobListMobile';
 import JobTableDesktop from '../components/jobs/JobTableDesktop';
 import JobFormModal from '../components/jobs/JobFormModal';
 import InvoiceModal from '../components/invoicing/InvoiceModal';
+import ExportButton from '../components/common/ExportButton';
 
 const JobsPage = () => {
   const { jobs, loading: jobsLoading, error: jobsError, addJob, updateJob, deleteJob, markAsInvoiced, role: userRole } = useJobs();
@@ -5502,11 +5469,8 @@ const JobsPage = () => {
   const { staff, loading: staffLoading } = useStaff();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingJob, setEditingJob] = useState(null);
-  
-  // Invoice State
-  const [invoicingJob, setInvoicingJob] = useState(null);
-  
+  const [editingJobId, setEditingJobId] = useState(null);
+  const [invoicingJobId, setInvoicingJobId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
 
   const loading = jobsLoading || clientsLoading || staffLoading;
@@ -5516,25 +5480,54 @@ const JobsPage = () => {
     return clientName.includes(searchTerm.toLowerCase());
   });
 
-  // --- Handlers ---
+  // Prepare data for export (Flattening)
+  const exportData = filteredJobs.map(job => {
+    const client = clients.find(c => c.id === job.clientId);
+    const assignedMember = job.assignedTo?.[0] ? staff.find(s => s.id === job.assignedTo[0]) : null;
+    
+    return {
+      ...job,
+      clientName: client ? client.name : 'Unknown',
+      clientAddress: client ? client.address : '',
+      assignedToName: assignedMember ? assignedMember.fullName : 'Unassigned',
+      // Format timestamps for CSV
+      scheduledDate: job.scheduledDate, 
+      completedAt: job.completedAt
+    };
+  });
+
+  const exportHeaders = [
+    { key: 'invoiceNumber', label: 'Invoice #' },
+    { key: 'clientName', label: 'Client' },
+    { key: 'clientAddress', label: 'Address' },
+    { key: 'serviceType', label: 'Service' },
+    { key: 'price', label: 'Price' },
+    { key: 'status', label: 'Status' },
+    { key: 'scheduledDate', label: 'Scheduled' },
+    { key: 'completedAt', label: 'Completed' },
+    { key: 'assignedToName', label: 'Staff' }
+  ];
+
+  const editingJob = editingJobId ? jobs.find(j => j.id === editingJobId) : null;
+  const invoicingJob = invoicingJobId ? jobs.find(j => j.id === invoicingJobId) : null;
 
   const handleCreateOpen = () => {
-    setEditingJob(null);
+    setEditingJobId(null);
     setIsModalOpen(true);
   };
 
   const handleEditOpen = (job) => {
-    setEditingJob(job);
+    setEditingJobId(job.id);
     setIsModalOpen(true);
   };
 
   const handleInvoiceOpen = (job) => {
-    setInvoicingJob(job);
+    setInvoicingJobId(job.id);
   };
 
   const handleSave = async (formData) => {
-    if (editingJob) {
-      await updateJob(editingJob.id, formData);
+    if (editingJobId) {
+      await updateJob(editingJobId, formData);
     } else {
       await addJob(formData);
     }
@@ -5548,12 +5541,10 @@ const JobsPage = () => {
 
   const handleMarkInvoiced = async (jobId) => {
     await markAsInvoiced(jobId);
-    // Note: We don't close the modal automatically so they can download the now-finalized invoice
   };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Job Management</h1>
@@ -5571,7 +5562,14 @@ const JobsPage = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          {/* Only Admin can add jobs */}
+
+          <ExportButton 
+            role={userRole}
+            data={exportData}
+            filename="Jobs"
+            headers={exportHeaders}
+          />
+
           {userRole === 'admin' && (
             <button 
               onClick={handleCreateOpen}
@@ -5585,7 +5583,6 @@ const JobsPage = () => {
         </div>
       </div>
 
-      {/* Content */}
       {loading ? (
         <div className="flex justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div>
@@ -5601,7 +5598,8 @@ const JobsPage = () => {
             clients={clients} 
             staff={staff} 
             userRole={userRole} 
-            onEdit={handleEditOpen} 
+            onEdit={handleEditOpen}
+            onInvoice={handleInvoiceOpen}
           />
           <JobTableDesktop 
             jobs={filteredJobs} 
@@ -5615,7 +5613,6 @@ const JobsPage = () => {
         </>
       )}
 
-      {/* Modals */}
       <JobFormModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
@@ -5627,7 +5624,7 @@ const JobsPage = () => {
 
       <InvoiceModal 
         isOpen={!!invoicingJob}
-        onClose={() => setInvoicingJob(null)}
+        onClose={() => setInvoicingJobId(null)}
         job={invoicingJob}
         client={invoicingJob ? clients.find(c => c.id === invoicingJob.clientId) : null}
         onMarkInvoiced={handleMarkInvoiced}
@@ -5639,269 +5636,7 @@ const JobsPage = () => {
 export default JobsPage;
 INNER_EOF
 
-# 6. Update JobTableDesktop to pass onInvoice
-echo "📝 Updating src/components/jobs/JobTableDesktop.jsx..."
-cat << 'INNER_EOF' > src/components/jobs/JobTableDesktop.jsx
-import React from 'react';
-import JobRowDesktop from './JobRowDesktop';
-
-const JobTableDesktop = ({ jobs, clients, staff, userRole, onEdit, onDelete, onInvoice }) => {
-  const getClient = (id) => clients.find(c => c.id === id) || {};
-  
-  const getAssignedStaffName = (staffIds) => {
-    if (!staffIds || staffIds.length === 0) return 'Unassigned';
-    const member = staff.find(s => s.id === staffIds[0]);
-    return member ? (member.fullName || member.email) : 'Unknown';
-  };
-
-  if (jobs.length === 0) {
-    return (
-      <div className="hidden md:block bg-white p-12 text-center rounded-xl border border-gray-200">
-        <p className="text-gray-500">No jobs found.</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="hidden md:block bg-white rounded-xl shadow-sm border border-gray-200 overflow-visible min-h-[300px]">
-      <table className="w-full text-left border-collapse">
-        <thead>
-          <tr className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold">
-            <th className="px-6 py-4">Scheduled Date</th>
-            <th className="px-6 py-4">Client</th>
-            <th className="px-6 py-4">Assigned Staff</th>
-            <th className="px-6 py-4">Service</th>
-            <th className="px-6 py-4">Status</th>
-            <th className="px-6 py-4 text-right">Actions</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100">
-          {jobs.map((job) => (
-            <JobRowDesktop 
-              key={job.id} 
-              job={job}
-              getClient={getClient}
-              getAssignedStaffName={getAssignedStaffName}
-              userRole={userRole}
-              onEdit={onEdit}
-              onDelete={onDelete}
-              onInvoice={onInvoice}
-            />
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-};
-
-export default JobTableDesktop;
-INNER_EOF
-
-echo "✅ SUCCESS! Invoicing features installed."
-
-```
----
-
-## FILE: scripts/install_mobile_invoice.sh
-```sh
-#!/bin/bash
-
-# ====================================================
-# FRESH NEST: MOBILE INVOICE PREVIEW FIX
-# Approach: Responsive HTML Preview for Mobile
-# ====================================================
-
-echo "🚀 Installing HTML Invoice Preview..."
-
-# 1. Create the HTML Preview Component
-# This mimics the PDF layout but uses standard Tailwind HTML for instant mobile rendering
-echo "📝 Creating src/components/invoicing/InvoiceHTMLPreview.jsx..."
-cat << 'INNER_EOF' > src/components/invoicing/InvoiceHTMLPreview.jsx
-import React from 'react';
-import { format } from 'date-fns';
-
-const InvoiceHTMLPreview = ({ job, client }) => {
-  const invoiceNum = job.invoiceNumber || 'DRAFT';
-  const date = job.invoicedAt ? format(job.invoicedAt, 'MMM d, yyyy') : format(new Date(), 'MMM d, yyyy');
-
-  return (
-    <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 text-sm h-full overflow-y-auto">
-      {/* Header */}
-      <div className="flex justify-between items-start border-b border-gray-100 pb-4 mb-4">
-        <div>
-          <h2 className="text-xl font-bold text-brand-600">INVOICE</h2>
-          <p className="text-slate-500 font-mono text-xs mt-1">#{invoiceNum}</p>
-        </div>
-        <div className="text-right">
-          <h3 className="font-bold text-slate-800">Fresh Nest</h3>
-          <p className="text-slate-500 text-xs">{date}</p>
-        </div>
-      </div>
-
-      {/* Bill To */}
-      <div className="mb-6">
-        <h4 className="text-xs font-bold text-slate-400 uppercase mb-2">Bill To</h4>
-        <div className="text-slate-800 font-medium">{client.name}</div>
-        <div className="text-slate-600 text-xs">{client.email}</div>
-        <div className="text-slate-600 text-xs mt-1 max-w-[200px]">{client.address}</div>
-      </div>
-
-      {/* Line Items */}
-      <div className="mb-6">
-        <div className="flex justify-between text-xs font-bold text-slate-400 border-b border-gray-100 pb-2 mb-2">
-          <span>Description</span>
-          <span>Amount</span>
-        </div>
-        
-        <div className="flex justify-between items-start py-2">
-          <div>
-            <div className="font-medium text-slate-800 capitalize">
-              {job.serviceType} Cleaning Service
-            </div>
-            <div className="text-xs text-slate-500">
-              Date: {job.scheduledDate ? format(job.scheduledDate, 'MMM d, yyyy') : 'N/A'}
-            </div>
-          </div>
-          <div className="font-medium text-slate-800">
-            ${job.price?.toFixed(2)}
-          </div>
-        </div>
-      </div>
-
-      {/* Total */}
-      <div className="flex justify-end border-t border-gray-200 pt-4 mb-8">
-        <div className="text-right">
-          <span className="text-slate-500 text-xs mr-4">Total Due:</span>
-          <span className="text-xl font-bold text-brand-600">${job.price?.toFixed(2)}</span>
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div className="text-center text-xs text-slate-400 mt-auto pt-8 border-t border-gray-50">
-        <p>Thank you for choosing Fresh Nest!</p>
-        <p>Please pay within 30 days.</p>
-      </div>
-    </div>
-  );
-};
-
-export default InvoiceHTMLPreview;
-INNER_EOF
-
-# 2. Update InvoiceModal to use HTML on Mobile
-echo "📝 Updating src/components/invoicing/InvoiceModal.jsx..."
-cat << 'INNER_EOF' > src/components/invoicing/InvoiceModal.jsx
-import React, { useEffect, useState } from 'react';
-import { X, CheckCircle, Download, FileText } from 'lucide-react';
-import { PDFViewer, PDFDownloadLink } from '@react-pdf/renderer';
-import InvoiceDocument from './InvoiceDocument';
-import InvoiceHTMLPreview from './InvoiceHTMLPreview';
-
-const InvoiceModal = ({ isOpen, onClose, job, client, onMarkInvoiced }) => {
-  const [isClientReady, setIsClientReady] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    setIsClientReady(true);
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
-
-  if (!isOpen || !job || !client) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl h-[90vh] flex flex-col overflow-hidden">
-        
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-          <div className="flex items-center gap-3">
-            <div className="bg-brand-100 p-2 rounded-lg text-brand-600">
-              <FileText size={20} />
-            </div>
-            <div>
-              <h3 className="font-bold text-lg text-slate-800">Invoice Preview</h3>
-              <p className="text-xs text-slate-500">Client: {client.name}</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            <X size={24} />
-          </button>
-        </div>
-
-        {/* CONTENT AREA */}
-        <div className="flex-1 bg-gray-100 p-4 overflow-hidden relative">
-          {isClientReady ? (
-            isMobile ? (
-              // --- MOBILE VIEW (HTML Preview) ---
-              <div className="h-full overflow-y-auto">
-                <InvoiceHTMLPreview job={job} client={client} />
-              </div>
-            ) : (
-              // --- DESKTOP VIEW (PDF Embed) ---
-              <PDFViewer width="100%" height="100%" className="rounded-lg border border-gray-200 shadow-inner">
-                <InvoiceDocument job={job} client={client} />
-              </PDFViewer>
-            )
-          ) : (
-            <div className="flex items-center justify-center h-full text-slate-400">
-              Loading Preview...
-            </div>
-          )}
-        </div>
-
-        {/* Footer Controls */}
-        <div className="px-6 py-4 border-t border-gray-100 bg-white flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="text-sm text-slate-500 w-full md:w-auto text-center md:text-left">
-            Status: {job.invoicedAt ? (
-              <span className="text-green-600 font-medium flex items-center justify-center md:justify-start gap-1">
-                <CheckCircle size={14} /> Invoiced ({job.invoiceNumber})
-              </span>
-            ) : (
-              <span className="text-amber-600 font-medium">Draft (Not Sent)</span>
-            )}
-          </div>
-
-          <div className="flex gap-3 w-full md:w-auto">
-            {!job.invoicedAt && (
-              <button
-                onClick={() => onMarkInvoiced(job.id)}
-                className="flex-1 md:flex-none px-4 py-2 text-slate-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
-              >
-                <CheckCircle size={18} />
-                <span className="md:inline">Mark Invoiced</span>
-              </button>
-            )}
-
-            {/* DOWNLOAD BUTTON (Visible on BOTH Mobile & Desktop) */}
-            {isClientReady && (
-              <PDFDownloadLink
-                document={<InvoiceDocument job={job} client={client} />}
-                fileName={`Invoice_${client.name.replace(/\s+/g, '_')}.pdf`}
-                className="flex-1 md:flex-none px-6 py-2 bg-brand-600 text-white rounded-lg font-bold hover:bg-brand-700 flex items-center justify-center gap-2 transition-colors shadow-sm"
-              >
-                {({ loading }) => (
-                  <>
-                    <Download size={18} />
-                    {loading ? 'Preparing...' : 'Download PDF'}
-                  </>
-                )}
-              </PDFDownloadLink>
-            )}
-          </div>
-        </div>
-
-      </div>
-    </div>
-  );
-};
-
-export default InvoiceModal;
-INNER_EOF
-
-echo "✅ SUCCESS! Mobile HTML Preview installed."
+echo "✅ SUCCESS! Data Export feature installed."
 
 ```
 ---
@@ -6499,176 +6234,6 @@ echo "✅ SUCCESS! Revenue Dashboard Restored (with fixes)."
 ```
 ---
 
-## FILE: scripts/setup-cicd.sh
-```sh
-#!/bin/bash
-
-# ====================================================
-# FRESH NEST: CI/CD PIPELINE INSTALLER
-# Sets up GitHub Actions for Dev, UAT, and Prod
-# ====================================================
-
-echo "🚀 Setting up GitHub Actions Workflows..."
-
-# 1. Create the Workflows Directory
-mkdir -p .github/workflows
-
-# 2. Create DEV Pipeline
-echo "📝 Writing .github/workflows/deploy-dev.yml..."
-cat << 'EOF' > .github/workflows/deploy-dev.yml
-name: Deploy to DEV
-
-on:
-  push:
-    branches:
-      - dev
-
-jobs:
-  build_and_deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-
-      - name: Install Dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build
-        env:
-          VITE_APP_ENV: 'development'
-
-      - name: Deploy to Firebase Hosting (DEV)
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: '${{ secrets.GITHUB_TOKEN }}'
-          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_DEV }}'
-          channelId: live
-          projectId: fresh-nest-dev
-EOF
-
-# 3. Create UAT Pipeline (Release Branches)
-echo "📝 Writing .github/workflows/deploy-uat.yml..."
-cat << 'EOF' > .github/workflows/deploy-uat.yml
-name: Deploy to UAT
-
-on:
-  push:
-    branches:
-      - 'release/**'
-
-jobs:
-  build_and_deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-
-      - name: Install Dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build
-        env:
-          VITE_APP_ENV: 'uat'
-
-      - name: Deploy to Firebase Hosting (UAT)
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: '${{ secrets.GITHUB_TOKEN }}'
-          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_UAT }}'
-          channelId: live
-          projectId: fresh-nest-uat
-EOF
-
-# 4. Create PROD Pipeline (Main Branch)
-echo "📝 Writing .github/workflows/deploy-prod.yml..."
-cat << 'EOF' > .github/workflows/deploy-prod.yml
-name: Deploy to PROD
-
-on:
-  push:
-    branches:
-      - main
-
-jobs:
-  build_and_deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-
-      - name: Install Dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build
-        env:
-          VITE_APP_ENV: 'production'
-
-      - name: Deploy to Firebase Hosting (PROD)
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: '${{ secrets.GITHUB_TOKEN }}'
-          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_PROD }}'
-          channelId: live
-          projectId: fresh-nest-prod
-EOF
-
-# 5. Create Local Helper Script
-echo "📝 Writing scripts/merge_to_dev.sh..."
-cat << 'EOF' > scripts/merge_to_dev.sh
-#!/bin/bash
-# Merges current feature into 'dev' and pushes to GitHub to trigger CI
-
-current_branch=$(git branch --show-current)
-
-if [ "$current_branch" == "dev" ] || [ "$current_branch" == "main" ]; then
-  echo "❌ You are on $current_branch. Please checkout a feature branch first."
-  exit 1
-fi
-
-echo "🚀 Merging $current_branch into dev..."
-
-# 1. Switch to dev and pull latest
-git checkout dev
-git pull origin dev
-
-# 2. Merge Feature
-git merge "$current_branch"
-
-# 3. Push to GitHub (TRIGGERS GITHUB ACTION for DEV)
-git push origin dev
-
-# 4. Return to feature branch
-git checkout "$current_branch"
-
-echo "✅ Merged and Pushed! GitHub Action is now deploying to Fresh-Nest-Dev."
-echo "👉 Check status here: https://github.com/rpdouglas/freshnest/actions"
-EOF
-
-chmod +x scripts/merge_to_dev.sh
-
-echo "✅ SUCCESS! CI/CD Pipelines Installed."
-echo "👉 Run: git add . && git commit -m 'chore: setup github actions' && git push origin main"
-```
----
-
 ## FILE: scripts/start-feature.sh
 ```sh
 #!/bin/bash
@@ -6753,461 +6318,78 @@ echo "🎉 Indexes Synced!"
 ```
 ---
 
-## FILE: scripts/update_docs.sh
+## FILE: scripts/update_status_masterplan9.sh
 ```sh
 #!/bin/bash
 
-echo "📚 Updating Documentation Suite..."
+echo "🔄 Realigning Roadmap to Master Plan 9 (Cornwall Context)..."
 
-# 1. Update Context Generator to include Workflows
-# We want the AI to be able to see your CI/CD pipelines in future sessions.
-echo "⚙️ Updating scripts/generate-context.sh..."
-cat << 'INNER_EOF' > scripts/generate-context.sh
-#!/bin/bash
-
-OUTPUT_FILE="docs/FULL_CODEBASE_CONTEXT.md"
-
-echo "🔄 Generating Context Dump..."
-echo "# FRESH NEST: CODEBASE DUMP" > "\$OUTPUT_FILE"
-echo "**Date:** \$(date)" >> "\$OUTPUT_FILE"
-echo "**Description:** Complete codebase context." >> "\$OUTPUT_FILE"
-echo "" >> "\$OUTPUT_FILE"
-
-ingest_file() {
-    local filepath="\$1"
-    if [[ "\$filepath" == *".env"* ]] || [[ "\$filepath" == *"service-account"* ]] || [[ "\$filepath" == *".DS_Store"* ]]; then return; fi
-    if [ -f "\$filepath" ]; then
-        echo "Processing: \$filepath"
-        echo "## FILE: \$filepath" >> "\$OUTPUT_FILE"
-        echo "\`\`\`\${filepath##*.}" >> "\$OUTPUT_FILE"
-        cat "\$filepath" >> "\$OUTPUT_FILE"
-        echo "" >> "\$OUTPUT_FILE"
-        echo "\`\`\`" >> "\$OUTPUT_FILE"
-        echo "---" >> "\$OUTPUT_FILE"
-        echo "" >> "\$OUTPUT_FILE"
-    fi
-}
-
-# Root Configs
-ingest_file "package.json"
-ingest_file "vite.config.js"
-ingest_file "tailwind.config.js"
-ingest_file "firebase.json"
-ingest_file ".firebaserc"
-
-# Source Code
-find src -type f -not -path "*/.*" | sort | while read file; do ingest_file "\$file"; done
-
-# Documentation
-find docs -type f -name "*.md" -not -name "FULL_CODEBASE_CONTEXT.md" | sort | while read file; do ingest_file "\$file"; done
-
-# Scripts
-find scripts -type f \( -name "*.js" -o -name "*.cjs" -o -name "*.sh" \) | sort | while read file; do ingest_file "\$file"; done
-
-# CI/CD Workflows (NEW)
-find .github/workflows -type f -name "*.yml" | sort | while read file; do ingest_file "\$file"; done
-
-echo "✅ Context Generated at: \$OUTPUT_FILE"
-INNER_EOF
-chmod +x scripts/generate-context.sh
-
-# 2. Update Project Status
-echo "📝 Updating docs/PROJECT_STATUS.md..."
 cat << 'INNER_EOF' > docs/PROJECT_STATUS.md
-# 📌 Project Status: Fresh Nest
+# 📌 Project Status: Fresh Nest (Worker Support Platform)
 
-**Current Phase:** Phase 1 Complete / Infrastructure Mature
+**Current Phase:** Phase 1 - Identity, Safety & Compliance
+**Current Version:** v1.0.0 (Core Infrastructure Live)
+**Context:** Cornwall, Ontario Socioeconomic Deployment
 **Last Updated:** $(date +%Y-%m-%d)
 
-## ✅ Completed Features
-* **Core:** Project Setup, Auth, Multi-Tenancy (Profile-based).
-* **Clients:** CRUD, Filtering, Mobile/Desktop Views.
-* **Jobs:** Scheduling, Relational Data, Assignment (`useStaff`).
-* **DevOps (NEW):** * 3-Environment CI/CD (Dev/UAT/Prod).
-    * Automated Build Versioning.
-    * Secret Injection via GitHub Actions.
+> **Mission:** To transform the cleaning industry into a system of stability for marginalized workers while maintaining enterprise-grade reliability.
 
-## 🚧 In Progress / Next Up
-* [ ] **Worker View:** Restricted dashboard for staff.
-* [ ] **Job Workflow:** Status transitions (Start/Finish).
+## 🎯 Current Sprint: The "Smart Profile" (Sprint 1)
+We are upgrading the User Schema to support the complex realities of our workforce (ODSP limits, Transit reliance, Single parenthood).
 
-## 🗄️ Database Schema
-* `organizations/{orgId}`
-* `users/{userId}`: { role: 'admin'|'staff', orgId, ... }
-* `jobs/{jobId}`: { assignedTo: [userId], status, ... }
-INNER_EOF
+* [ ] **User Schema Expansion:**
+    * Add `financials.limit` (for "Carla" - ODSP).
+    * Add `constraints.transport` (for "Jasmine" - Bus routes).
+    * Add `constraints.blockedWindows` (for "Mike" - AA Meetings).
+* [ ] **Profile Wizard:**
+    * Self-onboarding flow for staff to set their own constraints.
+    * **Legal:** Mandatory `acceptedTermsVersion` checkbox[cite: 117].
+* [ ] **Localization Base:**
+    * Prepare app for English/French toggle (for "Ahmed").
 
-# 3. Update SOP (Source Control)
-echo "📝 Updating docs/SOP_SOURCE_CONTROL.md..."
-cat << 'INNER_EOF' > docs/SOP_SOURCE_CONTROL.md
-# 🛡️ Source Control & CI/CD Protocol
+## 📋 Product Backlog (Master Plan 9)
 
-## 1. The Environment Pipeline
+### Phase 1: Safety & Constraints
+* **The Conflict Engine:** Logic to auto-hide shifts that conflict with school runs (Emily) or recovery meetings (Mike)[cite: 46].
+* **Financial Guardrails:** Hard system lock if `Current Earnings + Shift Price > ODSP Cap`[cite: 53].
 
-| Environment | URL | Trigger Branch | Deployed By |
-| :--- | :--- | :--- | :--- |
-| **DEV** | `fresh-nest-dev` | `dev` | **Auto** (Push to dev) |
-| **UAT** | `fresh-nest-uat` | `release/*` | **Script** (`release_to_uat.sh`) |
-| **PROD** | `fresh-nest-prod` | `main` | **Script** (`promote_to_prod.sh`) |
+### Phase 2: Field Operations
+* **Visual Interface:** Replace text-heavy lists with Icon-based tasks (Mop, Toilet) for ESL accessibility[cite: 68].
+* **Job Evidence:** Photo uploads to specific sub-collections for client verification (Brenda)[cite: 93].
+* **Inventory Reports:** specific inputs for Airbnb supplies (Sophie)[cite: 102].
 
-## 2. Daily Workflow
-1.  **Start:** `git checkout main` -> `git pull` -> `./scripts/start-feature.sh`
-2.  **Work:** Commit often to `feature/...`
-3.  **Test Cloud:** Run `./scripts/merge_to_dev.sh` to deploy to Dev.
-4.  **Finish:** Run `./scripts/close_feature.sh` (or merge PR) to close.
-
-## 3. Releases
-* **To UAT:** Run `./scripts/release_to_uat.sh`
-* **To Prod:** Run `./scripts/promote_to_prod.sh` (Must be on release branch)
-
-## 4. Emergency Fixes (Hotfix)
-1.  Branch from `main`: `git checkout -b fix/critical-bug main`
-2.  Fix and Commit.
-3.  Merge to `main` and `dev`.
-INNER_EOF
-
-# 4. Create DevOps Manual (NEW)
-echo "📝 Creating docs/DEVOPS_MANUAL.md..."
-cat << 'INNER_EOF' > docs/DEVOPS_MANUAL.md
-# ☁️ DevOps & Infrastructure Manual
-
-## 1. CI/CD Architecture
-We use **GitHub Actions** for all deployments.
-* **Workflows:** Located in `.github/workflows/`
-* **Secrets:** Managed in GitHub Repo Settings -> Secrets -> Actions.
-
-## 2. GitHub Secrets (Required)
-If setting up a new repo, these secrets must be present:
-
-| Secret Name | Content |
-| :--- | :--- |
-| `FIREBASE_SERVICE_ACCOUNT_DEV` | JSON key for Dev Project |
-| `FIREBASE_SERVICE_ACCOUNT_UAT` | JSON key for UAT Project |
-| `FIREBASE_SERVICE_ACCOUNT_PROD` | JSON key for Prod Project |
-| `ENV_FILE_DEV` | Content of local `.env.development` |
-| `ENV_FILE_UAT` | Content of local `.env.uat` |
-| `ENV_FILE_PROD` | Content of local `.env.production` |
-
-## 3. Versioning
-* **SemVer:** Manually managed in `package.json` (e.g., `0.1.0`).
-* **Build Number:** Auto-incremented via `scripts/increment-build.cjs` on every cloud build.
-* **Git Hash:** Injected into the app footer for debugging.
-
-## 4. Troubleshooting
-**"Invalid API Key" in Production?**
-* Check that `ENV_FILE_PROD` in GitHub Secrets is not empty.
-* Check that the variable names in the secret start with `VITE_`.
-* Re-run the workflow in the GitHub Actions tab.
-INNER_EOF
-
-echo "✅ Documentation Updated Successfully."
-echo "👉 You should commit these changes now."
-
-```
----
-
-## FILE: scripts/update_docs_v2.sh
-```sh
-#!/bin/bash
-
-echo "📚 Performing Comprehensive Documentation Update..."
-
-# ==========================================
-# 1. UPDATE PROJECT STATUS
-# ==========================================
-echo "📝 Updating docs/PROJECT_STATUS.md..."
-cat << 'INNER_EOF' > docs/PROJECT_STATUS.md
-# 📌 Project Status: Fresh Nest
-
-**Current Phase:** Phase 2 - Core Workflows
-**Last Updated:** $(date +%Y-%m-%d)
-
-## ✅ Completed Features
-* **Core:** Project Setup, Auth, Multi-Tenancy (Profile-based).
-* **Clients:** CRUD, Filtering, Mobile/Desktop Views.
-* **Jobs:** Scheduling, Relational Data, Assignment.
-* **Worker View (RBAC):** * "Ghost Client" fix (DB Lookup vs Token).
-    * Role-Aware Hooks (`useJobs`, `useClients`).
-    * UI Restrictions (Hidden Prices, Hidden Buttons).
-* **DevOps:** * 3-Environment CI/CD (Dev/UAT/Prod) with Firestore Rules/Indexes.
-    * Environment-aware seeding scripts.
-
-## 🚧 In Progress / Next Up
-* [ ] **Job Workflow:** Allow staff to mark jobs as "In Progress" / "Completed".
-* [ ] **Job Edit/Delete:** Full CRUD for Admins.
-* [ ] **Google Maps Integration:** Visualizing daily routes.
-
-## 🗄️ Database Schema
-* `organizations/{orgId}`
-* `users/{userId}`: { role: 'admin'|'staff', orgId, fullName, ... }
-* `jobs/{jobId}`: { assignedTo: [userId], status, price, ... }
-* `clients/{clientId}`: { name, address, orgId, ... }
-INNER_EOF
-
-# ==========================================
-# 2. UPDATE CONTEXT DUMP (The Architectural Rules)
-# ==========================================
-echo "📝 Updating docs/CONTEXT_DUMP.md..."
-cat << 'INNER_EOF' > docs/CONTEXT_DUMP.md
-# Fresh Nest: Context Dump
-**Stack:** React + Vite + Firebase (Auth, Firestore) + Tailwind CSS
-**Architecture:** Multi-Tenant SaaS.
-**Current State:**
-- Auth is implemented (Login/Signup).
-- **CRITICAL:** `orgId` is stored in the **Firestore User Profile** (`users/{uid}`).
-
-## Schema (Implemented)
-- **organizations/{orgId}**: { name, settings }
-- **users/{userId}**: { email, orgId, role, fullName }
-- **invites/{inviteId}**: { email, orgId, role }
-- **jobs/{jobId}**: { assignedTo: [userId], status, serviceType, ... }
-
-## Rules for AI (STRICT)
-1. **NO PLACEHOLDERS:** Provide COMPLETE FILES only.
-2. **Icons:** Use `lucide-react`.
-3. **Tailwind:** Mobile-first (`block md:flex`).
-4. **Security & Data Access (CRITICAL):**
-   - **NEVER use `request.auth.token.orgId` (Custom Claims) in React Code.** It is stale.
-   - **ALWAYS** fetch `users/{uid}` from Firestore to get the current `orgId`.
-   - All Firestore queries MUST filter by `.where("orgId", "==", currentOrgId)`.
-   - All writes MUST include `orgId`.
-5. **Date Handling:** Use `date-fns`.
-INNER_EOF
-
-# ==========================================
-# 3. UPDATE DEVOPS MANUAL
-# ==========================================
-echo "📝 Updating docs/DEVOPS_MANUAL.md..."
-cat << 'INNER_EOF' > docs/DEVOPS_MANUAL.md
-# ☁️ DevOps & Infrastructure Manual
-
-## 1. CI/CD Architecture
-We use **GitHub Actions** for "Full Stack" deployments.
-* **Workflows:** `.github/workflows/`
-* **What Deploys:** Hosting + Firestore Security Rules + Firestore Indexes.
-* **Triggers:**
-  * `dev` branch -> **Dev** Environment
-  * `release/*` branch -> **UAT** Environment
-  * `main` branch -> **Production** Environment
-
-## 2. Environment Management
-We use "Environment-Aware" scripts. You must pass the target environment (`dev`, `uat`, `prod`) as an argument.
-
-### A. Initialization (New Env)
-Sets up the Admin User and Organization.
-\`\`\`bash
-node scripts/init-org.cjs uat
-\`\`\`
-
-### B. Seeding Staff Users
-Creates a test staff account linked to the Admin's Org.
-\`\`\`bash
-node scripts/create_staff_user.cjs uat
-\`\`\`
-
-## 3. GitHub Secrets (Required)
-| Secret Name | Content |
-| :--- | :--- |
-| `FIREBASE_SERVICE_ACCOUNT_DEV` | JSON key for Dev |
-| `FIREBASE_SERVICE_ACCOUNT_UAT` | JSON key for UAT |
-| `FIREBASE_SERVICE_ACCOUNT_PROD` | JSON key for Prod |
-| `ENV_FILE_DEV` | `.env.development` content |
-| `ENV_FILE_UAT` | `.env.uat` content |
-| `ENV_FILE_PROD` | `.env.production` content |
-
-## 4. Troubleshooting
-**"Missing Permissions" in CI/CD?**
-* Go to Google Cloud IAM.
-* Find the Service Account (e.g., `github-actions@...`).
-* Grant it the **"Editor"** role (or specifically Firestore Admin + Service Usage Admin).
-
-**"Staff User Not Seeing Data"?**
-* Ensure you aren't using `auth.token.orgId`.
-* Check Firestore `users/{uid}` to ensure `orgId` matches the data.
-INNER_EOF
-
-# ==========================================
-# 4. UPDATE INITIALIZATION PROMPT
-# ==========================================
-echo "📝 Updating docs/PROMPT_INITIALIZATION.md..."
-cat << 'INNER_EOF' > docs/PROMPT_INITIALIZATION.md
-# 🤖 AI Session Initialization Prompt
-
-**Instructions:**
-1.  Run `scripts/generate-context.sh` to copy your current codebase.
-2.  Paste the **Codebase Context** into the bottom of this prompt.
-3.  Send the *entire* block below to your AI assistant.
+### Phase 3: Support & Scale
+* **Crisis Protocol:** "SOS" button logic to swap shifts instantly[cite: 38].
+* **Impact Dashboard:** Report on "Hours created for ODSP workers" for City Hall contracts (Sarah)[cite: 80].
 
 ---
 
-**Role:** You are the Senior Lead Developer and Architect for "Fresh Nest," a React + Firebase SaaS application.
+## ✅ Version History
 
-**Input:** I am providing the full codebase context below.
+### v1.0.0 - Infrastructure Core (Completed)
+* **Architecture:** Multi-Tenant SaaS (Firebase/React).
+* **Security:** Role-Based Access Control (Admin/Staff).
+* **Financials:** Admin Revenue Dashboard (Recharts).
+* **DevOps:** CI/CD Pipelines (Dev/UAT/Prod).
 
-**Your Goal:** Ingest this context to completely understand our:
-* **Tech Stack:** React (Vite), Tailwind CSS, Firebase (Auth, Firestore, Functions).
-* **Architecture:** Multi-Tenant SaaS.
-* **CRITICAL ARCHITECTURE RULE:** We do **NOT** rely on Custom Claims for `orgId` in the frontend. We fetch the Firestore Profile.
-
-**Critical Rules for Interaction:**
-1.  **NO Placeholders:** Never use `// ... rest of code`. Provide **COMPLETE FILES**.
-2.  **Mobile First:** All UI must be fully responsive.
-3.  **Icons:** Use `lucide-react`.
-4.  **Security & Data:**
-    * **NEVER** use `idTokenResult.claims.orgId`. Fetch the user profile from DB.
-    * Every query MUST filter by `.where("orgId", "==", user.orgId)`.
-    * Every write must include `orgId`.
-5.  **Quality:**
-    * All buttons/inputs must be functional.
-    * Adhere to HTML best practices.
-
-**Codebase Context:**
-[PASTE_FULL_CODEBASE_CONTEXT_HERE]
-
-**Reply "Context Received. Ready for instructions." if you understand.**
-INNER_EOF
-
-echo "✅ Documentation Suite Updated Successfully."
-
-```
 ---
 
-## FILE: scripts/upgrade_pipelines.sh
-```sh
-#!/bin/bash
+## 🗄️ Database Schema Snapshot (Target State)
 
-echo "🚀 Upgrading CI/CD Pipelines to include Firestore..."
+### `users/{userId}` [cite: 180]
+* `profile`: { name, language, transport, acceptedTermsVersion }
+* `financials`: { mode: 'cap', limit: number, currentMonthAccrued: number }
+* `constraints`: { heavyLifting: boolean, blockedWindows: array }
+* `stats`: { reliabilityScore: number }
 
-# 1. Update DEV Pipeline
-cat << 'INNER_EOF' > .github/workflows/deploy-dev.yml
-name: Deploy to DEV
+### `shifts/{shiftId}` [cite: 205]
+* `status`: 'open' | 'claimed' | 'completed'
+* `contractLedger`: { claimedBy, claimedAt, rateSnapshot }
+* `requirements`: { photoEvidence: array }
 
-on:
-  push:
-    branches:
-      - dev
-
-jobs:
-  build_and_deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-
-      - name: Install Dependencies
-        run: npm ci
-
-      # 1. Inject Secrets
-      - name: Create .env and Key Files
-        run: |
-          echo "${{ secrets.ENV_FILE_DEV }}" > .env
-          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_DEV }}' > service-account.json
-
-      # 2. Build App
-      - name: Build
-        run: npm run build
-        env:
-          VITE_APP_ENV: 'development'
-
-      # 3. Full Deployment (Hosting + Firestore)
-      - name: Deploy to Firebase
-        run: npx firebase deploy --project fresh-nest-dev --non-interactive
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: 'service-account.json'
 INNER_EOF
 
-# 2. Update UAT Pipeline
-cat << 'INNER_EOF' > .github/workflows/deploy-uat.yml
-name: Deploy to UAT
-
-on:
-  push:
-    branches:
-      - 'release/**'
-
-jobs:
-  build_and_deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-
-      - name: Install Dependencies
-        run: npm ci
-
-      # 1. Inject Secrets
-      - name: Create .env and Key Files
-        run: |
-          echo "${{ secrets.ENV_FILE_UAT }}" > .env
-          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_UAT }}' > service-account.json
-
-      # 2. Build App
-      - name: Build
-        run: npm run build
-        env:
-          VITE_APP_ENV: 'uat'
-
-      # 3. Full Deployment (Hosting + Firestore)
-      - name: Deploy to Firebase
-        run: npx firebase deploy --project fresh-nest-uat --non-interactive
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: 'service-account.json'
-INNER_EOF
-
-# 3. Update PROD Pipeline
-cat << 'INNER_EOF' > .github/workflows/deploy-prod.yml
-name: Deploy to PROD
-
-on:
-  push:
-    branches:
-      - main
-
-jobs:
-  build_and_deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-
-      - name: Install Dependencies
-        run: npm ci
-
-      # 1. Inject Secrets
-      - name: Create .env and Key Files
-        run: |
-          echo "${{ secrets.ENV_FILE_PROD }}" > .env
-          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_PROD }}' > service-account.json
-
-      # 2. Build App
-      - name: Build
-        run: npm run build
-        env:
-          VITE_APP_ENV: 'production'
-
-      # 3. Full Deployment (Hosting + Firestore)
-      - name: Deploy to Firebase
-        run: npx firebase deploy --project fresh-nest-prod --non-interactive
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: 'service-account.json'
-INNER_EOF
-
-echo "✅ Pipelines Upgraded to Full-Stack Deployment."
+echo "✅ Project Status updated to Master Plan 9."
 
 ```
 ---
