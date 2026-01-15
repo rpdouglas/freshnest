@@ -1,29 +1,29 @@
 # 📌 Project Status: Fresh Nest (Worker Support Platform)
 
-**Current Phase:** Phase 2 - Field Operations & Trust
-**Current Version:** v0.3.0 (Conflict Engine Live)
+**Current Phase:** Phase 2 - Field Operations (Inventory)
+**Current Version:** v0.4.0 (Field Companion Live)
 **Context:** Cornwall, Ontario Socioeconomic Deployment
 **Last Updated:** $(date +%Y-%m-%d)
 
 > **Mission:** To transform the cleaning industry into a system of stability for marginalized workers while maintaining enterprise-grade reliability.
 
-## ✅ Completed (Phase 1: Safety & Constraints)
+## ✅ Completed Features
 * **Sprint 1: Smart Profile:** Data collection for transport, financials, and blocked windows.
 * **Sprint 2: Financial Guardrails:** Strict blocking of shifts that exceed ODSP limits.
-* **Sprint 3: Conflict Engine:**
-    * **Hard Blocks:** Preventing work during recovery meetings (Mike).
-    * **Soft Blocks:** Enforcing 30min buffers for transit users (Jasmine).
-    * **Parity:** Visual enforcement on both Mobile (Cards) and Desktop (Table).
+* **Sprint 3: Conflict Engine:** Scheduling protection (Recovery meetings & Transit buffers).
+* **Sprint 4: Field Companion:**
+    * **Work Mode:** Icon-first checklists for ESL accessibility (Ahmed).
+    * **Evidence Locker:** Photo verification for trust (Brenda).
+    * **Progress Tracking:** Real-time updates for Admins.
 
-## 🎯 Current Sprint: The Field Companion (Sprint 4)
-Now that scheduling is safe, we must ensure the *work* is accessible and verifiable.
+## 🎯 Current Sprint: The Inventory Manager (Sprint 5)
+Workers often arrive at Airbnb units to find supplies missing. This causes stress and bad reviews. We need a way for "Sophie" (The Supplier) to track and restock.
 
-* [ ] **Icon-First Checklists (Ahmed):**
-    * Replace text-heavy task lists with large, clear icons (e.g., Mop, Toilet, Trash).
-    * Toggle between languages (English/French) instantly.
-* [ ] **Evidence Locker (Brenda):**
-    * "Before" and "After" photo uploads.
-    * Upload to `jobs/{jobId}/evidence` in Storage.
+* [ ] **Supply Reporting:**
+    * Task-integrated logic: "Did you use the last roll of TP?"
+    * One-tap reporting for "Low Stock".
+* [ ] **Restock Dashboard:**
+    * Admin view of which units need supplies *before* the next cleaner arrives.
 
 ## 📋 Product Backlog (Master Plan 9)
 
@@ -34,8 +34,7 @@ Now that scheduling is safe, we must ensure the *work* is accessible and verifia
 ---
 
 ## 🗄️ Database Schema Snapshot
-* `users/{userId}`: { financials, constraints, profile }
 * `jobs/{jobId}`: 
-    * `status`: 'scheduled' | 'in_progress' | 'completed'
-    * `tasks`: [{ label, icon, isDone }] (New for Sprint 4)
-    * `evidence`: [{ url, type, timestamp }] (New for Sprint 4)
+    * `tasks`: [{ id, label, icon, isCompleted }]
+    * `evidence`: [{ id, url, type, timestamp }]
+    * `inventoryUsed`: [{ itemId, quantity }] (Upcoming)

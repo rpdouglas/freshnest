@@ -1,5 +1,5 @@
 # FRESH NEST: CODEBASE DUMP
-**Date:** Thu Jan 15 16:12:51 EST 2026
+**Date:** Thu Jan 15 16:44:34 EST 2026
 **Description:** Complete codebase context.
 
 ## FILE: package.json
@@ -7,7 +7,7 @@
 {
   "name": "fresh-nest",
   "private": true,
-  "version": "0.3.1",
+  "version": "0.4.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -1229,7 +1229,7 @@ export default InvoiceModal;
 ## FILE: src/components/jobs/JobCardMobile.jsx
 ```jsx
 import React from 'react';
-import { Calendar, Clock, DollarSign, MapPin, User, CheckCircle, Play, Loader, Edit, FileText, ShieldAlert } from 'lucide-react';
+import { Calendar, Clock, DollarSign, MapPin, User, CheckCircle, Play, Loader, Edit, FileText, ShieldAlert, AlertTriangle, XCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { useJobWorkflow } from '../../hooks/useJobWorkflow';
 
@@ -1241,21 +1241,26 @@ const JobCardMobile = ({
   userRole, 
   onEdit, 
   onInvoice,
-  financialData 
+  financialData,
+  conflict 
 }) => {
   const { startJob, completeJob, canStart, canComplete, loading } = useJobWorkflow(job, userRole);
   const assignedName = getAssignedStaffName(job.assignedTo);
   const isUnassigned = !job.assignedTo || job.assignedTo.length === 0;
 
-  // --- DEBUGGING LOGS (Check Console) ---
-  // console.log("JobCard Debug:", { id: job.id, role: userRole, financialData });
-
-  // --- SAFETY LOGIC ---
-  const isCapReached = financialData?.isCapReached ? financialData.isCapReached(job.price || 0) : false;
-  
-  // Only block "startable" jobs for Staff
+  // --- GUARDRAIL LOGIC ---
   const isActionable = job.status === 'scheduled';
-  const shouldBlock = isCapReached && isActionable && userRole === 'staff';
+  
+  // 1. Financial Block
+  const isFinancialBlock = financialData?.isCapReached ? financialData.isCapReached(job.price || 0) : false;
+  
+  // 2. Conflict Block
+  // Hard = Block, Soft = Warn/Block (Strict MVP: Block)
+  const isTimeBlock = conflict?.type === 'hard';
+  const isTransitWarn = conflict?.type === 'soft';
+
+  // Master Block Switch
+  const shouldBlock = (isFinancialBlock || isTimeBlock || isTransitWarn) && isActionable && userRole === 'staff';
 
   const getStatusColor = (s) => {
     switch(s) {
@@ -1267,7 +1272,7 @@ const JobCardMobile = ({
   };
 
   return (
-    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 relative">
+    <div className={`bg-white p-4 rounded-xl shadow-sm border relative ${shouldBlock ? 'border-red-100 bg-red-50/10' : 'border-gray-100'}`}>
       {userRole === 'admin' && (
         <button onClick={() => onEdit(job)} className="absolute top-4 right-4 p-1.5 bg-gray-50 rounded-full text-slate-400 hover:text-brand-600 hover:bg-brand-50">
           <Edit size={16} />
@@ -1288,9 +1293,16 @@ const JobCardMobile = ({
       </div>
       
       <div className="space-y-2 text-sm text-slate-600 mt-3">
+        {/* Time with Conflict Icon */}
+        <div className={`flex items-center gap-2 ${conflict ? 'text-red-600 font-bold' : ''}`}>
+          <Calendar size={16} className={conflict ? 'text-red-500' : 'text-brand-500'} />
+          <span>{job.scheduledDate ? format(job.scheduledDate, 'MMM d, yyyy') : 'No Date'}</span>
+          {conflict && <span className="text-[10px] bg-red-100 px-1 rounded uppercase">{conflict.type} Conflict</span>}
+        </div>
+        
         <div className="flex items-center gap-2">
-          <Calendar size={16} className="text-brand-500 shrink-0" />
-          <span className="font-medium text-slate-900">{job.scheduledDate ? format(job.scheduledDate, 'MMM d, yyyy') : 'No Date'}</span>
+          <Clock size={16} className="text-brand-500 shrink-0" />
+          <span>{job.scheduledDate ? format(job.scheduledDate, 'h:mm a') : 'TBD'}</span>
         </div>
         
         <div className={`flex items-center gap-2 ${isUnassigned ? 'text-slate-400 italic' : 'text-slate-700 font-medium'}`}>
@@ -1298,42 +1310,38 @@ const JobCardMobile = ({
           <span>{assignedName}</span>
         </div>
 
-        {/* PRICE & BLOCKING STATUS */}
-        {job.price > 0 && (
-          <div className={`flex items-center gap-2 ${shouldBlock ? 'text-red-500 font-bold' : 'text-slate-500'}`}>
-            <DollarSign size={16} className="shrink-0" />
-            <span>${job.price}</span>
-            {shouldBlock && <span className="text-[10px] bg-red-100 px-1 rounded ml-1">LIMIT HIT</span>}
+        {getClientAddress(job.clientId) && (
+          <div className="flex items-start gap-2">
+            <MapPin size={16} className="text-brand-500 shrink-0 mt-0.5" />
+            <span className="truncate">{getClientAddress(job.clientId)}</span>
           </div>
         )}
-
-        {/* 🚨 FORCED DEBUG BOX (Visible to everyone for testing) */}
-        {financialData && (
-          <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-[10px] font-mono text-yellow-800">
-            <p><strong>DEBUG:</strong></p>
-            <p>Role: {userRole}</p>
-            <p>Limit: ${financialData.limit} | Earned: ${financialData.currentEarnings}</p>
-            <p>IsCapReached: {isCapReached ? 'YES' : 'NO'}</p>
-            <p>ShouldBlock: {shouldBlock ? 'YES' : 'NO'}</p>
+        
+        {job.price > 0 && (
+          <div className={`flex items-center gap-2 ${isFinancialBlock ? 'text-red-500 font-bold' : 'text-slate-500'}`}>
+            <DollarSign size={16} className="shrink-0" />
+            <span>${job.price}</span>
+            {isFinancialBlock && <span className="text-[10px] bg-red-100 px-1 rounded ml-1">CAP HIT</span>}
           </div>
         )}
       </div>
 
-      {/* ADMIN INVOICE */}
-      {userRole === 'admin' && job.status === 'completed' && (
-        <button onClick={() => onInvoice(job)} className="w-full mt-3 px-4 py-2 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-lg font-medium flex items-center justify-center gap-2 border border-purple-100 transition-colors">
-          <FileText size={18} /> {job.invoicedAt ? 'View Invoice' : 'Generate Invoice'}
-        </button>
-      )}
-
-      {/* WORKFLOW BUTTONS */}
+      {/* BLOCKING UI */}
       {shouldBlock ? (
-        <div className="mt-4 pt-4 border-t border-gray-50">
-          <div className="w-full p-3 bg-red-50 text-red-700 rounded-lg flex items-center justify-center gap-2 text-sm font-medium border border-red-100 animate-pulse">
-            <ShieldAlert size={18} /> Monthly Limit Reached
+        <div className="mt-4 pt-4 border-t border-red-100">
+          <div className="w-full p-3 bg-white border border-red-200 rounded-lg flex flex-col items-center justify-center gap-1 text-center shadow-sm">
+            <div className="flex items-center gap-2 text-red-700 font-bold text-sm">
+              {isFinancialBlock ? <ShieldAlert size={18} /> : <XCircle size={18} />}
+              <span>Action Blocked</span>
+            </div>
+            <p className="text-xs text-red-500">
+              {isFinancialBlock && "Monthly Earnings Cap Reached."}
+              {conflict && conflict.message}
+            </p>
           </div>
         </div>
       ) : (
+        /* NORMAL BUTTONS */
         (canStart || canComplete) && (
           <div className="mt-4 pt-4 border-t border-gray-50 flex gap-2">
             {canStart && (
@@ -1580,7 +1588,7 @@ export default JobFormModal;
 import React from 'react';
 import JobCardMobile from './JobCardMobile';
 
-const JobListMobile = ({ jobs, clients, staff, userRole, onEdit, onInvoice, financialData }) => {
+const JobListMobile = ({ jobs, clients, staff, userRole, onEdit, onInvoice, financialData, checkConflict }) => {
   const getClientName = (id) => clients.find(c => c.id === id)?.name || 'Unknown Client';
   const getClientAddress = (id) => clients.find(c => c.id === id)?.address;
   
@@ -1606,8 +1614,8 @@ const JobListMobile = ({ jobs, clients, staff, userRole, onEdit, onInvoice, fina
           userRole={userRole}
           onEdit={onEdit}
           onInvoice={onInvoice}
-          // 3. PASS DOWN PROP
-          financialData={financialData} 
+          financialData={financialData}
+          conflict={checkConflict ? checkConflict(job.id) : null}
         />
       ))}
     </div>
@@ -1622,11 +1630,11 @@ export default JobListMobile;
 ## FILE: src/components/jobs/JobRowDesktop.jsx
 ```jsx
 import React, { useState, useRef, useEffect } from 'react';
-import { MoreHorizontal, Calendar, Clock, MapPin, User, Edit, Trash2, Play, CheckCircle, XCircle, FileText, ShieldAlert } from 'lucide-react';
+import { MoreHorizontal, Calendar, Clock, MapPin, User, Edit, Trash2, Play, CheckCircle, XCircle, FileText, ShieldAlert, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
 import { useJobWorkflow } from '../../hooks/useJobWorkflow';
 
-const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit, onDelete, onInvoice, financialData }) => {
+const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit, onDelete, onInvoice, financialData, conflict }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef(null);
   
@@ -1636,10 +1644,16 @@ const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit,
   const assignedName = getAssignedStaffName(job.assignedTo);
   const isUnassigned = !job.assignedTo || job.assignedTo.length === 0;
 
-  // --- SAFETY LOGIC (Desktop) ---
-  const isCapReached = financialData?.isCapReached ? financialData.isCapReached(job.price || 0) : false;
+  // --- SAFETY LOGIC ---
   const isActionable = job.status === 'scheduled';
-  const shouldBlock = isCapReached && isActionable && userRole === 'staff';
+  const isFinancialBlock = financialData?.isCapReached ? financialData.isCapReached(job.price || 0) : false;
+  const isTimeBlock = conflict?.type === 'hard';
+  const isTransitWarn = conflict?.type === 'soft';
+  const shouldBlock = (isFinancialBlock || isTimeBlock || isTransitWarn) && isActionable && userRole === 'staff';
+
+  // --- VISUAL STYLES ---
+  // Dim row if blocked (Mike/Jasmine requirement for "Traffic Control")
+  const rowOpacity = shouldBlock ? 'opacity-75 bg-red-50/30' : 'hover:bg-gray-50';
 
   const getStatusBadge = (s) => {
     const baseClasses = "text-xs font-bold px-2 py-1 rounded-full uppercase";
@@ -1667,24 +1681,17 @@ const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit,
   };
 
   return (
-    <tr className="hover:bg-gray-50 transition-colors relative group">
+    <tr className={`transition-colors relative group ${rowOpacity}`}>
       {/* 1. Date */}
       <td className="px-6 py-4">
         <div className="flex items-center gap-2 font-medium text-slate-900">
-          <Calendar size={16} className="text-brand-500" />
+          <Calendar size={16} className={isTimeBlock ? 'text-red-500' : 'text-brand-500'} />
           {job.scheduledDate ? format(job.scheduledDate, 'MMM d, yyyy') : 'TBD'}
         </div>
         <div className="flex items-center gap-2 text-xs text-slate-500 mt-1 pl-6">
           <Clock size={12} />
           {job.scheduledDate ? format(job.scheduledDate, 'h:mm a') : ''}
         </div>
-        
-        {/* DEBUG BOX (Desktop Hover Only) */}
-        {financialData && (
-          <div className="absolute top-0 left-0 bg-yellow-100 text-[9px] p-1 hidden group-hover:block z-10 opacity-70">
-            Limit: ${financialData.limit} | Earned: ${financialData.currentEarnings} | Block: {shouldBlock ? 'YES' : 'NO'}
-          </div>
-        )}
       </td>
 
       {/* 2. Client */}
@@ -1708,19 +1715,19 @@ const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit,
       <td className="px-6 py-4">
         <span className="capitalize text-sm text-slate-700">{job.serviceType}</span>
         {job.price > 0 && (
-          <div className={`text-xs mt-1 ${shouldBlock ? 'text-red-600 font-bold' : 'text-slate-400'}`}>
+          <div className={`text-xs mt-1 ${isFinancialBlock ? 'text-red-600 font-bold' : 'text-slate-400'}`}>
             ${job.price}
-            {shouldBlock && <span className="ml-1 bg-red-100 px-1 rounded">LIMIT HIT</span>}
           </div>
         )}
       </td>
 
-      {/* 5. Status */}
+      {/* 5. Status & Conflict Icons */}
       <td className="px-6 py-4">
         {getStatusBadge(job.status)}
-        {job.invoicedAt && userRole === 'admin' && (
-          <div className="mt-1 text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded inline-block">
-            Invoiced
+        {conflict && (
+          <div className="flex items-center gap-1 mt-1 text-[10px] font-bold text-red-600">
+            {conflict.type === 'hard' ? <XCircle size={12} /> : <AlertTriangle size={12} />}
+            {conflict.type.toUpperCase()} CONFLICT
           </div>
         )}
       </td>
@@ -1737,15 +1744,21 @@ const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit,
         {isMenuOpen && (
           <div 
             ref={menuRef}
-            className="absolute right-8 top-8 w-56 bg-white rounded-lg shadow-xl border border-gray-100 z-50 overflow-hidden text-left animate-in fade-in zoom-in duration-200"
+            className="absolute right-8 top-8 w-64 bg-white rounded-lg shadow-xl border border-gray-100 z-50 overflow-hidden text-left animate-in fade-in zoom-in duration-200"
           >
-            {/* WORKFLOW ACTIONS */}
+            {/* BLOCKED STATE */}
             {shouldBlock && canStart ? (
-              <div className="px-4 py-3 bg-red-50 text-red-700 text-sm font-medium border-b border-red-100 flex items-center gap-2">
-                <ShieldAlert size={16} />
-                Limit Reached
+              <div className="px-4 py-3 bg-red-50 text-red-700 text-sm border-b border-red-100">
+                <div className="flex items-center gap-2 font-bold mb-1">
+                  <ShieldAlert size={16} /> Action Blocked
+                </div>
+                <div className="text-xs opacity-90">
+                  {isFinancialBlock && "• Monthly Earning Limit\n"}
+                  {conflict && `• ${conflict.message}`}
+                </div>
               </div>
             ) : (
+              /* ALLOWED STATE */
               <>
                 {canStart && (
                   <button onClick={() => handleAction(startJob)} disabled={loading} className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-gray-50 flex items-center gap-2 transition-colors font-medium">
@@ -1800,7 +1813,7 @@ export default JobRowDesktop;
 import React from 'react';
 import JobRowDesktop from './JobRowDesktop';
 
-const JobTableDesktop = ({ jobs, clients, staff, userRole, onEdit, onDelete, onInvoice, financialData }) => {
+const JobTableDesktop = ({ jobs, clients, staff, userRole, onEdit, onDelete, onInvoice, financialData, checkConflict }) => {
   const getClient = (id) => clients.find(c => c.id === id) || {};
   
   const getAssignedStaffName = (staffIds) => {
@@ -1841,8 +1854,8 @@ const JobTableDesktop = ({ jobs, clients, staff, userRole, onEdit, onDelete, onI
               onEdit={onEdit}
               onDelete={onDelete}
               onInvoice={onInvoice}
-              // Pass Prop Down
               financialData={financialData}
+              conflict={checkConflict ? checkConflict(job.id) : null}
             />
           ))}
         </tbody>
@@ -2934,6 +2947,98 @@ export const useClients = () => {
 ```
 ---
 
+## FILE: src/hooks/useConflictEngine.js
+```js
+import { useMemo } from 'react';
+import { getDay, getHours, addMinutes, differenceInMinutes, isSameDay } from 'date-fns';
+
+export const useConflictEngine = (jobs, userProfile) => {
+  
+  const conflicts = useMemo(() => {
+    const map = {};
+    if (!userProfile || !jobs || jobs.length === 0) return map;
+
+    // --- 1. SETUP & SORTING ---
+    // We need jobs sorted by time to calculate travel buffers
+    const sortedJobs = [...jobs].sort((a, b) => 
+      a.scheduledDate?.getTime() - b.scheduledDate?.getTime()
+    );
+
+    const constraints = userProfile.constraints || {};
+    const profile = userProfile.profile || {};
+    const blockedWindows = constraints.blockedWindows || [];
+    const isTransit = profile.transport === 'transit';
+    
+    // Standard job duration (2 hours) hardcoded for MVP
+    const JOB_DURATION_MINS = 120;
+    const TRANSIT_BUFFER_MINS = 30;
+
+    // --- 2. HARD CHECKS (Mike - Recovery) ---
+    // Logic: Map ID to Time Range. If overlap -> HARD BLOCK.
+    sortedJobs.forEach(job => {
+      if (!job.scheduledDate) return;
+      
+      const date = job.scheduledDate;
+      const day = getDay(date); // 0=Sun, 1=Mon, etc.
+      const hour = getHours(date);
+
+      let hardConflict = null;
+
+      if (blockedWindows.includes('tue_evening') && day === 2 && hour >= 18) {
+        hardConflict = "Personal Commitment (Tue Eve)";
+      }
+      if (blockedWindows.includes('thu_evening') && day === 4 && hour >= 18) {
+        hardConflict = "Personal Commitment (Thu Eve)";
+      }
+      if (blockedWindows.includes('sat_morning') && day === 6 && hour < 12) {
+        hardConflict = "Unavailable (Sat Morn)";
+      }
+      if (blockedWindows.includes('sun_allday') && day === 0) {
+        hardConflict = "Unavailable (Sunday)";
+      }
+
+      if (hardConflict) {
+        map[job.id] = { type: 'hard', message: hardConflict };
+      }
+    });
+
+    // --- 3. SOFT CHECKS (Jasmine - Transit) ---
+    // Logic: Compare Job(i) Start vs Job(i-1) End.
+    if (isTransit) {
+      for (let i = 1; i < sortedJobs.length; i++) {
+        const currentJob = sortedJobs[i];
+        const prevJob = sortedJobs[i - 1];
+
+        // Skip if already hard blocked
+        if (map[currentJob.id]) continue; 
+
+        // Only check buffer if on the same day
+        if (isSameDay(currentJob.scheduledDate, prevJob.scheduledDate)) {
+          const prevEndTime = addMinutes(prevJob.scheduledDate, JOB_DURATION_MINS);
+          const gap = differenceInMinutes(currentJob.scheduledDate, prevEndTime);
+
+          if (gap < TRANSIT_BUFFER_MINS) {
+            map[currentJob.id] = { 
+              type: 'soft', 
+              message: `Tight Schedule: Only ${gap}m travel time` 
+            };
+          }
+        }
+      }
+    }
+
+    return map;
+  }, [jobs, userProfile]);
+
+  // Helper to look up a specific job
+  const checkConflict = (jobId) => conflicts[jobId] || null;
+
+  return { conflicts, checkConflict };
+};
+
+```
+---
+
 ## FILE: src/hooks/useDashboard.js
 ```js
 import { useState, useEffect } from 'react';
@@ -3957,6 +4062,9 @@ import { useJobs } from '../hooks/useJobs';
 import { useClients } from '../hooks/useClients';
 import { useStaff } from '../hooks/useStaff';
 import { useFinancials } from '../hooks/useFinancials'; 
+import { useProfile } from '../hooks/useProfile'; // NEEDED FOR CONSTRAINTS
+import { useConflictEngine } from '../hooks/useConflictEngine'; // NEW HOOK
+
 import JobListMobile from '../components/jobs/JobListMobile';
 import JobTableDesktop from '../components/jobs/JobTableDesktop';
 import JobFormModal from '../components/jobs/JobFormModal';
@@ -3968,8 +4076,12 @@ const JobsPage = () => {
   const { clients, loading: clientsLoading } = useClients(); 
   const { staff, loading: staffLoading } = useStaff();
   
-  // 1. FETCH FINANCIALS
+  // 1. DATA LAYERS
   const financialData = useFinancials();
+  const { profile } = useProfile(); // Fetch constraints
+  
+  // 2. INITIALIZE CONFLICT ENGINE
+  const { checkConflict } = useConflictEngine(jobs, profile);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingJobId, setEditingJobId] = useState(null);
@@ -4052,6 +4164,7 @@ const JobsPage = () => {
         <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div></div>
       ) : (
         <>
+          {/* 3. PASS DOWN CONFLICT CHECKER */}
           <JobListMobile 
             jobs={filteredJobs} 
             clients={clients} 
@@ -4059,9 +4172,9 @@ const JobsPage = () => {
             userRole={userRole}
             onEdit={handleEditOpen}
             onInvoice={handleInvoiceOpen}
-            financialData={financialData} 
+            financialData={financialData}
+            checkConflict={checkConflict} 
           />
-          {/* UPDATED: Passing financialData to Desktop Table */}
           <JobTableDesktop 
             jobs={filteredJobs} 
             clients={clients} 
@@ -4071,6 +4184,7 @@ const JobsPage = () => {
             onDelete={handleDelete} 
             onInvoice={handleInvoiceOpen}
             financialData={financialData}
+            checkConflict={checkConflict}
           />
         </>
       )}
@@ -4366,20 +4480,18 @@ export default SettingsPage;
 ```md
 # 📜 Changelog
 
-## [v0.2.0] - 2026-01-15
+## [v0.3.0] - 2026-01-15
 ### Added
-* **Financial Guardrails:** System now prevents Staff from starting jobs that exceed their monthly earning cap.
-* **Progress Visualizer:** Dashboard "Traffic Light" bar (Green/Yellow/Red) for earnings tracking.
-* **Guardrail Alerts:** Job Cards display a "Shield Alert" when blocked by safety logic.
+* **Conflict Engine:** Automated scheduling protection for workers.
+* **Hard Blocks:** Jobs during `blockedWindows` (e.g., AA meetings) are strictly disabled.
+* **Transit Buffers:** Workers with `transport: 'transit'` get automatic 30min gap enforcement.
+* **Desktop Parity:** Financial and Time constraints are now fully visualized in the Desktop Table view.
+
+## [v0.2.0] - 2026-01-15
+* **Financial Guardrails:** ODSP Earning Cap enforcement.
 
 ## [v0.1.1] - 2026-01-14
-### Added
-* **Smart Profile:** A dedicated settings view for workers to manage constraints.
-* **Financial Safety:** Input for Monthly Earning Caps (ODSP support).
-* **Versioning:** Automated semantic versioning in CI/CD pipeline.
-
-## [v0.1.0] - 2026-01-14
-* **MVP Gold Master:** Core functionality (Jobs, Clients, Invoicing).
+* **Smart Profile:** Worker settings for constraints.
 
 ```
 ---
@@ -4388,14 +4500,15 @@ export default SettingsPage;
 ```md
 # Fresh Nest: Context Dump
 **Stack:** React + Vite + Firebase + Tailwind CSS
-**Version:** v0.2.0
+**Version:** v0.3.0
 **Architecture:** Multi-Tenant SaaS.
 
 ## 🧠 The "Prime Directive"
 We build for **Personas**. Safety > Efficiency.
-* **Carla (ODSP):** Never allow over-earning. (Enforced via `useFinancials`)
+* **Carla (ODSP):** Never allow over-earning.
 * **Mike (Recovery):** Never schedule during meetings.
 * **Ahmed (ESL):** Icons over Text.
+* **Brenda (Trust):** Evidence over assumptions.
 
 ## Documentation References
 * **Schema:** See `docs/SCHEMA_REFERENCE.md`
@@ -4406,15 +4519,13 @@ We build for **Personas**. Safety > Efficiency.
 2. **Icons:** Use `lucide-react`.
 3. **Tailwind:** Mobile-first (`block md:flex`).
 4. **Security:** Use `useProfile` hook to fetch user data. Do NOT use Auth Tokens.
-5. **Logic Hooks:** * `useProfile`: User settings.
-   * `useFinancials`: Earning aggregation & Blocking logic.
-   * `useJobs`: CRUD operations.
+5. **Logic Hooks:** * `useFinancials`: Earning aggregation & Blocking.
+   * `useConflictEngine`: Schedule validation (Hard/Soft blocks).
+   * `useJobWorkflow`: Status transitions.
 
 ## Schema (Implemented)
-- **users/{userId}**: 
-    - `financials`: { mode: 'cap' | 'unlimited', limit: number }
-    - `constraints`: { blockedWindows: ['tue_evening', ...] }
-- **jobs/{jobId}**: { status, price, scheduledDate, assignedTo: [] }
+- **users/{userId}**: { financials, constraints, profile }
+- **jobs/{jobId}**: { status, price, scheduledDate, assignedTo }
 
 ```
 ---
@@ -4510,32 +4621,45 @@ These are not just user stories. These are **System Constraints**. Every feature
 ```md
 # 📌 Project Status: Fresh Nest (Worker Support Platform)
 
-**Current Phase:** Phase 1 - Safety Logic & Enforcement
-**Current Version:** v0.2.0 (Guardrails Live)
+**Current Phase:** Phase 2 - Field Operations & Trust
+**Current Version:** v0.3.0 (Conflict Engine Live)
 **Context:** Cornwall, Ontario Socioeconomic Deployment
 **Last Updated:** $(date +%Y-%m-%d)
 
 > **Mission:** To transform the cleaning industry into a system of stability for marginalized workers while maintaining enterprise-grade reliability.
 
-## ✅ Completed (Sprint 2: Financial Guardrails)
-* **Financial Logic:** Client-side aggregation of monthly earnings via `useFinancials`.
-* **Guardrail Enforcement:** "Strict Block" on Job Cards if `current + price > limit`.
-* **Visuals:** "Safe to Earn" Traffic Light bar on Dashboard.
-* **Persona Protection:** Carla (ODSP) is now actively protected from over-earning.
+## ✅ Completed (Phase 1: Safety & Constraints)
+* **Sprint 1: Smart Profile:** Data collection for transport, financials, and blocked windows.
+* **Sprint 2: Financial Guardrails:** Strict blocking of shifts that exceed ODSP limits.
+* **Sprint 3: Conflict Engine:**
+    * **Hard Blocks:** Preventing work during recovery meetings (Mike).
+    * **Soft Blocks:** Enforcing 30min buffers for transit users (Jasmine).
+    * **Parity:** Visual enforcement on both Mobile (Cards) and Desktop (Table).
 
-## 🎯 Current Sprint: The Conflict Engine (Sprint 3)
-We have the constraints (`blockedWindows`). Now we need to filter the schedule.
+## 🎯 Current Sprint: The Field Companion (Sprint 4)
+Now that scheduling is safe, we must ensure the *work* is accessible and verifiable.
 
-* [ ] **Conflict Logic (Mike):**
-    * Filter out job offers that overlap with `user.constraints.blockedWindows`.
-* [ ] **Transport Buffers (Jasmine):**
-    * If `transport === 'transit'`, ensure 30min gap between jobs.
+* [ ] **Icon-First Checklists (Ahmed):**
+    * Replace text-heavy task lists with large, clear icons (e.g., Mop, Toilet, Trash).
+    * Toggle between languages (English/French) instantly.
+* [ ] **Evidence Locker (Brenda):**
+    * "Before" and "After" photo uploads.
+    * Upload to `jobs/{jobId}/evidence` in Storage.
+
+## 📋 Product Backlog (Master Plan 9)
+
+### Phase 3: Support & Scale
+* **Crisis Protocol:** "SOS" button logic to swap shifts instantly.
+* **Impact Dashboard:** Report on "Hours created for ODSP workers" for City Hall contracts.
 
 ---
 
 ## 🗄️ Database Schema Snapshot
-* `users/{userId}`: { financials: { limit, mode }, constraints: { blockedWindows } }
-* `jobs/{jobId}`: { status, price, scheduledDate, assignedTo }
+* `users/{userId}`: { financials, constraints, profile }
+* `jobs/{jobId}`: 
+    * `status`: 'scheduled' | 'in_progress' | 'completed'
+    * `tasks`: [{ label, icon, isDone }] (New for Sprint 4)
+    * `evidence`: [{ url, type, timestamp }] (New for Sprint 4)
 
 ```
 ---
@@ -4666,7 +4790,7 @@ I need to add a module that allows [WHO] to [DO WHAT].
 
 1.  **👥 The Persona Check (CRITICAL):**
     * **Review:** Read `docs/PERSONAS.md`.
-    * **Validation:** specific check against:
+    * **Validation:** Specific check against:
         * **Carla (ODSP):** Does this affect financial eligibility?
         * **Ahmed (ESL):** Is the UI text-heavy or Icon-based?
         * **Jasmine (Transit):** Does this respect travel buffers?
@@ -4676,10 +4800,12 @@ I need to add a module that allows [WHO] to [DO WHAT].
     * **Audit Trail:** If this involves money or contracts, we MUST record a snapshot (e.g., `rateSnapshot`, `acceptedTermsVersion`).
     * **Reference:** Check `docs/SCHEMA_REFERENCE.md`.
 
-3.  **UI (Accessibility & Field First):**
-    * **Mobile:** Design for a 375px screen with "Fat Finger" touch targets.
+3.  **UI (Functional Parity Rule):**
+    * **Mobile First:** Design primarily for 375px screens (Fat Finger targets).
+    * **Desktop Parity:** **CRITICAL.** If logic (blocking, hiding, disabling) applies to Mobile, it **MUST** apply to Desktop views (`Table` vs `Card`).
+        * *Example:* If a button is disabled on Mobile, it must be disabled on Desktop.
+        * *Example:* If a badge is shown on Mobile, a corresponding Column or Tooltip must exist on Desktop.
     * **Cognitive Load:** Use **Icons** (Lucide) over text labels where possible.
-    * **Parity:** Is this feature *required* in the field? If so, it must be Mobile-First.
 
 4.  **Security & RBAC:**
     * **Constraint:** **NEVER** use `auth.token`. Always fetch `users/{uid}` profile.
@@ -4694,10 +4820,11 @@ Before writing any code, please propose **3 Distinct Approaches**:
 
 **Your Task:**
 1.  **Analyze Context:** Read `docs/PERSONAS.md` and `docs/CONTEXT_DUMP.md`.
-2.  **Persona Impact Statement:** Write 1-2 sentences on how this feature helps/protects a specific persona (e.g., "This helps Brenda trust the system by uploading photos").
+2.  **Persona Impact Statement:** Write 1-2 sentences on how this feature helps/protects a specific persona.
 3.  **Compare Options:** Briefly describe the 3 approaches above.
 4.  **Recommendation:** Recommend the best approach for **Safety & Stability**.
 5.  **Specifications:** List exact **Schema Changes**, **New Dependencies**, and **New Files**.
+    * *Explicitly list paired updates:* (e.g. "Update `JobCardMobile.jsx` AND `JobRowDesktop.jsx`").
 6.  **WAIT** for my confirmation before generating any code.
 
 ---
