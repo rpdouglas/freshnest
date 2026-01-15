@@ -1,5 +1,5 @@
 # FRESH NEST: CODEBASE DUMP
-**Date:** Wed Jan 14 18:35:40 EST 2026
+**Date:** Wed Jan 14 21:43:04 EST 2026
 **Description:** Complete codebase context.
 
 ## FILE: package.json
@@ -7,7 +7,7 @@
 {
   "name": "fresh-nest",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -55,25 +55,34 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { execSync } from 'child_process';
+import pkg from './package.json';
 
-// Get the current git commit hash
-let commitHash = '';
+// 1. Get Git Hash
+let commitHash = 'unknown';
 try {
   commitHash = execSync('git rev-parse --short HEAD').toString().trim();
 } catch (e) {
-  commitHash = 'dev';
+  console.warn('Git hash not found (not a git repo?)');
 }
 
-// Get version from package.json
-import pkg from './package.json';
+// 2. Get Environment (from CI/CD or .env)
+// Note: VITE_APP_ENV is injected by our GitHub Actions
+const appEnv = process.env.VITE_APP_ENV || 'local';
 
-// https://vite.dev/config/
+// 3. Format Version String
+// e.g. "v1.2.0 (dev)" or "v1.2.0" for prod
+const displayVersion = appEnv === 'production' 
+  ? pkg.version 
+  : `${pkg.version}-${appEnv}`;
+
 export default defineConfig({
   plugins: [react()],
   define: {
-    __APP_VERSION__: JSON.stringify(pkg.version),
+    // Inject these global constants
+    __APP_VERSION__: JSON.stringify(displayVersion),
     __COMMIT_HASH__: JSON.stringify(commitHash),
     __BUILD_DATE__: JSON.stringify(new Date().toISOString().split('T')[0]),
+    __ENV_NAME__: JSON.stringify(appEnv),
   }
 })
 
@@ -1942,8 +1951,8 @@ const Sidebar = () => {
 
         {/* Version Footer */}
         <div className="px-4 text-[10px] text-slate-600 font-mono">
-          <p>v{__APP_VERSION__} [{__COMMIT_HASH__}]</p>
-          <p>{__BUILD_DATE__}</p>
+          <p>v{__APP_VERSION__}</p>
+          <p>b{__COMMIT_HASH__} • {__BUILD_DATE__}</p>
         </div>
       </div>
     </aside>
@@ -2246,6 +2255,364 @@ const DateStrip = ({ selectedDate, onSelectDate }) => {
 };
 
 export default DateStrip;
+
+```
+---
+
+## FILE: src/components/settings/ProfileForm.jsx
+```jsx
+import React, { useState, useEffect } from 'react';
+import { 
+  Save, Bus, Car, DollarSign, Calendar, 
+  Dumbbell, Languages, AlertCircle, CheckCircle, Loader 
+} from 'lucide-react';
+import { useProfile } from '../../hooks/useProfile';
+
+const ProfileForm = () => {
+  const { profile, loading, updateProfile } = useProfile();
+  const [isSaving, setIsSaving] = useState(false);
+  const [message, setMessage] = useState(null); // { type: 'success'|'error', text: '' }
+
+  // Local Form State
+  const [formData, setFormData] = useState({
+    fullName: '',
+    phone: '',
+    language: 'en',
+    transport: 'transit', // Default for Jasmine
+    financialMode: 'unlimited',
+    financialLimit: '',
+    heavyLifting: false,
+    blockedWindows: [],
+    acceptedTerms: false
+  });
+
+  // Hydrate form from Firestore data
+  useEffect(() => {
+    if (profile) {
+      setFormData({
+        fullName: profile.fullName || '',
+        phone: profile.profile?.phone || '',
+        language: profile.profile?.language || 'en',
+        transport: profile.profile?.transport || 'transit',
+        financialMode: profile.financials?.mode || 'unlimited',
+        financialLimit: profile.financials?.limit || '',
+        heavyLifting: profile.constraints?.heavyLifting || false,
+        blockedWindows: profile.constraints?.blockedWindows || [],
+        acceptedTerms: profile.profile?.acceptedTermsVersion === 'v1.0'
+      });
+    }
+  }, [profile]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setMessage(null);
+    setIsSaving(true);
+
+    try {
+      // 1. Construct Schema-Compliant Object
+      const updates = {
+        fullName: formData.fullName, // Root level for easy Auth display
+        profile: {
+          phone: formData.phone,
+          language: formData.language,
+          transport: formData.transport,
+          // Sarah (Compliance): Audit Trail
+          acceptedTermsVersion: formData.acceptedTerms ? 'v1.0' : null
+        },
+        financials: {
+          mode: formData.financialMode,
+          limit: formData.financialMode === 'cap' ? Number(formData.financialLimit) : null
+        },
+        constraints: {
+          heavyLifting: formData.heavyLifting,
+          blockedWindows: formData.blockedWindows
+        }
+      };
+
+      await updateProfile(updates);
+      setMessage({ type: 'success', text: 'Profile updated successfully!' });
+      
+      // Clear success message after 3s
+      setTimeout(() => setMessage(null), 3000);
+    } catch (err) {
+      setMessage({ type: 'error', text: 'Failed to save profile. Try again.' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const toggleWindow = (windowId) => {
+    setFormData(prev => {
+      const current = prev.blockedWindows;
+      if (current.includes(windowId)) {
+        return { ...prev, blockedWindows: current.filter(id => id !== windowId) };
+      } else {
+        return { ...prev, blockedWindows: [...current, windowId] };
+      }
+    });
+  };
+
+  if (loading) return <div className="p-8 text-center text-slate-400">Loading profile...</div>;
+
+  return (
+    <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      
+      {/* Header */}
+      <div className="px-6 py-4 border-b border-gray-100 bg-slate-50 flex justify-between items-center">
+        <div>
+          <h2 className="text-lg font-bold text-slate-800">My Worker Profile</h2>
+          <p className="text-xs text-slate-500">Manage your capabilities & limits</p>
+        </div>
+        {/* Ahmed: Visual Language Toggle Placeholder */}
+        <div className="flex gap-2">
+          <button 
+            type="button" 
+            onClick={() => setFormData({...formData, language: 'en'})}
+            className={`text-xs px-2 py-1 rounded font-bold ${formData.language === 'en' ? 'bg-slate-800 text-white' : 'bg-white text-slate-400 border'}`}
+          >EN</button>
+          <button 
+            type="button" 
+            onClick={() => setFormData({...formData, language: 'fr'})}
+            className={`text-xs px-2 py-1 rounded font-bold ${formData.language === 'fr' ? 'bg-brand-600 text-white' : 'bg-white text-slate-400 border'}`}
+          >FR</button>
+        </div>
+      </div>
+
+      <div className="p-6 space-y-8">
+        
+        {/* SECTION 1: IDENTITY */}
+        <div className="space-y-4">
+          <label className="block text-sm font-bold text-slate-700 uppercase tracking-wide">
+            Identity
+          </label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <span className="text-xs text-slate-500 mb-1 block">Full Name</span>
+              <input 
+                type="text" 
+                required
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
+                value={formData.fullName}
+                onChange={e => setFormData({...formData, fullName: e.target.value})}
+              />
+            </div>
+            <div>
+              <span className="text-xs text-slate-500 mb-1 block">Phone Number</span>
+              <input 
+                type="tel" 
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
+                placeholder="(555) 123-4567"
+                value={formData.phone}
+                onChange={e => setFormData({...formData, phone: e.target.value})}
+              />
+            </div>
+          </div>
+        </div>
+
+        <hr className="border-slate-100" />
+
+        {/* SECTION 2: TRANSPORT (Jasmine) */}
+        <div>
+          <label className="flex items-center gap-2 text-sm font-bold text-slate-700 uppercase tracking-wide mb-3">
+            <Bus size={18} className="text-brand-500" /> Transport Mode
+          </label>
+          <div className="grid grid-cols-2 gap-4">
+            <button
+              type="button"
+              onClick={() => setFormData({...formData, transport: 'transit'})}
+              className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${
+                formData.transport === 'transit' 
+                  ? 'border-brand-500 bg-brand-50 text-brand-700' 
+                  : 'border-slate-200 hover:border-slate-300 text-slate-500'
+              }`}
+            >
+              <Bus size={32} />
+              <span className="font-bold">Public Transit</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setFormData({...formData, transport: 'vehicle'})}
+              className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${
+                formData.transport === 'vehicle' 
+                  ? 'border-brand-500 bg-brand-50 text-brand-700' 
+                  : 'border-slate-200 hover:border-slate-300 text-slate-500'
+              }`}
+            >
+              <Car size={32} />
+              <span className="font-bold">Personal Vehicle</span>
+            </button>
+          </div>
+          {formData.transport === 'transit' && (
+            <p className="text-xs text-slate-500 mt-2 bg-slate-50 p-2 rounded">
+              ℹ️ We will add 30-min travel buffers to your schedule automatically.
+            </p>
+          )}
+        </div>
+
+        <hr className="border-slate-100" />
+
+        {/* SECTION 3: FINANCIALS (Carla) */}
+        <div>
+          <label className="flex items-center gap-2 text-sm font-bold text-slate-700 uppercase tracking-wide mb-3">
+            <DollarSign size={18} className="text-green-600" /> Financial Safety
+          </label>
+          
+          <div className="bg-orange-50 border border-orange-100 rounded-lg p-4 mb-4">
+            <div className="flex items-start gap-3">
+              <input 
+                type="radio" 
+                id="fin_cap"
+                name="fin_mode"
+                checked={formData.financialMode === 'cap'}
+                onChange={() => setFormData({...formData, financialMode: 'cap'})}
+                className="mt-1 w-4 h-4 text-brand-600"
+              />
+              <div className="flex-1">
+                <label htmlFor="fin_cap" className="font-bold text-slate-800 block">
+                  Strict Earning Cap (ODSP/Support)
+                </label>
+                <p className="text-xs text-slate-600 mb-2">
+                  Stop assigning me work once I reach a monthly limit.
+                </p>
+                {formData.financialMode === 'cap' && (
+                  <div className="relative max-w-[200px]">
+                    <span className="absolute left-3 top-2.5 text-slate-500">$</span>
+                    <input 
+                      type="number" 
+                      placeholder="1000.00"
+                      className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
+                      value={formData.financialLimit}
+                      onChange={e => setFormData({...formData, financialLimit: e.target.value})}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3 p-4 rounded-lg border border-slate-100">
+            <input 
+              type="radio" 
+              id="fin_unlimited"
+              name="fin_mode"
+              checked={formData.financialMode === 'unlimited'}
+              onChange={() => setFormData({...formData, financialMode: 'unlimited'})}
+              className="mt-1 w-4 h-4 text-brand-600"
+            />
+            <div>
+              <label htmlFor="fin_unlimited" className="font-bold text-slate-800 block">
+                Unlimited Earnings
+              </label>
+              <p className="text-xs text-slate-500">I have no restrictions on income.</p>
+            </div>
+          </div>
+        </div>
+
+        <hr className="border-slate-100" />
+
+        {/* SECTION 4: CONSTRAINTS (Mike) */}
+        <div>
+          <label className="flex items-center gap-2 text-sm font-bold text-slate-700 uppercase tracking-wide mb-3">
+            <Calendar size={18} className="text-purple-600" /> Unavailability
+          </label>
+          <p className="text-xs text-slate-500 mb-3">Select recurring times you CANNOT work (e.g. meetings, appointments).</p>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { id: 'tue_evening', label: 'Tue Evening', sub: '7pm - 10pm' },
+              { id: 'thu_evening', label: 'Thu Evening', sub: '7pm - 10pm' },
+              { id: 'sat_morning', label: 'Sat Morning', sub: '8am - 12pm' },
+              { id: 'sun_allday',  label: 'Sunday', sub: 'All Day' },
+            ].map(window => (
+              <button
+                key={window.id}
+                type="button"
+                onClick={() => toggleWindow(window.id)}
+                className={`p-3 rounded-lg border text-left transition-all ${
+                  formData.blockedWindows.includes(window.id)
+                    ? 'bg-red-50 border-red-200' 
+                    : 'bg-white border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex justify-between items-start">
+                  <span className={`font-bold text-sm ${formData.blockedWindows.includes(window.id) ? 'text-red-700' : 'text-slate-700'}`}>
+                    {window.label}
+                  </span>
+                  {formData.blockedWindows.includes(window.id) && <CheckCircle size={14} className="text-red-600" />}
+                </div>
+                <span className="text-xs text-slate-400 block mt-1">{window.sub}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* SECTION 5: CAPABILITIES */}
+        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
+          <div className="flex items-center gap-3">
+            <div className="bg-white p-2 rounded-full border border-slate-200">
+              <Dumbbell size={20} className="text-slate-600" />
+            </div>
+            <div>
+              <span className="font-bold text-slate-800 block">Heavy Lifting OK?</span>
+              <span className="text-xs text-slate-500">Can lift 50lbs+ (Deep Cleans)</span>
+            </div>
+          </div>
+          <div className="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in">
+            <input 
+              type="checkbox" 
+              name="heavy" 
+              id="heavy" 
+              checked={formData.heavyLifting}
+              onChange={e => setFormData({...formData, heavyLifting: e.target.checked})}
+              className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer checked:right-0 checked:border-green-400"
+              style={{ right: formData.heavyLifting ? '0' : 'auto', left: formData.heavyLifting ? 'auto' : '0' }}
+            />
+            <label htmlFor="heavy" className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${formData.heavyLifting ? 'bg-green-400' : 'bg-slate-300'}`}></label>
+          </div>
+        </div>
+
+      </div>
+
+      {/* FOOTER & ACTIONS */}
+      <div className="p-6 bg-slate-50 border-t border-gray-100">
+        
+        <div className="mb-4 flex items-start gap-2">
+          <input 
+            type="checkbox" 
+            id="terms" 
+            required
+            checked={formData.acceptedTerms}
+            onChange={e => setFormData({...formData, acceptedTerms: e.target.checked})}
+            className="mt-1 w-4 h-4 text-brand-600 rounded"
+          />
+          <label htmlFor="terms" className="text-xs text-slate-600 leading-tight">
+            I confirm these details are accurate. I understand that falsifying my earning limits may result in schedule conflicts. <span className="font-bold text-brand-600">(Terms v1.0)</span>
+          </label>
+        </div>
+
+        {message && (
+          <div className={`mb-4 p-3 rounded-lg flex items-center gap-2 text-sm ${
+            message.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+          }`}>
+            {message.type === 'success' ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
+            {message.text}
+          </div>
+        )}
+
+        <button 
+          type="submit" 
+          disabled={isSaving || !formData.acceptedTerms}
+          className="w-full bg-brand-600 text-white py-3 rounded-xl font-bold hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all shadow-md active:scale-95"
+        >
+          {isSaving ? <Loader className="animate-spin" size={20} /> : <Save size={20} />}
+          Save Profile
+        </button>
+      </div>
+    </form>
+  );
+};
+
+export default ProfileForm;
 
 ```
 ---
@@ -2862,6 +3229,75 @@ export const useJobs = () => {
   };
 
   return { jobs, loading, error, addJob, updateJob, deleteJob, markAsInvoiced, role: userRole };
+};
+
+```
+---
+
+## FILE: src/hooks/useProfile.js
+```js
+import { useState, useEffect } from 'react';
+import { doc, onSnapshot, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, db } from '../lib/firebase';
+
+export const useProfile = () => {
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    // Direct User Doc Reference - Security by Design
+    // We do not query collection; we bind strictly to the Auth UID.
+    const userDocRef = doc(db, 'users', user.uid);
+
+    const unsubscribe = onSnapshot(userDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setProfile({ id: docSnap.id, ...docSnap.data() });
+      } else {
+        setError("Profile not found.");
+      }
+      setLoading(false);
+    }, (err) => {
+      console.error("Profile Fetch Error:", err);
+      setError("Failed to load profile.");
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const updateProfile = async (updates) => {
+    const user = auth.currentUser;
+    if (!user) throw new Error("Not authenticated");
+
+    setLoading(true);
+    try {
+      const userDocRef = doc(db, 'users', user.uid);
+      
+      // Safety: Always append audit fields
+      const finalUpdates = {
+        ...updates,
+        updatedAt: serverTimestamp(),
+      };
+
+      await updateDoc(userDocRef, finalUpdates);
+      return true;
+    } catch (err) {
+      console.error("Update Error:", err);
+      setError("Failed to save changes.");
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { profile, loading, error, updateProfile };
 };
 
 ```
@@ -3602,27 +4038,31 @@ export default SchedulePage;
 ## FILE: src/pages/SettingsPage.jsx
 ```jsx
 import React, { useState } from 'react';
-import { Mail, User, Shield, Plus, Loader } from 'lucide-react';
+import { Mail, User, Shield, Plus, Loader, UserCog, Building } from 'lucide-react';
 import { useStaff } from '../hooks/useStaff';
+import { useProfile } from '../hooks/useProfile'; // Check own role
 import { auth, db } from '../lib/firebase';
 import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
+import ProfileForm from '../components/settings/ProfileForm';
 
 const SettingsPage = () => {
+  const { profile } = useProfile(); // Get current user's role
   const { staff, loading: staffLoading } = useStaff();
+  
+  const [activeTab, setActiveTab] = useState('profile'); // 'profile' | 'team'
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('staff');
   const [inviteLoading, setInviteLoading] = useState(false);
+
+  const isAdmin = profile?.role === 'admin';
 
   const handleInvite = async (e) => {
     e.preventDefault();
     setInviteLoading(true);
     try {
       const user = auth.currentUser;
-      // Get Org ID
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      const orgId = userDoc.data().orgId;
+      const orgId = profile.orgId; // Use profile orgId, redundant fetch removed for speed
 
-      // Create Invite Doc
       await addDoc(collection(db, 'invites'), {
         email: inviteEmail,
         role: inviteRole,
@@ -3646,83 +4086,125 @@ const SettingsPage = () => {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
-        <p className="text-slate-500 text-sm">Manage your team and organization</p>
+        <p className="text-slate-500 text-sm">Manage your profile and preferences</p>
       </div>
 
-      {/* Staff List Card */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-          <h3 className="font-bold text-slate-800 flex items-center gap-2">
-            <User size={20} className="text-brand-500" />
-            Team Members
-          </h3>
-        </div>
+      {/* TAB NAVIGATION */}
+      <div className="flex border-b border-gray-200">
+        <button
+          onClick={() => setActiveTab('profile')}
+          className={`flex items-center gap-2 px-6 py-3 font-medium text-sm transition-colors border-b-2 ${
+            activeTab === 'profile' 
+              ? 'border-brand-600 text-brand-600' 
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <UserCog size={18} />
+          My Profile
+        </button>
         
-        <div className="divide-y divide-gray-100">
-          {staffLoading ? (
-            <div className="p-6 text-center text-slate-400">Loading staff...</div>
-          ) : staff.map((member) => (
-            <div key={member.id} className="p-4 flex items-center justify-between hover:bg-gray-50">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-brand-100 rounded-full flex items-center justify-center text-brand-600 font-bold">
-                  {member.email[0].toUpperCase()}
-                </div>
-                <div>
-                  <p className="font-medium text-slate-900">{member.fullName || 'Unnamed User'}</p>
-                  <p className="text-xs text-slate-500">{member.email}</p>
-                </div>
-              </div>
-              <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${
-                member.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
-              }`}>
-                {member.role}
-              </span>
-            </div>
-          ))}
-        </div>
+        {isAdmin && (
+          <button
+            onClick={() => setActiveTab('team')}
+            className={`flex items-center gap-2 px-6 py-3 font-medium text-sm transition-colors border-b-2 ${
+              activeTab === 'team' 
+                ? 'border-brand-600 text-brand-600' 
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <Building size={18} />
+            Organization & Team
+          </button>
+        )}
       </div>
 
-      {/* Invite Form Card */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
-          <h3 className="font-bold text-slate-800 flex items-center gap-2">
-            <Mail size={20} className="text-brand-500" />
-            Invite New Member
-          </h3>
+      {/* TAB CONTENT: MY PROFILE */}
+      {activeTab === 'profile' && (
+        <div className="max-w-2xl">
+          <ProfileForm />
         </div>
-        <form onSubmit={handleInvite} className="p-6 flex flex-col md:flex-row gap-4 items-end">
-          <div className="flex-1 w-full">
-            <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
-            <input 
-              type="email" 
-              required
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
-              placeholder="colleague@freshnest.com"
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
-            />
+      )}
+
+      {/* TAB CONTENT: TEAM (Admin Only) */}
+      {activeTab === 'team' && isAdmin && (
+        <div className="space-y-6 animate-in fade-in duration-300">
+          
+          {/* Staff List Card */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+              <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                <User size={20} className="text-brand-500" />
+                Team Members
+              </h3>
+            </div>
+            
+            <div className="divide-y divide-gray-100">
+              {staffLoading ? (
+                <div className="p-6 text-center text-slate-400">Loading staff...</div>
+              ) : staff.map((member) => (
+                <div key={member.id} className="p-4 flex items-center justify-between hover:bg-gray-50">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-brand-100 rounded-full flex items-center justify-center text-brand-600 font-bold">
+                      {(member.email || '?')[0].toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="font-medium text-slate-900">{member.fullName || 'Unnamed User'}</p>
+                      <p className="text-xs text-slate-500">{member.email}</p>
+                    </div>
+                  </div>
+                  <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${
+                    member.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                  }`}>
+                    {member.role}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="w-full md:w-48">
-            <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
-            <select 
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none bg-white"
-              value={inviteRole}
-              onChange={(e) => setInviteRole(e.target.value)}
-            >
-              <option value="staff">Staff</option>
-              <option value="admin">Admin</option>
-            </select>
+
+          {/* Invite Form Card */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
+              <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                <Mail size={20} className="text-brand-500" />
+                Invite New Member
+              </h3>
+            </div>
+            <form onSubmit={handleInvite} className="p-6 flex flex-col md:flex-row gap-4 items-end">
+              <div className="flex-1 w-full">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
+                <input 
+                  type="email" 
+                  required
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                  placeholder="colleague@freshnest.com"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                />
+              </div>
+              <div className="w-full md:w-48">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
+                <select 
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none bg-white"
+                  value={inviteRole}
+                  onChange={(e) => setInviteRole(e.target.value)}
+                >
+                  <option value="staff">Staff</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              <button 
+                type="submit" 
+                disabled={inviteLoading}
+                className="w-full md:w-auto px-6 py-2 bg-brand-600 text-white rounded-lg font-medium hover:bg-brand-700 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {inviteLoading ? <Loader className="animate-spin" size={18} /> : <Plus size={18} />}
+                Send Invite
+              </button>
+            </form>
           </div>
-          <button 
-            type="submit" 
-            disabled={inviteLoading}
-            className="w-full md:w-auto px-6 py-2 bg-brand-600 text-white rounded-lg font-medium hover:bg-brand-700 disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            {inviteLoading ? <Loader className="animate-spin" size={18} /> : <Plus size={18} />}
-            Send Invite
-          </button>
-        </form>
-      </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -3736,25 +4218,16 @@ export default SettingsPage;
 ```md
 # 📜 Changelog
 
-## [v1.0.0] - 2026-01-14 (MVP Gold Master)
+## [v0.1.1] - 2026-01-14
 ### Added
-* **Data Export:** Admins can now export Client and Job lists to CSV using a custom robust utility.
-* **Security:** Role-based restrictions applied to Export buttons (Admin only).
-* **Mobile Parity:** Export buttons hidden on mobile to preserve UI density.
+* **Smart Profile:** A dedicated settings view for workers to manage constraints.
+* **Financial Safety:** Input for Monthly Earning Caps (ODSP support).
+* **Recovery Support:** Blocked Window selector for recurring unavailability.
+* **Transport Mode:** Icon-based toggle for Public Transit vs Personal Vehicle.
+* **Versioning:** Automated semantic versioning in CI/CD pipeline.
 
-## [v0.6.0] - 2026-01-14
-### Added
-* **Revenue Dashboard:** Admin view with Total Revenue, Jobs Completed, and Avg Ticket KPIs.
-* **Visualizations:** Monthly Revenue Bar Chart using `recharts`.
-* **Staff Dashboard:** Restricted view showing only assigned upcoming jobs.
-
-## [v0.5.1] - 2026-01-12
-### Fixed
-* **Mobile Invoicing:** Added responsive HTML preview for mobile devices.
-
-## [v0.5.0] - 2026-01-12
-### Added
-* **Invoicing Module:** Client-side PDF generation.
+## [v0.1.0] - 2026-01-14
+* **MVP Gold Master:** Core functionality (Jobs, Clients, Invoicing).
 
 ```
 ---
@@ -3763,16 +4236,16 @@ export default SettingsPage;
 ```md
 # Fresh Nest: Context Dump
 **Stack:** React + Vite + Firebase + Tailwind CSS
-**Location:** Cornwall, Ontario, Canada
-**Mission:** Worker Support Platform (Safety First).
+**Version:** v0.1.1
+**Architecture:** Multi-Tenant SaaS.
 
 ## 🧠 The "Prime Directive"
-We build for **Personas**, not just Users. 
-* Before building a feature, check **`docs/PERSONAS.md`**.
-* **Safety > Efficiency.** It is better to block a shift claim than to let Carla lose her benefits.
+We build for **Personas**. Safety > Efficiency.
+* **Carla (ODSP):** Never allow over-earning.
+* **Mike (Recovery):** Never schedule during meetings.
+* **Ahmed (ESL):** Icons over Text.
 
 ## Documentation References
-* **Personas:** See `docs/PERSONAS.md` (CRITICAL)
 * **Schema:** See `docs/SCHEMA_REFERENCE.md`
 * **Security:** See `docs/RBAC_MATRIX.md`
 
@@ -3780,8 +4253,16 @@ We build for **Personas**, not just Users.
 1. **NO PLACEHOLDERS:** Complete files only.
 2. **Icons:** Use `lucide-react`.
 3. **Tailwind:** Mobile-first (`block md:flex`).
-4. **Security:** Use Profile-based RBAC (`users/{uid}`).
-5. **Logic:** Client-side aggregation for Dashboards is acceptable for MVP.
+4. **Security:** Use `useProfile` hook to fetch user data. Do NOT use Auth Tokens.
+5. **Logic:** * **Profile:** Managed via `ProfileForm.jsx`.
+   * **Jobs:** Managed via `useJobs` / `useJobWorkflow`.
+
+## Schema (Implemented)
+- **users/{userId}**: 
+    - `financials`: { mode: 'cap' | 'unlimited', limit: number }
+    - `constraints`: { blockedWindows: ['tue_evening', ...] }
+    - `profile`: { transport: 'transit' | 'vehicle' }
+- **jobs/{jobId}**: { status, price, scheduledDate, assignedTo: [] }
 
 ```
 ---
@@ -3877,64 +4358,56 @@ These are not just user stories. These are **System Constraints**. Every feature
 ```md
 # 📌 Project Status: Fresh Nest (Worker Support Platform)
 
-**Current Phase:** Phase 1 - Identity, Safety & Compliance
-**Current Version:** v1.0.0 (Core Infrastructure Live)
+**Current Phase:** Phase 1 - Safety Logic & Enforcement
+**Current Version:** v0.1.1 (Smart Profile Live)
 **Context:** Cornwall, Ontario Socioeconomic Deployment
 **Last Updated:** $(date +%Y-%m-%d)
 
 > **Mission:** To transform the cleaning industry into a system of stability for marginalized workers while maintaining enterprise-grade reliability.
 
-## 🎯 Current Sprint: The "Smart Profile" (Sprint 1)
-We are upgrading the User Schema to support the complex realities of our workforce (ODSP limits, Transit reliance, Single parenthood).
+## ✅ Completed (Sprint 1: The Smart Profile)
+* **User Schema V2:** Added `financials`, `constraints`, and `transport` objects.
+* **Profile Wizard:** Mobile-first, icon-based form for staff self-declaration.
+* **Audit Trail:** Mandatory `acceptedTermsVersion` tracking.
+* **Localization Prep:** Visual language toggle in settings.
 
-* [ ] **User Schema Expansion:**
-    * Add `financials.limit` (for "Carla" - ODSP).
-    * Add `constraints.transport` (for "Jasmine" - Bus routes).
-    * Add `constraints.blockedWindows` (for "Mike" - AA Meetings).
-* [ ] **Profile Wizard:**
-    * Self-onboarding flow for staff to set their own constraints.
-    * **Legal:** Mandatory `acceptedTermsVersion` checkbox[cite: 117].
-* [ ] **Localization Base:**
-    * Prepare app for English/French toggle (for "Ahmed").
+## 🎯 Current Sprint: The Guardian Logic (Sprint 2)
+Now that we know the constraints, we must enforce them.
+
+* [ ] **Financial Guardrails (Carla):**
+    * Logic: `currentEarnings + jobPrice > cap` = **Disable Claim**.
+    * UI: Visual "Earnings Bar" on Dashboard.
+* [ ] **Conflict Engine (Mike):**
+    * Logic: Filter out jobs overlapping with `blockedWindows`.
+* [ ] **Transport Buffers (Jasmine):**
+    * Logic: If `transport === 'transit'`, add 30min buffer between shifts.
 
 ## 📋 Product Backlog (Master Plan 9)
 
-### Phase 1: Safety & Constraints
-* **The Conflict Engine:** Logic to auto-hide shifts that conflict with school runs (Emily) or recovery meetings (Mike)[cite: 46].
-* **Financial Guardrails:** Hard system lock if `Current Earnings + Shift Price > ODSP Cap`[cite: 53].
-
 ### Phase 2: Field Operations
-* **Visual Interface:** Replace text-heavy lists with Icon-based tasks (Mop, Toilet) for ESL accessibility[cite: 68].
-* **Job Evidence:** Photo uploads to specific sub-collections for client verification (Brenda)[cite: 93].
-* **Inventory Reports:** specific inputs for Airbnb supplies (Sophie)[cite: 102].
+* **Visual Interface:** Replace text-heavy lists with Icon-based tasks (Mop, Toilet).
+* **Job Evidence:** Photo uploads to specific sub-collections.
+* **Inventory Reports:** Specific inputs for Airbnb supplies.
 
 ### Phase 3: Support & Scale
-* **Crisis Protocol:** "SOS" button logic to swap shifts instantly[cite: 38].
-* **Impact Dashboard:** Report on "Hours created for ODSP workers" for City Hall contracts (Sarah)[cite: 80].
-
----
-
-## ✅ Version History
-
-### v1.0.0 - Infrastructure Core (Completed)
-* **Architecture:** Multi-Tenant SaaS (Firebase/React).
-* **Security:** Role-Based Access Control (Admin/Staff).
-* **Financials:** Admin Revenue Dashboard (Recharts).
-* **DevOps:** CI/CD Pipelines (Dev/UAT/Prod).
+* **Crisis Protocol:** "SOS" button logic.
+* **Impact Dashboard:** Report on "Hours created for ODSP workers".
 
 ---
 
 ## 🗄️ Database Schema Snapshot (Target State)
 
-### `users/{userId}` [cite: 180]
+### `users/{userId}`
 * `profile`: { name, language, transport, acceptedTermsVersion }
 * `financials`: { mode: 'cap', limit: number, currentMonthAccrued: number }
 * `constraints`: { heavyLifting: boolean, blockedWindows: array }
-* `stats`: { reliabilityScore: number }
+* `role`: 'admin' | 'staff'
+* `orgId`: string
 
-### `shifts/{shiftId}` [cite: 205]
+### `jobs/{jobId}`
 * `status`: 'open' | 'claimed' | 'completed'
-* `contractLedger`: { claimedBy, claimedAt, rateSnapshot }
+* `price`: number
+* `scheduledDate`: timestamp
 * `requirements`: { photoEvidence: array }
 
 
@@ -3943,10 +4416,10 @@ We are upgrading the User Schema to support the complex realities of our workfor
 
 ## FILE: docs/PROMPT_APPROVAL.md
 ```md
-# ✅ AI Approval & Execution Prompt
+# ✅ AI Approval & Execution Prompt (v9.0 Persona-Aware)
 
 **Instructions:**
-Use this prompt **after** the AI has presented the 3 Architectural Options. This signals approval for the **Recommended (Robust)** approach and enforces strict coding standards.
+Use this prompt **after** the AI has presented the 3 Architectural Options. This signals approval for the **Recommended (Robust)** approach and enforces strict **Persona & Compliance** standards.
 
 ---
 
@@ -3954,36 +4427,39 @@ Use this prompt **after** the AI has presented the 3 Architectural Options. This
 
 **Decision:** I approve the **Recommended (Robust) Approach**. Proceed with implementation.
 
-**Strict Technical Constraints (Best Practices):**
-1.  **React:** Use functional components. Isolate logic in Custom Hooks (e.g., `useJobWorkflow`).
-2.  **Tailwind:** Use mobile-first classes (`block md:flex`). Avoid arbitrary values (e.g., `w-[350px]`) — use the theme.
-3.  **Firebase & Security (CRITICAL):**
-    * **NO AUTH TOKENS:** Do NOT use `idTokenResult` or `request.auth.token` to get `orgId` or `role`. You MUST fetch the **User Profile** from Firestore.
-    * **Isolation:** ALL `onSnapshot` queries must filter by `.where("orgId", "==", currentOrgId)`.
-    * **Writes:** ALL `addDoc`/`updateDoc` calls must be strictly validated.
-    * **Timestamps:** Use `serverTimestamp()` for `createdAt`/`updatedAt`.
-4.  **Code Quality:** No "placeholder" code. Complete files only.
+**Strict Technical Constraints (The "Fresh Nest" Standard):**
+1.  **React & Accessibility:** * Use functional components with **Icon-First Design** (Lucide React).
+    * Ensure all text is wrapped for future **Localization (i18n)**.
+    * **Mobile First:** Tailwind classes must be `block md:flex`.
+2.  **Firebase & Security (CRITICAL):**
+    * **NO AUTH TOKENS:** Do NOT use `idTokenResult` or `request.auth.token` for logic. Fetch the **User Profile** from Firestore.
+    * **Privacy Map:** Adhere to strict visibility rules. (e.g., Financials are private to the user + Admin).
+    * **Writes:** ALL `addDoc`/`updateDoc` calls must include `orgId` and `updatedAt` (serverTimestamp).
+3.  **Code Quality:** No "placeholder" code. Complete files only.
+
+**Persona & Compliance Checks (Mandatory):**
+* **The "Ahmed" Check (Learner):** Is the UI simple enough? Did we rely too much on dense text?
+* **The "Carla" Check (Financial):** Does this feature respect the **Earnings Cap** logic? (Never allow work that exceeds the limit).
+* **The "Sarah" Check (Admin):** Is there an Audit Trail? (Who changed what and when?).
 
 **Output Requirements:**
 
 1.  **The "One-Shot" Installer:**
     * Provide a single bash script named `scripts/install_feature.sh`.
     * This script must use `cat << 'EOF' > path/to/file` to safely create/overwrite files.
-    * *Note:* Ensure you escape special characters (`$`) in the bash script correctly so the React code generates properly.
+    * *Note:* Escape special characters (`$`) in the bash script correctly.
 
 2.  **QA Checklist (Manual Testing):**
     * Provide 3-5 specific tests.
-    * **Mandatory:** Include a **"Role Switching"** test (e.g., "Log in as Staff -> Verify Button X is hidden").
-    * **Mandatory:** Include a **"Data Integrity"** test (e.g., "Verify Firestore document has 'startedAt' timestamp").
+    * **Mandatory:** Include a **"Persona Audit"** (e.g., "Log in as a Worker with a $500 cap -> Verify 'Claim' button is disabled if job > cap").
+    * **Mandatory:** Include a **"Data Integrity"** test (e.g., "Verify Firestore Contract Ledger has the rate snapshot").
 
-3.  **Firestore Indexes (If applicable):**
-    * If your queries use `orderBy`, explicitly state if a new entry is needed in `firestore.indexes.json`.
+3.  **Firestore Indexes:**
+    * Explicitly state if `firestore.indexes.json` needs an update.
 
 4.  **Git Documentation:**
     * Provide a **Git Commit Comment Block** at the end.
-    * Format:
-        * **Message:** `feat: [summary]`
-        * **Description:** Bullet points of changes.
+    * Format: `feat: [summary]`, Description: Bullet points of changes.
 
 *Please generate the installation script, test checklist, and git docs now.*
 
@@ -5678,34 +6154,61 @@ echo "👉 Check status here: https://github.com/rpdouglas/fresh-nest/actions"
 ```sh
 #!/bin/bash
 
-# ====================================================
-# FRESH NEST: PROD PROMOTER
-# Goal: Merge the active Release branch into Main
-# ====================================================
+# Stop on error
+set -e
 
+# 1. Validation: Must be on a Release Branch
 current_branch=$(git branch --show-current)
 
-# Ensure we are on a release branch
 if [[ "$current_branch" != release/* ]]; then
-  echo "❌ You must be on a 'release/...' branch to promote to Prod."
-  echo "   Current: $current_branch"
+  echo "❌ ERROR: You must be on a 'release/...' branch to promote to Prod."
+  echo "   Current branch: $current_branch"
+  echo "   Use: git checkout release/vX.X.X"
   exit 1
 fi
 
-echo "🚀 Promoting $current_branch to Production..."
+# Extract Version from Branch Name (e.g., release/v0.1.1 -> v0.1.1)
+VERSION_TAG=${current_branch#release/}
 
-# 1. Switch to Main and Sync
+echo "🚀 Promoting Release $VERSION_TAG to Production..."
+
+# 2. Safety Check: Clean Working Directory
+if [ -n "$(git status --porcelain)" ]; then 
+  echo "❌ ERROR: Your working directory is not clean. Commit or stash changes first."
+  exit 1
+fi
+
+# 3. Switch to Main and Update
+echo "🔄 Switching to main..."
 git checkout main
 git pull origin main
 
-# 2. Merge the Release
-git merge "$current_branch"
+# 4. Merge the Release Branch
+echo "🔀 Merging $current_branch into main..."
+git merge --no-ff "$current_branch" -m "chore(release): promote $VERSION_TAG to production"
 
-# 3. Push to Main (Triggers PROD Action)
+# 5. Create Immutable Git Tag
+echo "🏷️  Tagging release: $VERSION_TAG"
+# Delete tag if exists locally (edge case) to prevent collision
+if git rev-parse "$VERSION_TAG" >/dev/null 2>&1; then
+    echo "   (Tag exists locally, replacing...)"
+    git tag -d "$VERSION_TAG"
+fi
+git tag -a "$VERSION_TAG" -m "Production Release $VERSION_TAG"
+
+# 6. Push to Main (Triggers PROD Action)
+echo "⬆️  Pushing code and tags to GitHub..."
 git push origin main
+git push origin "$VERSION_TAG"
 
-echo "✅ Promoted to Prod!"
-echo "👉 GitHub Action is now deploying to Fresh-Nest-Prod."
+# 7. Cleanup
+echo "🧹 Cleaning up local release branch..."
+git branch -d "$current_branch"
+
+echo ""
+echo "✅ SUCCESS! Production Deployment Triggered."
+echo "👉 GitHub Action 'Deploy to PROD' is running."
+echo "👉 Release Tag: $VERSION_TAG created."
 
 ```
 ---
@@ -5715,30 +6218,55 @@ echo "👉 GitHub Action is now deploying to Fresh-Nest-Prod."
 #!/bin/bash
 
 # ====================================================
-# FRESH NEST: RELEASE MANAGER
-# Goal: Cut a release branch from DEV and push to UAT
+# FRESH NEST: RELEASE MANAGER (With Version Bump)
+# Goal: Bump version, tag it, and push to UAT
 # ====================================================
 
 # 1. Sync Dev
-echo "🔄 Syncing Dev..."
+echo "🔄 Syncing Dev Branch..."
 git checkout dev
 git pull origin dev
 
-# 2. Generate Version Name (Time-based for now)
-# In the future, we can use semantic versioning (v0.1.1, etc)
-version="v0.1.0-rc-$(date +%s)"
-branch_name="release/$version"
+# 2. Prompt for Version Bump
+echo ""
+echo "📊 Current Version: $(node -p "require('./package.json').version")"
+echo "Select release type:"
+echo "  1) Patch (0.1.0 -> 0.1.1) - Bug fixes"
+echo "  2) Minor (0.1.0 -> 0.2.0) - New features"
+echo "  3) Major (0.1.0 -> 1.0.0) - Breaking changes"
+echo "  4) No Bump (Just redeploy current)"
+read -p "Enter choice [1-4]: " choice
 
-echo "🌿 Creating Release Branch: $branch_name"
-git checkout -b "$branch_name"
+case $choice in
+  1) npm version patch --no-git-tag-version ;;
+  2) npm version minor --no-git-tag-version ;;
+  3) npm version major --no-git-tag-version ;;
+  4) echo "⚠️  Skipping version bump." ;;
+  *) echo "❌ Invalid choice"; exit 1 ;;
+esac
 
-# 3. Push to GitHub (Triggers UAT Action)
-echo "🚀 Pushing to UAT..."
-git push origin "$branch_name"
+# 3. Read New Version
+NEW_VERSION=$(node -p "require('./package.json').version")
+BRANCH_NAME="release/v$NEW_VERSION"
 
-echo "✅ Release Pushed!"
-echo "👉 GitHub Action is now deploying to Fresh-Nest-UAT."
-echo "👉 When UAT is verified, merge this PR into 'main' to deploy to PROD."
+echo ""
+echo "🚀 Preparing Release: $BRANCH_NAME"
+
+# 4. Commit the Version Bump (if changed)
+if [ "$choice" != "4" ]; then
+  git add package.json package-lock.json
+  git commit -m "chore: bump version to $NEW_VERSION"
+  git push origin dev
+fi
+
+# 5. Cut and Push Release Branch
+git checkout -b "$BRANCH_NAME"
+git push origin "$BRANCH_NAME"
+
+echo ""
+echo "✅ Release $NEW_VERSION Pushed!"
+echo "👉 GitHub Action is now deploying to UAT."
+echo "👉 Action: Merge this PR into 'main' later to deploy to PROD."
 
 ```
 ---
