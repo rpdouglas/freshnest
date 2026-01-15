@@ -4,6 +4,9 @@ import { useJobs } from '../hooks/useJobs';
 import { useClients } from '../hooks/useClients';
 import { useStaff } from '../hooks/useStaff';
 import { useFinancials } from '../hooks/useFinancials'; 
+import { useProfile } from '../hooks/useProfile'; // NEEDED FOR CONSTRAINTS
+import { useConflictEngine } from '../hooks/useConflictEngine'; // NEW HOOK
+
 import JobListMobile from '../components/jobs/JobListMobile';
 import JobTableDesktop from '../components/jobs/JobTableDesktop';
 import JobFormModal from '../components/jobs/JobFormModal';
@@ -15,8 +18,12 @@ const JobsPage = () => {
   const { clients, loading: clientsLoading } = useClients(); 
   const { staff, loading: staffLoading } = useStaff();
   
-  // 1. FETCH FINANCIALS
+  // 1. DATA LAYERS
   const financialData = useFinancials();
+  const { profile } = useProfile(); // Fetch constraints
+  
+  // 2. INITIALIZE CONFLICT ENGINE
+  const { checkConflict } = useConflictEngine(jobs, profile);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingJobId, setEditingJobId] = useState(null);
@@ -99,6 +106,7 @@ const JobsPage = () => {
         <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div></div>
       ) : (
         <>
+          {/* 3. PASS DOWN CONFLICT CHECKER */}
           <JobListMobile 
             jobs={filteredJobs} 
             clients={clients} 
@@ -106,9 +114,9 @@ const JobsPage = () => {
             userRole={userRole}
             onEdit={handleEditOpen}
             onInvoice={handleInvoiceOpen}
-            financialData={financialData} 
+            financialData={financialData}
+            checkConflict={checkConflict} 
           />
-          {/* UPDATED: Passing financialData to Desktop Table */}
           <JobTableDesktop 
             jobs={filteredJobs} 
             clients={clients} 
@@ -118,6 +126,7 @@ const JobsPage = () => {
             onDelete={handleDelete} 
             onInvoice={handleInvoiceOpen}
             financialData={financialData}
+            checkConflict={checkConflict}
           />
         </>
       )}

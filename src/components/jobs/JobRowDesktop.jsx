@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MoreHorizontal, Calendar, Clock, MapPin, User, Edit, Trash2, Play, CheckCircle, XCircle, FileText, ShieldAlert } from 'lucide-react';
+import { MoreHorizontal, Calendar, Clock, MapPin, User, Edit, Trash2, Play, CheckCircle, XCircle, FileText, ShieldAlert, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
 import { useJobWorkflow } from '../../hooks/useJobWorkflow';
 
-const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit, onDelete, onInvoice, financialData }) => {
+const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit, onDelete, onInvoice, financialData, conflict }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef(null);
   
@@ -13,10 +13,16 @@ const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit,
   const assignedName = getAssignedStaffName(job.assignedTo);
   const isUnassigned = !job.assignedTo || job.assignedTo.length === 0;
 
-  // --- SAFETY LOGIC (Desktop) ---
-  const isCapReached = financialData?.isCapReached ? financialData.isCapReached(job.price || 0) : false;
+  // --- SAFETY LOGIC ---
   const isActionable = job.status === 'scheduled';
-  const shouldBlock = isCapReached && isActionable && userRole === 'staff';
+  const isFinancialBlock = financialData?.isCapReached ? financialData.isCapReached(job.price || 0) : false;
+  const isTimeBlock = conflict?.type === 'hard';
+  const isTransitWarn = conflict?.type === 'soft';
+  const shouldBlock = (isFinancialBlock || isTimeBlock || isTransitWarn) && isActionable && userRole === 'staff';
+
+  // --- VISUAL STYLES ---
+  // Dim row if blocked (Mike/Jasmine requirement for "Traffic Control")
+  const rowOpacity = shouldBlock ? 'opacity-75 bg-red-50/30' : 'hover:bg-gray-50';
 
   const getStatusBadge = (s) => {
     const baseClasses = "text-xs font-bold px-2 py-1 rounded-full uppercase";
@@ -44,24 +50,17 @@ const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit,
   };
 
   return (
-    <tr className="hover:bg-gray-50 transition-colors relative group">
+    <tr className={`transition-colors relative group ${rowOpacity}`}>
       {/* 1. Date */}
       <td className="px-6 py-4">
         <div className="flex items-center gap-2 font-medium text-slate-900">
-          <Calendar size={16} className="text-brand-500" />
+          <Calendar size={16} className={isTimeBlock ? 'text-red-500' : 'text-brand-500'} />
           {job.scheduledDate ? format(job.scheduledDate, 'MMM d, yyyy') : 'TBD'}
         </div>
         <div className="flex items-center gap-2 text-xs text-slate-500 mt-1 pl-6">
           <Clock size={12} />
           {job.scheduledDate ? format(job.scheduledDate, 'h:mm a') : ''}
         </div>
-        
-        {/* DEBUG BOX (Desktop Hover Only) */}
-        {financialData && (
-          <div className="absolute top-0 left-0 bg-yellow-100 text-[9px] p-1 hidden group-hover:block z-10 opacity-70">
-            Limit: ${financialData.limit} | Earned: ${financialData.currentEarnings} | Block: {shouldBlock ? 'YES' : 'NO'}
-          </div>
-        )}
       </td>
 
       {/* 2. Client */}
@@ -85,19 +84,19 @@ const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit,
       <td className="px-6 py-4">
         <span className="capitalize text-sm text-slate-700">{job.serviceType}</span>
         {job.price > 0 && (
-          <div className={`text-xs mt-1 ${shouldBlock ? 'text-red-600 font-bold' : 'text-slate-400'}`}>
+          <div className={`text-xs mt-1 ${isFinancialBlock ? 'text-red-600 font-bold' : 'text-slate-400'}`}>
             ${job.price}
-            {shouldBlock && <span className="ml-1 bg-red-100 px-1 rounded">LIMIT HIT</span>}
           </div>
         )}
       </td>
 
-      {/* 5. Status */}
+      {/* 5. Status & Conflict Icons */}
       <td className="px-6 py-4">
         {getStatusBadge(job.status)}
-        {job.invoicedAt && userRole === 'admin' && (
-          <div className="mt-1 text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded inline-block">
-            Invoiced
+        {conflict && (
+          <div className="flex items-center gap-1 mt-1 text-[10px] font-bold text-red-600">
+            {conflict.type === 'hard' ? <XCircle size={12} /> : <AlertTriangle size={12} />}
+            {conflict.type.toUpperCase()} CONFLICT
           </div>
         )}
       </td>
@@ -114,15 +113,21 @@ const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit,
         {isMenuOpen && (
           <div 
             ref={menuRef}
-            className="absolute right-8 top-8 w-56 bg-white rounded-lg shadow-xl border border-gray-100 z-50 overflow-hidden text-left animate-in fade-in zoom-in duration-200"
+            className="absolute right-8 top-8 w-64 bg-white rounded-lg shadow-xl border border-gray-100 z-50 overflow-hidden text-left animate-in fade-in zoom-in duration-200"
           >
-            {/* WORKFLOW ACTIONS */}
+            {/* BLOCKED STATE */}
             {shouldBlock && canStart ? (
-              <div className="px-4 py-3 bg-red-50 text-red-700 text-sm font-medium border-b border-red-100 flex items-center gap-2">
-                <ShieldAlert size={16} />
-                Limit Reached
+              <div className="px-4 py-3 bg-red-50 text-red-700 text-sm border-b border-red-100">
+                <div className="flex items-center gap-2 font-bold mb-1">
+                  <ShieldAlert size={16} /> Action Blocked
+                </div>
+                <div className="text-xs opacity-90">
+                  {isFinancialBlock && "• Monthly Earning Limit\n"}
+                  {conflict && `• ${conflict.message}`}
+                </div>
               </div>
             ) : (
+              /* ALLOWED STATE */
               <>
                 {canStart && (
                   <button onClick={() => handleAction(startJob)} disabled={loading} className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-gray-50 flex items-center gap-2 transition-colors font-medium">

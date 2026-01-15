@@ -1,7 +1,7 @@
 import React from 'react';
 import JobCardMobile from './JobCardMobile';
 
-const JobListMobile = ({ jobs, clients, staff, userRole, onEdit, onInvoice, financialData }) => {
+const JobListMobile = ({ jobs, clients, staff, userRole, onEdit, onInvoice, financialData, checkConflict }) => {
   const getClientName = (id) => clients.find(c => c.id === id)?.name || 'Unknown Client';
   const getClientAddress = (id) => clients.find(c => c.id === id)?.address;
   
@@ -27,8 +27,8 @@ const JobListMobile = ({ jobs, clients, staff, userRole, onEdit, onInvoice, fina
           userRole={userRole}
           onEdit={onEdit}
           onInvoice={onInvoice}
-          // 3. PASS DOWN PROP
-          financialData={financialData} 
+          financialData={financialData}
+          conflict={checkConflict ? checkConflict(job.id) : null}
         />
       ))}
     </div>

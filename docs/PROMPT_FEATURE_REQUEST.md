@@ -23,7 +23,7 @@ I need to add a module that allows [WHO] to [DO WHAT].
 
 1.  **👥 The Persona Check (CRITICAL):**
     * **Review:** Read `docs/PERSONAS.md`.
-    * **Validation:** specific check against:
+    * **Validation:** Specific check against:
         * **Carla (ODSP):** Does this affect financial eligibility?
         * **Ahmed (ESL):** Is the UI text-heavy or Icon-based?
         * **Jasmine (Transit):** Does this respect travel buffers?
@@ -33,10 +33,12 @@ I need to add a module that allows [WHO] to [DO WHAT].
     * **Audit Trail:** If this involves money or contracts, we MUST record a snapshot (e.g., `rateSnapshot`, `acceptedTermsVersion`).
     * **Reference:** Check `docs/SCHEMA_REFERENCE.md`.
 
-3.  **UI (Accessibility & Field First):**
-    * **Mobile:** Design for a 375px screen with "Fat Finger" touch targets.
+3.  **UI (Functional Parity Rule):**
+    * **Mobile First:** Design primarily for 375px screens (Fat Finger targets).
+    * **Desktop Parity:** **CRITICAL.** If logic (blocking, hiding, disabling) applies to Mobile, it **MUST** apply to Desktop views (`Table` vs `Card`).
+        * *Example:* If a button is disabled on Mobile, it must be disabled on Desktop.
+        * *Example:* If a badge is shown on Mobile, a corresponding Column or Tooltip must exist on Desktop.
     * **Cognitive Load:** Use **Icons** (Lucide) over text labels where possible.
-    * **Parity:** Is this feature *required* in the field? If so, it must be Mobile-First.
 
 4.  **Security & RBAC:**
     * **Constraint:** **NEVER** use `auth.token`. Always fetch `users/{uid}` profile.
@@ -51,10 +53,11 @@ Before writing any code, please propose **3 Distinct Approaches**:
 
 **Your Task:**
 1.  **Analyze Context:** Read `docs/PERSONAS.md` and `docs/CONTEXT_DUMP.md`.
-2.  **Persona Impact Statement:** Write 1-2 sentences on how this feature helps/protects a specific persona (e.g., "This helps Brenda trust the system by uploading photos").
+2.  **Persona Impact Statement:** Write 1-2 sentences on how this feature helps/protects a specific persona.
 3.  **Compare Options:** Briefly describe the 3 approaches above.
 4.  **Recommendation:** Recommend the best approach for **Safety & Stability**.
 5.  **Specifications:** List exact **Schema Changes**, **New Dependencies**, and **New Files**.
+    * *Explicitly list paired updates:* (e.g. "Update `JobCardMobile.jsx` AND `JobRowDesktop.jsx`").
 6.  **WAIT** for my confirmation before generating any code.
 
 ---

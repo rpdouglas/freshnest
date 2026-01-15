@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, Clock, DollarSign, MapPin, User, CheckCircle, Play, Loader, Edit, FileText, ShieldAlert } from 'lucide-react';
+import { Calendar, Clock, DollarSign, MapPin, User, CheckCircle, Play, Loader, Edit, FileText, ShieldAlert, AlertTriangle, XCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { useJobWorkflow } from '../../hooks/useJobWorkflow';
 
@@ -11,21 +11,26 @@ const JobCardMobile = ({
   userRole, 
   onEdit, 
   onInvoice,
-  financialData 
+  financialData,
+  conflict 
 }) => {
   const { startJob, completeJob, canStart, canComplete, loading } = useJobWorkflow(job, userRole);
   const assignedName = getAssignedStaffName(job.assignedTo);
   const isUnassigned = !job.assignedTo || job.assignedTo.length === 0;
 
-  // --- DEBUGGING LOGS (Check Console) ---
-  // console.log("JobCard Debug:", { id: job.id, role: userRole, financialData });
-
-  // --- SAFETY LOGIC ---
-  const isCapReached = financialData?.isCapReached ? financialData.isCapReached(job.price || 0) : false;
-  
-  // Only block "startable" jobs for Staff
+  // --- GUARDRAIL LOGIC ---
   const isActionable = job.status === 'scheduled';
-  const shouldBlock = isCapReached && isActionable && userRole === 'staff';
+  
+  // 1. Financial Block
+  const isFinancialBlock = financialData?.isCapReached ? financialData.isCapReached(job.price || 0) : false;
+  
+  // 2. Conflict Block
+  // Hard = Block, Soft = Warn/Block (Strict MVP: Block)
+  const isTimeBlock = conflict?.type === 'hard';
+  const isTransitWarn = conflict?.type === 'soft';
+
+  // Master Block Switch
+  const shouldBlock = (isFinancialBlock || isTimeBlock || isTransitWarn) && isActionable && userRole === 'staff';
 
   const getStatusColor = (s) => {
     switch(s) {
@@ -37,7 +42,7 @@ const JobCardMobile = ({
   };
 
   return (
-    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 relative">
+    <div className={`bg-white p-4 rounded-xl shadow-sm border relative ${shouldBlock ? 'border-red-100 bg-red-50/10' : 'border-gray-100'}`}>
       {userRole === 'admin' && (
         <button onClick={() => onEdit(job)} className="absolute top-4 right-4 p-1.5 bg-gray-50 rounded-full text-slate-400 hover:text-brand-600 hover:bg-brand-50">
           <Edit size={16} />
@@ -58,9 +63,16 @@ const JobCardMobile = ({
       </div>
       
       <div className="space-y-2 text-sm text-slate-600 mt-3">
+        {/* Time with Conflict Icon */}
+        <div className={`flex items-center gap-2 ${conflict ? 'text-red-600 font-bold' : ''}`}>
+          <Calendar size={16} className={conflict ? 'text-red-500' : 'text-brand-500'} />
+          <span>{job.scheduledDate ? format(job.scheduledDate, 'MMM d, yyyy') : 'No Date'}</span>
+          {conflict && <span className="text-[10px] bg-red-100 px-1 rounded uppercase">{conflict.type} Conflict</span>}
+        </div>
+        
         <div className="flex items-center gap-2">
-          <Calendar size={16} className="text-brand-500 shrink-0" />
-          <span className="font-medium text-slate-900">{job.scheduledDate ? format(job.scheduledDate, 'MMM d, yyyy') : 'No Date'}</span>
+          <Clock size={16} className="text-brand-500 shrink-0" />
+          <span>{job.scheduledDate ? format(job.scheduledDate, 'h:mm a') : 'TBD'}</span>
         </div>
         
         <div className={`flex items-center gap-2 ${isUnassigned ? 'text-slate-400 italic' : 'text-slate-700 font-medium'}`}>
@@ -68,42 +80,38 @@ const JobCardMobile = ({
           <span>{assignedName}</span>
         </div>
 
-        {/* PRICE & BLOCKING STATUS */}
-        {job.price > 0 && (
-          <div className={`flex items-center gap-2 ${shouldBlock ? 'text-red-500 font-bold' : 'text-slate-500'}`}>
-            <DollarSign size={16} className="shrink-0" />
-            <span>${job.price}</span>
-            {shouldBlock && <span className="text-[10px] bg-red-100 px-1 rounded ml-1">LIMIT HIT</span>}
+        {getClientAddress(job.clientId) && (
+          <div className="flex items-start gap-2">
+            <MapPin size={16} className="text-brand-500 shrink-0 mt-0.5" />
+            <span className="truncate">{getClientAddress(job.clientId)}</span>
           </div>
         )}
-
-        {/* 🚨 FORCED DEBUG BOX (Visible to everyone for testing) */}
-        {financialData && (
-          <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-[10px] font-mono text-yellow-800">
-            <p><strong>DEBUG:</strong></p>
-            <p>Role: {userRole}</p>
-            <p>Limit: ${financialData.limit} | Earned: ${financialData.currentEarnings}</p>
-            <p>IsCapReached: {isCapReached ? 'YES' : 'NO'}</p>
-            <p>ShouldBlock: {shouldBlock ? 'YES' : 'NO'}</p>
+        
+        {job.price > 0 && (
+          <div className={`flex items-center gap-2 ${isFinancialBlock ? 'text-red-500 font-bold' : 'text-slate-500'}`}>
+            <DollarSign size={16} className="shrink-0" />
+            <span>${job.price}</span>
+            {isFinancialBlock && <span className="text-[10px] bg-red-100 px-1 rounded ml-1">CAP HIT</span>}
           </div>
         )}
       </div>
 
-      {/* ADMIN INVOICE */}
-      {userRole === 'admin' && job.status === 'completed' && (
-        <button onClick={() => onInvoice(job)} className="w-full mt-3 px-4 py-2 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-lg font-medium flex items-center justify-center gap-2 border border-purple-100 transition-colors">
-          <FileText size={18} /> {job.invoicedAt ? 'View Invoice' : 'Generate Invoice'}
-        </button>
-      )}
-
-      {/* WORKFLOW BUTTONS */}
+      {/* BLOCKING UI */}
       {shouldBlock ? (
-        <div className="mt-4 pt-4 border-t border-gray-50">
-          <div className="w-full p-3 bg-red-50 text-red-700 rounded-lg flex items-center justify-center gap-2 text-sm font-medium border border-red-100 animate-pulse">
-            <ShieldAlert size={18} /> Monthly Limit Reached
+        <div className="mt-4 pt-4 border-t border-red-100">
+          <div className="w-full p-3 bg-white border border-red-200 rounded-lg flex flex-col items-center justify-center gap-1 text-center shadow-sm">
+            <div className="flex items-center gap-2 text-red-700 font-bold text-sm">
+              {isFinancialBlock ? <ShieldAlert size={18} /> : <XCircle size={18} />}
+              <span>Action Blocked</span>
+            </div>
+            <p className="text-xs text-red-500">
+              {isFinancialBlock && "Monthly Earnings Cap Reached."}
+              {conflict && conflict.message}
+            </p>
           </div>
         </div>
       ) : (
+        /* NORMAL BUTTONS */
         (canStart || canComplete) && (
           <div className="mt-4 pt-4 border-t border-gray-50 flex gap-2">
             {canStart && (

@@ -1,5 +1,5 @@
 # FRESH NEST: CODEBASE DUMP
-**Date:** Wed Jan 14 21:43:04 EST 2026
+**Date:** Thu Jan 15 16:12:51 EST 2026
 **Description:** Complete codebase context.
 
 ## FILE: package.json
@@ -7,7 +7,7 @@
 {
   "name": "fresh-nest",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -629,6 +629,78 @@ export default AdminDashboard;
 ```
 ---
 
+## FILE: src/components/dashboard/FinancialProgress.jsx
+```jsx
+import React from 'react';
+import { DollarSign, ShieldCheck, ShieldAlert } from 'lucide-react';
+
+const FinancialProgress = ({ current, limit, percent, mode }) => {
+  // If unlimited, show a simple "Earnings" card
+  if (mode !== 'cap') {
+    return (
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
+        <div className="bg-green-50 p-3 rounded-full text-green-600">
+          <DollarSign size={24} />
+        </div>
+        <div>
+          <p className="text-xs text-slate-500 uppercase font-bold">Month to Date</p>
+          <p className="text-xl font-bold text-slate-900">${current.toFixed(2)}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Color Logic (Traffic Light)
+  let colorClass = "bg-brand-500";
+  let statusIcon = <ShieldCheck size={20} className="text-green-600" />;
+  let statusText = "Safe to Earn";
+
+  if (percent > 95) {
+    colorClass = "bg-red-500";
+    statusIcon = <ShieldAlert size={20} className="text-red-600" />;
+    statusText = "Limit Reached";
+  } else if (percent > 75) {
+    colorClass = "bg-yellow-500";
+    statusText = "Approaching Limit";
+  }
+
+  return (
+    <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+      <div className="flex justify-between items-start mb-3">
+        <div>
+          <h3 className="font-bold text-slate-800 flex items-center gap-2">
+            {statusIcon}
+            Monthly Cap
+          </h3>
+          <p className="text-xs text-slate-500 mt-1">{statusText}</p>
+        </div>
+        <div className="text-right">
+          <span className="block text-xl font-bold text-slate-900">
+            ${current.toFixed(0)} <span className="text-slate-400 text-sm">/ ${limit}</span>
+          </span>
+        </div>
+      </div>
+
+      {/* Progress Bar */}
+      <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
+        <div 
+          className={`h-full ${colorClass} transition-all duration-500 ease-out`}
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+      
+      <p className="text-[10px] text-slate-400 mt-2 text-right">
+        Reset on 1st of month
+      </p>
+    </div>
+  );
+};
+
+export default FinancialProgress;
+
+```
+---
+
 ## FILE: src/components/dashboard/KPICard.jsx
 ```jsx
 import React from 'react';
@@ -710,10 +782,13 @@ export default RevenueChart;
 ## FILE: src/components/dashboard/StaffDashboard.jsx
 ```jsx
 import React from 'react';
-import { Calendar, MapPin, CheckCircle, User } from 'lucide-react';
+import { Calendar, User } from 'lucide-react';
 import { format } from 'date-fns';
+import { useFinancials } from '../../hooks/useFinancials';
+import FinancialProgress from './FinancialProgress';
 
 const StaffDashboard = ({ jobs, clients }) => {
+  const { currentEarnings, limit, percentUsed, mode, loading: finLoading } = useFinancials();
   
   // Helper to find name from ID
   const getClientName = (id) => {
@@ -726,8 +801,18 @@ const StaffDashboard = ({ jobs, clients }) => {
     <div className="space-y-6">
       <div className="bg-brand-600 text-white p-6 rounded-2xl shadow-lg">
         <h1 className="text-2xl font-bold">Welcome Back!</h1>
-        <p className="text-brand-100 opacity-90">Here are your assigned jobs.</p>
+        <p className="text-brand-100 opacity-90">Here is your updated schedule.</p>
       </div>
+
+      {/* Financial Guardrail Visualization */}
+      {!finLoading && (
+        <FinancialProgress 
+          current={currentEarnings} 
+          limit={limit} 
+          percent={percentUsed} 
+          mode={mode} 
+        />
+      )}
 
       <div className="space-y-4">
         <h2 className="font-bold text-slate-800 text-lg">Upcoming Jobs</h2>
@@ -1144,15 +1229,33 @@ export default InvoiceModal;
 ## FILE: src/components/jobs/JobCardMobile.jsx
 ```jsx
 import React from 'react';
-import { Calendar, Clock, DollarSign, MapPin, User, CheckCircle, Play, Loader, Edit, FileText } from 'lucide-react';
+import { Calendar, Clock, DollarSign, MapPin, User, CheckCircle, Play, Loader, Edit, FileText, ShieldAlert } from 'lucide-react';
 import { format } from 'date-fns';
 import { useJobWorkflow } from '../../hooks/useJobWorkflow';
 
-const JobCardMobile = ({ job, getClientName, getClientAddress, getAssignedStaffName, userRole, onEdit, onInvoice }) => {
+const JobCardMobile = ({ 
+  job, 
+  getClientName, 
+  getClientAddress, 
+  getAssignedStaffName, 
+  userRole, 
+  onEdit, 
+  onInvoice,
+  financialData 
+}) => {
   const { startJob, completeJob, canStart, canComplete, loading } = useJobWorkflow(job, userRole);
-
   const assignedName = getAssignedStaffName(job.assignedTo);
   const isUnassigned = !job.assignedTo || job.assignedTo.length === 0;
+
+  // --- DEBUGGING LOGS (Check Console) ---
+  // console.log("JobCard Debug:", { id: job.id, role: userRole, financialData });
+
+  // --- SAFETY LOGIC ---
+  const isCapReached = financialData?.isCapReached ? financialData.isCapReached(job.price || 0) : false;
+  
+  // Only block "startable" jobs for Staff
+  const isActionable = job.status === 'scheduled';
+  const shouldBlock = isCapReached && isActionable && userRole === 'staff';
 
   const getStatusColor = (s) => {
     switch(s) {
@@ -1165,12 +1268,8 @@ const JobCardMobile = ({ job, getClientName, getClientAddress, getAssignedStaffN
 
   return (
     <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 relative">
-      {/* Admin Edit Button */}
       {userRole === 'admin' && (
-        <button 
-          onClick={() => onEdit(job)}
-          className="absolute top-4 right-4 p-1.5 bg-gray-50 rounded-full text-slate-400 hover:text-brand-600 hover:bg-brand-50"
-        >
+        <button onClick={() => onEdit(job)} className="absolute top-4 right-4 p-1.5 bg-gray-50 rounded-full text-slate-400 hover:text-brand-600 hover:bg-brand-50">
           <Edit size={16} />
         </button>
       )}
@@ -1178,13 +1277,10 @@ const JobCardMobile = ({ job, getClientName, getClientAddress, getAssignedStaffN
       <div className="flex justify-between items-start mb-2 pr-8">
         <div>
           <h3 className="font-bold text-slate-800 text-lg">{getClientName(job.clientId)}</h3>
-          <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-slate-600 capitalize mt-1">
-            {job.serviceType}
-          </span>
+          <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-slate-600 capitalize mt-1">{job.serviceType}</span>
         </div>
       </div>
       
-      {/* Status Badge */}
       <div className="mb-3">
         <span className={`text-xs font-bold px-2 py-1 rounded-full uppercase ${getStatusColor(job.status)}`}>
           {job.status?.replace('_', ' ')}
@@ -1194,15 +1290,7 @@ const JobCardMobile = ({ job, getClientName, getClientAddress, getAssignedStaffN
       <div className="space-y-2 text-sm text-slate-600 mt-3">
         <div className="flex items-center gap-2">
           <Calendar size={16} className="text-brand-500 shrink-0" />
-          <span className="font-medium text-slate-900">
-            {job.scheduledDate ? format(job.scheduledDate, 'MMM d, yyyy') : 'No Date'}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <Clock size={16} className="text-brand-500 shrink-0" />
-          <span>
-            {job.scheduledDate ? format(job.scheduledDate, 'h:mm a') : 'TBD'}
-          </span>
+          <span className="font-medium text-slate-900">{job.scheduledDate ? format(job.scheduledDate, 'MMM d, yyyy') : 'No Date'}</span>
         </div>
         
         <div className={`flex items-center gap-2 ${isUnassigned ? 'text-slate-400 italic' : 'text-slate-700 font-medium'}`}>
@@ -1210,57 +1298,56 @@ const JobCardMobile = ({ job, getClientName, getClientAddress, getAssignedStaffN
           <span>{assignedName}</span>
         </div>
 
-        {getClientAddress(job.clientId) && (
-          <div className="flex items-start gap-2">
-            <MapPin size={16} className="text-brand-500 shrink-0 mt-0.5" />
-            <span className="truncate">{getClientAddress(job.clientId)}</span>
+        {/* PRICE & BLOCKING STATUS */}
+        {job.price > 0 && (
+          <div className={`flex items-center gap-2 ${shouldBlock ? 'text-red-500 font-bold' : 'text-slate-500'}`}>
+            <DollarSign size={16} className="shrink-0" />
+            <span>${job.price}</span>
+            {shouldBlock && <span className="text-[10px] bg-red-100 px-1 rounded ml-1">LIMIT HIT</span>}
           </div>
         )}
-        
-        {userRole !== 'staff' && job.price > 0 && (
-          <div className="flex items-center gap-2 text-slate-500">
-            <DollarSign size={16} className="text-slate-400 shrink-0" />
-            <span>${job.price}</span>
+
+        {/* 🚨 FORCED DEBUG BOX (Visible to everyone for testing) */}
+        {financialData && (
+          <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-[10px] font-mono text-yellow-800">
+            <p><strong>DEBUG:</strong></p>
+            <p>Role: {userRole}</p>
+            <p>Limit: ${financialData.limit} | Earned: ${financialData.currentEarnings}</p>
+            <p>IsCapReached: {isCapReached ? 'YES' : 'NO'}</p>
+            <p>ShouldBlock: {shouldBlock ? 'YES' : 'NO'}</p>
           </div>
         )}
       </div>
 
-      {/* ADMIN INVOICE BUTTON (Completed Jobs Only) */}
+      {/* ADMIN INVOICE */}
       {userRole === 'admin' && job.status === 'completed' && (
-        <button
-          onClick={() => onInvoice(job)}
-          className="w-full mt-3 px-4 py-2 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-lg font-medium flex items-center justify-center gap-2 border border-purple-100 transition-colors"
-        >
-          <FileText size={18} />
-          {job.invoicedAt ? 'View Invoice' : 'Generate Invoice'}
+        <button onClick={() => onInvoice(job)} className="w-full mt-3 px-4 py-2 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-lg font-medium flex items-center justify-center gap-2 border border-purple-100 transition-colors">
+          <FileText size={18} /> {job.invoicedAt ? 'View Invoice' : 'Generate Invoice'}
         </button>
       )}
 
       {/* WORKFLOW BUTTONS */}
-      {(canStart || canComplete) && (
-        <div className="mt-4 pt-4 border-t border-gray-50 flex gap-2">
-          {canStart && (
-            <button 
-              onClick={startJob}
-              disabled={loading}
-              className="flex-1 bg-brand-600 text-white py-2 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-brand-700 active:scale-95 transition-all"
-            >
-              {loading ? <Loader className="animate-spin" size={18} /> : <Play size={18} />}
-              Start Job
-            </button>
-          )}
-          
-          {canComplete && (
-            <button 
-              onClick={completeJob}
-              disabled={loading}
-              className="flex-1 bg-green-600 text-white py-2 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-green-700 active:scale-95 transition-all"
-            >
-              {loading ? <Loader className="animate-spin" size={18} /> : <CheckCircle size={18} />}
-              Complete Job
-            </button>
-          )}
+      {shouldBlock ? (
+        <div className="mt-4 pt-4 border-t border-gray-50">
+          <div className="w-full p-3 bg-red-50 text-red-700 rounded-lg flex items-center justify-center gap-2 text-sm font-medium border border-red-100 animate-pulse">
+            <ShieldAlert size={18} /> Monthly Limit Reached
+          </div>
         </div>
+      ) : (
+        (canStart || canComplete) && (
+          <div className="mt-4 pt-4 border-t border-gray-50 flex gap-2">
+            {canStart && (
+              <button onClick={startJob} disabled={loading} className="flex-1 bg-brand-600 text-white py-2 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-brand-700 active:scale-95 transition-all">
+                {loading ? <Loader className="animate-spin" size={18} /> : <Play size={18} />} Start Job
+              </button>
+            )}
+            {canComplete && (
+              <button onClick={completeJob} disabled={loading} className="flex-1 bg-green-600 text-white py-2 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-green-700 active:scale-95 transition-all">
+                {loading ? <Loader className="animate-spin" size={18} /> : <CheckCircle size={18} />} Complete Job
+              </button>
+            )}
+          </div>
+        )
       )}
     </div>
   );
@@ -1493,7 +1580,7 @@ export default JobFormModal;
 import React from 'react';
 import JobCardMobile from './JobCardMobile';
 
-const JobListMobile = ({ jobs, clients, staff, userRole, onEdit, onInvoice }) => {
+const JobListMobile = ({ jobs, clients, staff, userRole, onEdit, onInvoice, financialData }) => {
   const getClientName = (id) => clients.find(c => c.id === id)?.name || 'Unknown Client';
   const getClientAddress = (id) => clients.find(c => c.id === id)?.address;
   
@@ -1504,11 +1591,7 @@ const JobListMobile = ({ jobs, clients, staff, userRole, onEdit, onInvoice }) =>
   };
 
   if (jobs.length === 0) {
-    return (
-      <div className="md:hidden text-center py-10 bg-white rounded-xl border border-gray-100">
-        <p className="text-gray-500">No jobs found.</p>
-      </div>
-    );
+    return <div className="text-center py-10 bg-white rounded-xl border border-gray-100 text-gray-500">No jobs found.</div>;
   }
 
   return (
@@ -1522,7 +1605,9 @@ const JobListMobile = ({ jobs, clients, staff, userRole, onEdit, onInvoice }) =>
           getAssignedStaffName={getAssignedStaffName}
           userRole={userRole}
           onEdit={onEdit}
-          onInvoice={onInvoice} // <--- ADDED THIS PROP
+          onInvoice={onInvoice}
+          // 3. PASS DOWN PROP
+          financialData={financialData} 
         />
       ))}
     </div>
@@ -1537,11 +1622,11 @@ export default JobListMobile;
 ## FILE: src/components/jobs/JobRowDesktop.jsx
 ```jsx
 import React, { useState, useRef, useEffect } from 'react';
-import { MoreHorizontal, Calendar, Clock, MapPin, User, Edit, Trash2, Play, CheckCircle, XCircle, FileText } from 'lucide-react';
+import { MoreHorizontal, Calendar, Clock, MapPin, User, Edit, Trash2, Play, CheckCircle, XCircle, FileText, ShieldAlert } from 'lucide-react';
 import { format } from 'date-fns';
 import { useJobWorkflow } from '../../hooks/useJobWorkflow';
 
-const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit, onDelete, onInvoice }) => {
+const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit, onDelete, onInvoice, financialData }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef(null);
   
@@ -1551,7 +1636,11 @@ const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit,
   const assignedName = getAssignedStaffName(job.assignedTo);
   const isUnassigned = !job.assignedTo || job.assignedTo.length === 0;
 
-  // Status Badge Logic
+  // --- SAFETY LOGIC (Desktop) ---
+  const isCapReached = financialData?.isCapReached ? financialData.isCapReached(job.price || 0) : false;
+  const isActionable = job.status === 'scheduled';
+  const shouldBlock = isCapReached && isActionable && userRole === 'staff';
+
   const getStatusBadge = (s) => {
     const baseClasses = "text-xs font-bold px-2 py-1 rounded-full uppercase";
     switch(s) {
@@ -1562,7 +1651,6 @@ const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit,
     }
   };
 
-  // Close menu on outside click
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (menuRef.current && !menuRef.current.contains(event.target)) {
@@ -1579,7 +1667,8 @@ const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit,
   };
 
   return (
-    <tr className="hover:bg-gray-50 transition-colors relative">
+    <tr className="hover:bg-gray-50 transition-colors relative group">
+      {/* 1. Date */}
       <td className="px-6 py-4">
         <div className="flex items-center gap-2 font-medium text-slate-900">
           <Calendar size={16} className="text-brand-500" />
@@ -1589,7 +1678,16 @@ const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit,
           <Clock size={12} />
           {job.scheduledDate ? format(job.scheduledDate, 'h:mm a') : ''}
         </div>
+        
+        {/* DEBUG BOX (Desktop Hover Only) */}
+        {financialData && (
+          <div className="absolute top-0 left-0 bg-yellow-100 text-[9px] p-1 hidden group-hover:block z-10 opacity-70">
+            Limit: ${financialData.limit} | Earned: ${financialData.currentEarnings} | Block: {shouldBlock ? 'YES' : 'NO'}
+          </div>
+        )}
       </td>
+
+      {/* 2. Client */}
       <td className="px-6 py-4">
         <div className="font-medium text-slate-900">{client.name || 'Unknown'}</div>
         <div className="flex items-center gap-1 text-xs text-slate-400 mt-0.5">
@@ -1597,18 +1695,27 @@ const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit,
           <span className="truncate max-w-[150px]">{client.address || 'No address'}</span>
         </div>
       </td>
+
+      {/* 3. Assigned */}
       <td className="px-6 py-4">
         <div className={`flex items-center gap-2 text-sm ${isUnassigned ? 'text-slate-400 italic' : 'text-slate-700'}`}>
           <User size={14} />
           {assignedName}
         </div>
       </td>
+
+      {/* 4. Service & Price */}
       <td className="px-6 py-4">
         <span className="capitalize text-sm text-slate-700">{job.serviceType}</span>
-        {userRole !== 'staff' && job.price > 0 && (
-          <div className="text-xs text-slate-400">${job.price}</div>
+        {job.price > 0 && (
+          <div className={`text-xs mt-1 ${shouldBlock ? 'text-red-600 font-bold' : 'text-slate-400'}`}>
+            ${job.price}
+            {shouldBlock && <span className="ml-1 bg-red-100 px-1 rounded">LIMIT HIT</span>}
+          </div>
         )}
       </td>
+
+      {/* 5. Status */}
       <td className="px-6 py-4">
         {getStatusBadge(job.status)}
         {job.invoicedAt && userRole === 'admin' && (
@@ -1618,13 +1725,10 @@ const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit,
         )}
       </td>
       
-      {/* ACTIONS */}
+      {/* 6. ACTIONS */}
       <td className="px-6 py-4 text-right relative">
         <button 
-          onClick={(e) => {
-            e.stopPropagation();
-            setIsMenuOpen(!isMenuOpen);
-          }}
+          onClick={(e) => { e.stopPropagation(); setIsMenuOpen(!isMenuOpen); }}
           className={`p-2 rounded-full transition-colors ${isMenuOpen ? 'bg-brand-50 text-brand-600' : 'text-slate-400 hover:text-brand-600 hover:bg-gray-100'}`}
         >
           <MoreHorizontal size={20} />
@@ -1633,63 +1737,47 @@ const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit,
         {isMenuOpen && (
           <div 
             ref={menuRef}
-            className="absolute right-8 top-8 w-48 bg-white rounded-lg shadow-xl border border-gray-100 z-50 overflow-hidden text-left animate-in fade-in zoom-in duration-200"
+            className="absolute right-8 top-8 w-56 bg-white rounded-lg shadow-xl border border-gray-100 z-50 overflow-hidden text-left animate-in fade-in zoom-in duration-200"
           >
             {/* WORKFLOW ACTIONS */}
-            {canStart && (
-              <button 
-                onClick={() => handleAction(startJob)}
-                disabled={loading}
-                className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-gray-50 flex items-center gap-2 transition-colors font-medium"
-              >
-                <Play size={16} className="text-green-500" /> Start Job
-              </button>
-            )}
-            
-            {canComplete && (
-              <button 
-                onClick={() => handleAction(completeJob)}
-                disabled={loading}
-                className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-gray-50 flex items-center gap-2 transition-colors font-medium"
-              >
-                <CheckCircle size={16} className="text-blue-500" /> Complete Job
-              </button>
+            {shouldBlock && canStart ? (
+              <div className="px-4 py-3 bg-red-50 text-red-700 text-sm font-medium border-b border-red-100 flex items-center gap-2">
+                <ShieldAlert size={16} />
+                Limit Reached
+              </div>
+            ) : (
+              <>
+                {canStart && (
+                  <button onClick={() => handleAction(startJob)} disabled={loading} className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-gray-50 flex items-center gap-2 transition-colors font-medium">
+                    <Play size={16} className="text-green-500" /> Start Job
+                  </button>
+                )}
+                {canComplete && (
+                  <button onClick={() => handleAction(completeJob)} disabled={loading} className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-gray-50 flex items-center gap-2 transition-colors font-medium">
+                    <CheckCircle size={16} className="text-blue-500" /> Complete Job
+                  </button>
+                )}
+              </>
             )}
 
             {/* ADMIN ACTIONS */}
             {userRole === 'admin' && (
               <>
-                {/* INVOICE ACTION */}
                 {job.status === 'completed' && (
-                  <button 
-                    onClick={() => { setIsMenuOpen(false); onInvoice(job); }}
-                    className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-purple-50 flex items-center gap-2 transition-colors border-t border-gray-50 font-medium"
-                  >
-                    <FileText size={16} className="text-purple-500" /> 
-                    {job.invoicedAt ? 'View Invoice' : 'Generate Invoice'}
+                  <button onClick={() => { setIsMenuOpen(false); onInvoice(job); }} className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-purple-50 flex items-center gap-2 transition-colors border-t border-gray-50 font-medium">
+                    <FileText size={16} className="text-purple-500" /> {job.invoicedAt ? 'View Invoice' : 'Generate Invoice'}
                   </button>
                 )}
-
-                <button 
-                  onClick={() => { setIsMenuOpen(false); onEdit(job); }}
-                  className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
-                >
+                <button onClick={() => { setIsMenuOpen(false); onEdit(job); }} className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-gray-50 flex items-center gap-2 transition-colors">
                   <Edit size={16} className="text-slate-400" /> Edit Details
                 </button>
-
                 <div className="border-t border-gray-100">
                   {canCancel && (
-                    <button 
-                      onClick={() => handleAction(cancelJob)}
-                      className="w-full px-4 py-3 text-sm text-amber-600 hover:bg-amber-50 flex items-center gap-2 transition-colors"
-                    >
+                    <button onClick={() => handleAction(cancelJob)} className="w-full px-4 py-3 text-sm text-amber-600 hover:bg-amber-50 flex items-center gap-2 transition-colors">
                       <XCircle size={16} /> Cancel Job
                     </button>
                   )}
-                  <button 
-                    onClick={() => { setIsMenuOpen(false); onDelete(job.id); }}
-                    className="w-full px-4 py-3 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors"
-                  >
+                  <button onClick={() => { setIsMenuOpen(false); onDelete(job.id); }} className="w-full px-4 py-3 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors">
                     <Trash2 size={16} /> Delete
                   </button>
                 </div>
@@ -1712,7 +1800,7 @@ export default JobRowDesktop;
 import React from 'react';
 import JobRowDesktop from './JobRowDesktop';
 
-const JobTableDesktop = ({ jobs, clients, staff, userRole, onEdit, onDelete, onInvoice }) => {
+const JobTableDesktop = ({ jobs, clients, staff, userRole, onEdit, onDelete, onInvoice, financialData }) => {
   const getClient = (id) => clients.find(c => c.id === id) || {};
   
   const getAssignedStaffName = (staffIds) => {
@@ -1753,6 +1841,8 @@ const JobTableDesktop = ({ jobs, clients, staff, userRole, onEdit, onDelete, onI
               onEdit={onEdit}
               onDelete={onDelete}
               onInvoice={onInvoice}
+              // Pass Prop Down
+              financialData={financialData}
             />
           ))}
         </tbody>
@@ -2984,6 +3074,107 @@ export const useDashboard = () => {
 ```
 ---
 
+## FILE: src/hooks/useFinancials.js
+```js
+import { useState, useEffect } from 'react';
+import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
+import { auth, db } from '../lib/firebase';
+import { startOfMonth, isAfter } from 'date-fns';
+
+export const useFinancials = () => {
+  const [data, setData] = useState({
+    limit: null,
+    mode: 'unlimited',
+    currentEarnings: 0,
+    remainingBudget: 0,
+    percentUsed: 0
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    const loadFinancials = async () => {
+      // 1. Fetch User Profile for Limit
+      // We assume the user has migrated to the new schema from Sprint 1
+      const userDocRef = doc(db, 'users', user.uid);
+      
+      // Listen to Profile Changes (Real-time limit updates)
+      const unsubProfile = onSnapshot(userDocRef, (docSnap) => {
+        const userData = docSnap.data();
+        const financials = userData?.financials || { mode: 'unlimited', limit: 0 };
+        const orgId = userData?.orgId;
+
+        if (!orgId) return;
+
+        // 2. Query Completed Jobs for this User, this Month
+        // Note: For MVP, we filter date client-side to avoid complex composite indexes immediately.
+        const q = query(
+          collection(db, 'jobs'),
+          where('orgId', '==', orgId),
+          where('assignedTo', 'array-contains', user.uid),
+          where('status', '==', 'completed')
+        );
+
+        const unsubJobs = onSnapshot(q, (jobSnap) => {
+          const monthStart = startOfMonth(new Date());
+          
+          let earnings = 0;
+          jobSnap.docs.forEach(doc => {
+            const job = doc.data();
+            const completedAt = job.completedAt?.toDate();
+            
+            // "The Carla Check": Only count jobs from THIS month
+            if (completedAt && isAfter(completedAt, monthStart)) {
+              earnings += Number(job.price || 0);
+            }
+          });
+
+          // Calculate Metrics
+          const limit = Number(financials.limit || 0);
+          const mode = financials.mode || 'unlimited';
+          
+          // Safety: If unlimited, percentage is always 0
+          const percent = (mode === 'cap' && limit > 0) 
+            ? Math.min((earnings / limit) * 100, 100) 
+            : 0;
+
+          setData({
+            limit,
+            mode,
+            currentEarnings: earnings,
+            remainingBudget: mode === 'cap' ? Math.max(limit - earnings, 0) : Infinity,
+            percentUsed: percent
+          });
+          setLoading(false);
+        });
+
+        return () => unsubJobs(); // Cleanup jobs listener
+      });
+
+      return () => unsubProfile(); // Cleanup profile listener
+    };
+
+    const cleanupPromise = loadFinancials();
+    return () => { cleanupPromise.then(fn => fn && fn()); };
+  }, []);
+
+  // "The Guardrail Function"
+  const isCapReached = (jobPrice) => {
+    if (data.mode !== 'cap') return false;
+    return (data.currentEarnings + Number(jobPrice)) > data.limit;
+  };
+
+  return { ...data, isCapReached, loading };
+};
+
+```
+---
+
 ## FILE: src/hooks/useJobWorkflow.js
 ```js
 import { useState } from 'react';
@@ -3765,6 +3956,7 @@ import { Plus, Search } from 'lucide-react';
 import { useJobs } from '../hooks/useJobs';
 import { useClients } from '../hooks/useClients';
 import { useStaff } from '../hooks/useStaff';
+import { useFinancials } from '../hooks/useFinancials'; 
 import JobListMobile from '../components/jobs/JobListMobile';
 import JobTableDesktop from '../components/jobs/JobTableDesktop';
 import JobFormModal from '../components/jobs/JobFormModal';
@@ -3775,6 +3967,9 @@ const JobsPage = () => {
   const { jobs, loading: jobsLoading, error: jobsError, addJob, updateJob, deleteJob, markAsInvoiced, role: userRole } = useJobs();
   const { clients, loading: clientsLoading } = useClients(); 
   const { staff, loading: staffLoading } = useStaff();
+  
+  // 1. FETCH FINANCIALS
+  const financialData = useFinancials();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingJobId, setEditingJobId] = useState(null);
@@ -3788,17 +3983,14 @@ const JobsPage = () => {
     return clientName.includes(searchTerm.toLowerCase());
   });
 
-  // Prepare data for export (Flattening)
   const exportData = filteredJobs.map(job => {
     const client = clients.find(c => c.id === job.clientId);
     const assignedMember = job.assignedTo?.[0] ? staff.find(s => s.id === job.assignedTo[0]) : null;
-    
     return {
       ...job,
       clientName: client ? client.name : 'Unknown',
       clientAddress: client ? client.address : '',
       assignedToName: assignedMember ? assignedMember.fullName : 'Unassigned',
-      // Format timestamps for CSV
       scheduledDate: job.scheduledDate, 
       completedAt: job.completedAt
     };
@@ -3816,40 +4008,20 @@ const JobsPage = () => {
     { key: 'assignedToName', label: 'Staff' }
   ];
 
-  const editingJob = editingJobId ? jobs.find(j => j.id === editingJobId) : null;
-  const invoicingJob = invoicingJobId ? jobs.find(j => j.id === invoicingJobId) : null;
-
-  const handleCreateOpen = () => {
-    setEditingJobId(null);
-    setIsModalOpen(true);
-  };
-
-  const handleEditOpen = (job) => {
-    setEditingJobId(job.id);
-    setIsModalOpen(true);
-  };
-
-  const handleInvoiceOpen = (job) => {
-    setInvoicingJobId(job.id);
-  };
+  const handleCreateOpen = () => { setEditingJobId(null); setIsModalOpen(true); };
+  const handleEditOpen = (job) => { setEditingJobId(job.id); setIsModalOpen(true); };
+  const handleInvoiceOpen = (job) => { setInvoicingJobId(job.id); };
 
   const handleSave = async (formData) => {
-    if (editingJobId) {
-      await updateJob(editingJobId, formData);
-    } else {
-      await addJob(formData);
-    }
+    if (editingJobId) { await updateJob(editingJobId, formData); } 
+    else { await addJob(formData); }
   };
 
   const handleDelete = async (jobId) => {
-    if (window.confirm("Are you sure you want to delete this job? This cannot be undone.")) {
-      await deleteJob(jobId);
-    }
+    if (window.confirm("Delete job?")) { await deleteJob(jobId); }
   };
 
-  const handleMarkInvoiced = async (jobId) => {
-    await markAsInvoiced(jobId);
-  };
+  const handleMarkInvoiced = async (jobId) => { await markAsInvoiced(jobId); };
 
   return (
     <div className="space-y-6">
@@ -3858,83 +4030,59 @@ const JobsPage = () => {
           <h1 className="text-2xl font-bold text-slate-900">Job Management</h1>
           <p className="text-slate-500 text-sm">Schedule and track cleaning appointments</p>
         </div>
-        
         <div className="flex gap-3">
           <div className="relative flex-1 md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
             <input 
-              type="text"
-              placeholder="Search by client..."
-              className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              type="text" placeholder="Search..." 
+              className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none"
+              value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-
-          <ExportButton 
-            role={userRole}
-            data={exportData}
-            filename="Jobs"
-            headers={exportHeaders}
-          />
-
+          <ExportButton role={userRole} data={exportData} filename="Jobs" headers={exportHeaders} />
           {userRole === 'admin' && (
-            <button 
-              onClick={handleCreateOpen}
-              className="bg-brand-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-brand-700 flex items-center gap-2 shadow-sm whitespace-nowrap"
-            >
-              <Plus size={20} />
-              <span className="hidden md:inline">New Job</span>
-              <span className="md:hidden">New</span>
+            <button onClick={handleCreateOpen} className="bg-brand-600 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2">
+              <Plus size={20} /> <span className="hidden md:inline">New Job</span>
             </button>
           )}
         </div>
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div>
-        </div>
-      ) : jobsError ? (
-        <div className="bg-red-50 text-red-600 p-4 rounded-lg border border-red-100">
-          Error: {jobsError}
-        </div>
+        <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div></div>
       ) : (
         <>
           <JobListMobile 
             jobs={filteredJobs} 
             clients={clients} 
-            staff={staff} 
-            userRole={userRole} 
+            staff={staff}
+            userRole={userRole}
             onEdit={handleEditOpen}
             onInvoice={handleInvoiceOpen}
+            financialData={financialData} 
           />
+          {/* UPDATED: Passing financialData to Desktop Table */}
           <JobTableDesktop 
             jobs={filteredJobs} 
             clients={clients} 
             staff={staff} 
-            userRole={userRole} 
-            onEdit={handleEditOpen}
-            onDelete={handleDelete}
+            userRole={userRole}
+            onEdit={handleEditOpen} 
+            onDelete={handleDelete} 
             onInvoice={handleInvoiceOpen}
+            financialData={financialData}
           />
         </>
       )}
 
       <JobFormModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        onSave={handleSave} 
-        clients={clients} 
-        staff={staff}
-        initialData={editingJob}
+        isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={handleSave} 
+        clients={clients} staff={staff} initialData={editingJobId ? jobs.find(j => j.id === editingJobId) : null}
       />
-
       <InvoiceModal 
-        isOpen={!!invoicingJob}
-        onClose={() => setInvoicingJobId(null)}
-        job={invoicingJob}
-        client={invoicingJob ? clients.find(c => c.id === invoicingJob.clientId) : null}
+        isOpen={!!invoicingJobId} onClose={() => setInvoicingJobId(null)} 
+        job={invoicingJobId ? jobs.find(j => j.id === invoicingJobId) : null} 
+        client={invoicingJobId ? clients.find(c => c.id === jobs.find(j => j.id === invoicingJobId).clientId) : null}
         onMarkInvoiced={handleMarkInvoiced}
       />
     </div>
@@ -4218,12 +4366,16 @@ export default SettingsPage;
 ```md
 # 📜 Changelog
 
+## [v0.2.0] - 2026-01-15
+### Added
+* **Financial Guardrails:** System now prevents Staff from starting jobs that exceed their monthly earning cap.
+* **Progress Visualizer:** Dashboard "Traffic Light" bar (Green/Yellow/Red) for earnings tracking.
+* **Guardrail Alerts:** Job Cards display a "Shield Alert" when blocked by safety logic.
+
 ## [v0.1.1] - 2026-01-14
 ### Added
 * **Smart Profile:** A dedicated settings view for workers to manage constraints.
 * **Financial Safety:** Input for Monthly Earning Caps (ODSP support).
-* **Recovery Support:** Blocked Window selector for recurring unavailability.
-* **Transport Mode:** Icon-based toggle for Public Transit vs Personal Vehicle.
 * **Versioning:** Automated semantic versioning in CI/CD pipeline.
 
 ## [v0.1.0] - 2026-01-14
@@ -4236,12 +4388,12 @@ export default SettingsPage;
 ```md
 # Fresh Nest: Context Dump
 **Stack:** React + Vite + Firebase + Tailwind CSS
-**Version:** v0.1.1
+**Version:** v0.2.0
 **Architecture:** Multi-Tenant SaaS.
 
 ## 🧠 The "Prime Directive"
 We build for **Personas**. Safety > Efficiency.
-* **Carla (ODSP):** Never allow over-earning.
+* **Carla (ODSP):** Never allow over-earning. (Enforced via `useFinancials`)
 * **Mike (Recovery):** Never schedule during meetings.
 * **Ahmed (ESL):** Icons over Text.
 
@@ -4254,14 +4406,14 @@ We build for **Personas**. Safety > Efficiency.
 2. **Icons:** Use `lucide-react`.
 3. **Tailwind:** Mobile-first (`block md:flex`).
 4. **Security:** Use `useProfile` hook to fetch user data. Do NOT use Auth Tokens.
-5. **Logic:** * **Profile:** Managed via `ProfileForm.jsx`.
-   * **Jobs:** Managed via `useJobs` / `useJobWorkflow`.
+5. **Logic Hooks:** * `useProfile`: User settings.
+   * `useFinancials`: Earning aggregation & Blocking logic.
+   * `useJobs`: CRUD operations.
 
 ## Schema (Implemented)
 - **users/{userId}**: 
     - `financials`: { mode: 'cap' | 'unlimited', limit: number }
     - `constraints`: { blockedWindows: ['tue_evening', ...] }
-    - `profile`: { transport: 'transit' | 'vehicle' }
 - **jobs/{jobId}**: { status, price, scheduledDate, assignedTo: [] }
 
 ```
@@ -4359,57 +4511,31 @@ These are not just user stories. These are **System Constraints**. Every feature
 # 📌 Project Status: Fresh Nest (Worker Support Platform)
 
 **Current Phase:** Phase 1 - Safety Logic & Enforcement
-**Current Version:** v0.1.1 (Smart Profile Live)
+**Current Version:** v0.2.0 (Guardrails Live)
 **Context:** Cornwall, Ontario Socioeconomic Deployment
 **Last Updated:** $(date +%Y-%m-%d)
 
 > **Mission:** To transform the cleaning industry into a system of stability for marginalized workers while maintaining enterprise-grade reliability.
 
-## ✅ Completed (Sprint 1: The Smart Profile)
-* **User Schema V2:** Added `financials`, `constraints`, and `transport` objects.
-* **Profile Wizard:** Mobile-first, icon-based form for staff self-declaration.
-* **Audit Trail:** Mandatory `acceptedTermsVersion` tracking.
-* **Localization Prep:** Visual language toggle in settings.
+## ✅ Completed (Sprint 2: Financial Guardrails)
+* **Financial Logic:** Client-side aggregation of monthly earnings via `useFinancials`.
+* **Guardrail Enforcement:** "Strict Block" on Job Cards if `current + price > limit`.
+* **Visuals:** "Safe to Earn" Traffic Light bar on Dashboard.
+* **Persona Protection:** Carla (ODSP) is now actively protected from over-earning.
 
-## 🎯 Current Sprint: The Guardian Logic (Sprint 2)
-Now that we know the constraints, we must enforce them.
+## 🎯 Current Sprint: The Conflict Engine (Sprint 3)
+We have the constraints (`blockedWindows`). Now we need to filter the schedule.
 
-* [ ] **Financial Guardrails (Carla):**
-    * Logic: `currentEarnings + jobPrice > cap` = **Disable Claim**.
-    * UI: Visual "Earnings Bar" on Dashboard.
-* [ ] **Conflict Engine (Mike):**
-    * Logic: Filter out jobs overlapping with `blockedWindows`.
+* [ ] **Conflict Logic (Mike):**
+    * Filter out job offers that overlap with `user.constraints.blockedWindows`.
 * [ ] **Transport Buffers (Jasmine):**
-    * Logic: If `transport === 'transit'`, add 30min buffer between shifts.
-
-## 📋 Product Backlog (Master Plan 9)
-
-### Phase 2: Field Operations
-* **Visual Interface:** Replace text-heavy lists with Icon-based tasks (Mop, Toilet).
-* **Job Evidence:** Photo uploads to specific sub-collections.
-* **Inventory Reports:** Specific inputs for Airbnb supplies.
-
-### Phase 3: Support & Scale
-* **Crisis Protocol:** "SOS" button logic.
-* **Impact Dashboard:** Report on "Hours created for ODSP workers".
+    * If `transport === 'transit'`, ensure 30min gap between jobs.
 
 ---
 
-## 🗄️ Database Schema Snapshot (Target State)
-
-### `users/{userId}`
-* `profile`: { name, language, transport, acceptedTermsVersion }
-* `financials`: { mode: 'cap', limit: number, currentMonthAccrued: number }
-* `constraints`: { heavyLifting: boolean, blockedWindows: array }
-* `role`: 'admin' | 'staff'
-* `orgId`: string
-
-### `jobs/{jobId}`
-* `status`: 'open' | 'claimed' | 'completed'
-* `price`: number
-* `scheduledDate`: timestamp
-* `requirements`: { photoEvidence: array }
-
+## 🗄️ Database Schema Snapshot
+* `users/{userId}`: { financials: { limit, mode }, constraints: { blockedWindows } }
+* `jobs/{jobId}`: { status, price, scheduledDate, assignedTo }
 
 ```
 ---
