@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MoreHorizontal, Calendar, Clock, MapPin, User, Edit, Trash2, Play, CheckCircle, XCircle, FileText } from 'lucide-react';
+import { MoreHorizontal, Calendar, Clock, MapPin, User, Edit, Trash2, Play, CheckCircle, XCircle, FileText, ShieldAlert } from 'lucide-react';
 import { format } from 'date-fns';
 import { useJobWorkflow } from '../../hooks/useJobWorkflow';
 
-const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit, onDelete, onInvoice }) => {
+const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit, onDelete, onInvoice, financialData }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef(null);
   
@@ -13,7 +13,11 @@ const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit,
   const assignedName = getAssignedStaffName(job.assignedTo);
   const isUnassigned = !job.assignedTo || job.assignedTo.length === 0;
 
-  // Status Badge Logic
+  // --- SAFETY LOGIC (Desktop) ---
+  const isCapReached = financialData?.isCapReached ? financialData.isCapReached(job.price || 0) : false;
+  const isActionable = job.status === 'scheduled';
+  const shouldBlock = isCapReached && isActionable && userRole === 'staff';
+
   const getStatusBadge = (s) => {
     const baseClasses = "text-xs font-bold px-2 py-1 rounded-full uppercase";
     switch(s) {
@@ -24,7 +28,6 @@ const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit,
     }
   };
 
-  // Close menu on outside click
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (menuRef.current && !menuRef.current.contains(event.target)) {
@@ -41,7 +44,8 @@ const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit,
   };
 
   return (
-    <tr className="hover:bg-gray-50 transition-colors relative">
+    <tr className="hover:bg-gray-50 transition-colors relative group">
+      {/* 1. Date */}
       <td className="px-6 py-4">
         <div className="flex items-center gap-2 font-medium text-slate-900">
           <Calendar size={16} className="text-brand-500" />
@@ -51,7 +55,16 @@ const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit,
           <Clock size={12} />
           {job.scheduledDate ? format(job.scheduledDate, 'h:mm a') : ''}
         </div>
+        
+        {/* DEBUG BOX (Desktop Hover Only) */}
+        {financialData && (
+          <div className="absolute top-0 left-0 bg-yellow-100 text-[9px] p-1 hidden group-hover:block z-10 opacity-70">
+            Limit: ${financialData.limit} | Earned: ${financialData.currentEarnings} | Block: {shouldBlock ? 'YES' : 'NO'}
+          </div>
+        )}
       </td>
+
+      {/* 2. Client */}
       <td className="px-6 py-4">
         <div className="font-medium text-slate-900">{client.name || 'Unknown'}</div>
         <div className="flex items-center gap-1 text-xs text-slate-400 mt-0.5">
@@ -59,18 +72,27 @@ const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit,
           <span className="truncate max-w-[150px]">{client.address || 'No address'}</span>
         </div>
       </td>
+
+      {/* 3. Assigned */}
       <td className="px-6 py-4">
         <div className={`flex items-center gap-2 text-sm ${isUnassigned ? 'text-slate-400 italic' : 'text-slate-700'}`}>
           <User size={14} />
           {assignedName}
         </div>
       </td>
+
+      {/* 4. Service & Price */}
       <td className="px-6 py-4">
         <span className="capitalize text-sm text-slate-700">{job.serviceType}</span>
-        {userRole !== 'staff' && job.price > 0 && (
-          <div className="text-xs text-slate-400">${job.price}</div>
+        {job.price > 0 && (
+          <div className={`text-xs mt-1 ${shouldBlock ? 'text-red-600 font-bold' : 'text-slate-400'}`}>
+            ${job.price}
+            {shouldBlock && <span className="ml-1 bg-red-100 px-1 rounded">LIMIT HIT</span>}
+          </div>
         )}
       </td>
+
+      {/* 5. Status */}
       <td className="px-6 py-4">
         {getStatusBadge(job.status)}
         {job.invoicedAt && userRole === 'admin' && (
@@ -80,13 +102,10 @@ const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit,
         )}
       </td>
       
-      {/* ACTIONS */}
+      {/* 6. ACTIONS */}
       <td className="px-6 py-4 text-right relative">
         <button 
-          onClick={(e) => {
-            e.stopPropagation();
-            setIsMenuOpen(!isMenuOpen);
-          }}
+          onClick={(e) => { e.stopPropagation(); setIsMenuOpen(!isMenuOpen); }}
           className={`p-2 rounded-full transition-colors ${isMenuOpen ? 'bg-brand-50 text-brand-600' : 'text-slate-400 hover:text-brand-600 hover:bg-gray-100'}`}
         >
           <MoreHorizontal size={20} />
@@ -95,63 +114,47 @@ const JobRowDesktop = ({ job, getClient, getAssignedStaffName, userRole, onEdit,
         {isMenuOpen && (
           <div 
             ref={menuRef}
-            className="absolute right-8 top-8 w-48 bg-white rounded-lg shadow-xl border border-gray-100 z-50 overflow-hidden text-left animate-in fade-in zoom-in duration-200"
+            className="absolute right-8 top-8 w-56 bg-white rounded-lg shadow-xl border border-gray-100 z-50 overflow-hidden text-left animate-in fade-in zoom-in duration-200"
           >
             {/* WORKFLOW ACTIONS */}
-            {canStart && (
-              <button 
-                onClick={() => handleAction(startJob)}
-                disabled={loading}
-                className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-gray-50 flex items-center gap-2 transition-colors font-medium"
-              >
-                <Play size={16} className="text-green-500" /> Start Job
-              </button>
-            )}
-            
-            {canComplete && (
-              <button 
-                onClick={() => handleAction(completeJob)}
-                disabled={loading}
-                className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-gray-50 flex items-center gap-2 transition-colors font-medium"
-              >
-                <CheckCircle size={16} className="text-blue-500" /> Complete Job
-              </button>
+            {shouldBlock && canStart ? (
+              <div className="px-4 py-3 bg-red-50 text-red-700 text-sm font-medium border-b border-red-100 flex items-center gap-2">
+                <ShieldAlert size={16} />
+                Limit Reached
+              </div>
+            ) : (
+              <>
+                {canStart && (
+                  <button onClick={() => handleAction(startJob)} disabled={loading} className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-gray-50 flex items-center gap-2 transition-colors font-medium">
+                    <Play size={16} className="text-green-500" /> Start Job
+                  </button>
+                )}
+                {canComplete && (
+                  <button onClick={() => handleAction(completeJob)} disabled={loading} className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-gray-50 flex items-center gap-2 transition-colors font-medium">
+                    <CheckCircle size={16} className="text-blue-500" /> Complete Job
+                  </button>
+                )}
+              </>
             )}
 
             {/* ADMIN ACTIONS */}
             {userRole === 'admin' && (
               <>
-                {/* INVOICE ACTION */}
                 {job.status === 'completed' && (
-                  <button 
-                    onClick={() => { setIsMenuOpen(false); onInvoice(job); }}
-                    className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-purple-50 flex items-center gap-2 transition-colors border-t border-gray-50 font-medium"
-                  >
-                    <FileText size={16} className="text-purple-500" /> 
-                    {job.invoicedAt ? 'View Invoice' : 'Generate Invoice'}
+                  <button onClick={() => { setIsMenuOpen(false); onInvoice(job); }} className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-purple-50 flex items-center gap-2 transition-colors border-t border-gray-50 font-medium">
+                    <FileText size={16} className="text-purple-500" /> {job.invoicedAt ? 'View Invoice' : 'Generate Invoice'}
                   </button>
                 )}
-
-                <button 
-                  onClick={() => { setIsMenuOpen(false); onEdit(job); }}
-                  className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
-                >
+                <button onClick={() => { setIsMenuOpen(false); onEdit(job); }} className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-gray-50 flex items-center gap-2 transition-colors">
                   <Edit size={16} className="text-slate-400" /> Edit Details
                 </button>
-
                 <div className="border-t border-gray-100">
                   {canCancel && (
-                    <button 
-                      onClick={() => handleAction(cancelJob)}
-                      className="w-full px-4 py-3 text-sm text-amber-600 hover:bg-amber-50 flex items-center gap-2 transition-colors"
-                    >
+                    <button onClick={() => handleAction(cancelJob)} className="w-full px-4 py-3 text-sm text-amber-600 hover:bg-amber-50 flex items-center gap-2 transition-colors">
                       <XCircle size={16} /> Cancel Job
                     </button>
                   )}
-                  <button 
-                    onClick={() => { setIsMenuOpen(false); onDelete(job.id); }}
-                    className="w-full px-4 py-3 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors"
-                  >
+                  <button onClick={() => { setIsMenuOpen(false); onDelete(job.id); }} className="w-full px-4 py-3 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors">
                     <Trash2 size={16} /> Delete
                   </button>
                 </div>
