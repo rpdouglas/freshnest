@@ -56,8 +56,8 @@ const Sidebar = () => {
 
         {/* Version Footer */}
         <div className="px-4 text-[10px] text-slate-600 font-mono">
-          <p>v{__APP_VERSION__} [{__COMMIT_HASH__}]</p>
-          <p>{__BUILD_DATE__}</p>
+          <p>v{__APP_VERSION__}</p>
+          <p>b{__COMMIT_HASH__} • {__BUILD_DATE__}</p>
         </div>
       </div>
     </aside>

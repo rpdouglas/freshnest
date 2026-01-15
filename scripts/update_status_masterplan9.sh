@@ -1,3 +1,8 @@
+#!/bin/bash
+
+echo "🔄 Realigning Roadmap to Master Plan 9 (Cornwall Context)..."
+
+cat << 'INNER_EOF' > docs/PROJECT_STATUS.md
 # 📌 Project Status: Fresh Nest (Worker Support Platform)
 
 **Current Phase:** Phase 1 - Identity, Safety & Compliance
@@ -60,3 +65,6 @@ We are upgrading the User Schema to support the complex realities of our workfor
 * `contractLedger`: { claimedBy, claimedAt, rateSnapshot }
 * `requirements`: { photoEvidence: array }
 
+INNER_EOF
+
+echo "✅ Project Status updated to Master Plan 9."
